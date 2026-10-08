@@ -1,49 +1,42 @@
 import {
-  LayoutGrid, ReceiptText, Wallet, FileText, Calculator,
-  ShieldCheck, Flower2, Menu,
+  ReceiptText, FileText, Wallet, LayoutGrid, Calculator,
+  ShieldCheck, Flower2,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
-  { label: 'POS', short: 'POS', sub: 'เปิดบิลขาย', icon: ReceiptText, key: 'pos' },
-  { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา & Void', icon: FileText, key: 'bills' },
-  { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับ & กระทบยอด', icon: Wallet, key: 'cash' },
+  { label: 'POS ขายหน้าร้าน', short: 'POS', sub: 'เปิดบิล · 3 ขั้นตอน', icon: ReceiptText, key: 'pos' },
+  { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา · ตรวจสอบ · Void', icon: FileText, key: 'bills' },
+  { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash' },
   { label: 'ค่าใช้จ่าย', short: 'ค่าใช้จ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses' },
-  { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุปรายคน', icon: Calculator, key: 'commission' },
-  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD & Audit', icon: ShieldCheck, key: 'eod' },
+  { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission' },
+  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod' },
 ];
 
-/* Desktop only (CSS hides on mobile) */
-export function SidebarDesktop({ active, onNavigate, collapsed, onToggle }) {
+export function RailDesktop({ active, onNavigate }) {
   return (
-    <aside className={`sidebar${collapsed ? ' narrow' : ''}`}>
-      <div className="sidebar-inner">
-        <div className="sidebar-brand">
-          <div className="logo"><Flower2 size={24} strokeWidth={1.6} /></div>
-          <div className="txt">
-            <b>I'FEEW</b>
-            <small>Thai Massage &amp; Spa</small>
-          </div>
+    <aside className="rail">
+      <div className="rail-in">
+        <div className="rail-brand">
+          <div className="mark"><Flower2 size={24} strokeWidth={1.5} /></div>
+          <div><b>I'FEEW</b><small>Thai Massage & Spa</small></div>
         </div>
-        <button className="collapsebtn" onClick={onToggle}>
-          <Menu size={14} style={{ verticalAlign: -2 }} /> {!collapsed && 'ย่อเมนู'}
-        </button>
-        <div className="side-label"><span>เมนูหลัก</span></div>
-        <nav className="sidenav">
+        <div className="rail-label">เมนูหลัก</div>
+        <nav className="rail-nav">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = active === item.key;
             return (
-              <button key={item.key} title={item.label} onClick={() => onNavigate(item.key)} className={isActive ? 'on' : ''}>
-                <span className="si"><Icon size={18} strokeWidth={1.9} /></span>
-                <span className="st"><b>{item.label}</b><small>{item.sub}</small></span>
+              <button key={item.key} onClick={() => onNavigate(item.key)} className={`rail-btn${active === item.key ? ' on' : ''}`}>
+                <span className="ri"><Icon size={18} strokeWidth={1.9} /></span>
+                <span><b>{item.label}</b><small>{item.sub}</small></span>
               </button>
             );
           })}
         </nav>
-        <div className="sidebar-foot">
-          <div className="sidebar-status">
-            <div className="d">วันนี้</div>
-            <div>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</div>
+        <div className="rail-foot">
+          <div className="rail-status">
+            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', opacity: 0.6 }}>วันนี้</div>
+            <div style={{ fontWeight: 600, marginTop: 2 }}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' })}</div>
+            <div style={{ opacity: 0.6, fontSize: 11, marginTop: 2 }}>กะเช้า · พร้อมขาย</div>
           </div>
         </div>
       </div>
@@ -51,37 +44,42 @@ export function SidebarDesktop({ active, onNavigate, collapsed, onToggle }) {
   );
 }
 
-/* Mobile only (CSS hides on desktop) */
-export function TopBarMobile({ active }) {
+export function TopBar({ active }) {
   const current = NAV_ITEMS.find((n) => n.key === active);
   return (
-    <header className="topbar">
-      <div className="topbar-logo"><Flower2 size={20} strokeWidth={1.7} /></div>
-      <div className="topbar-title">
-        <b>I'FEEW <span>· {current?.label}</span></b>
-        <div className="topbar-sub">Thai Massage &amp; Spa</div>
+    <div className="topbar">
+      <div className="topbar-in">
+        <div className="brand-mark"><Flower2 size={21} strokeWidth={1.6} /></div>
+        <div>
+          <div className="brand-name">I'FEEW<small>Thai Massage & Spa</small></div>
+        </div>
+        <div className="topbar-spacer" />
+        <div className="date-chip show-desktop"> <b>{current?.label}</b> · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+        <span className="status-pill"><i className="pulse" /> พร้อมขาย</span>
       </div>
-      <div className="topbar-status">
-        {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-        <small><i className="dot" /> Online</small>
-      </div>
-    </header>
+    </div>
   );
 }
 
-/* Mobile only: 6 tabs, always visible */
-export function BottomNavMobile({ active, onNavigate }) {
+export function BottomNav({ active, onNavigate }) {
   return (
-    <nav className="bottomnav" aria-label="เมนูหลักมือถือ">
-      <div className="bottomnav-inner">
+    <nav className="bottomnav" aria-label="เมนูหลัก">
+      <div className="bottomnav-in">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = active === item.key;
+          const isFab = item.key === 'pos';
+          if (isFab) {
+            return (
+              <button key={item.key} onClick={() => onNavigate(item.key)} className={`fab${active === item.key ? ' on' : ''}`}>
+                <span className="fab-dot"><Icon size={22} strokeWidth={2.1} /></span>
+                <span>{item.short}</span>
+              </button>
+            );
+          }
           return (
-            <button key={item.key} title={item.label} onClick={() => onNavigate(item.key)} className={isActive ? 'on' : ''}>
-              <Icon size={20} strokeWidth={isActive ? 2.2 : 1.8} />
+            <button key={item.key} onClick={() => onNavigate(item.key)} className={active === item.key ? 'on' : ''}>
+              <Icon size={21} strokeWidth={active === item.key ? 2.2 : 1.7} />
               <span>{item.short}</span>
-              <i className={isActive ? 'dot-on' : 'dot-off'} />
             </button>
           );
         })}

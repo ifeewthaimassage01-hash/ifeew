@@ -1,5 +1,5 @@
 import { Calculator, Crown, TrendingUp } from 'lucide-react';
-import { PageHeader, Card, SectionTitle, Stat } from '../components/ui';
+import { PageHeader, Card, CardHead, Kpi } from '../components/ui';
 
 const TIERS = [
   { max: 30000, rate: 0.30, label: '≤ 30k → 30%' },
@@ -48,30 +48,31 @@ export default function PageCommission({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={Calculator} kicker="Commission" title="ค่าคอมมิชชัน" subtitle="สรุปยอดขายและคอมมิชชันรายบุคคล แบบ Flat % หรือ Tier สะสม" />
+      <PageHeader icon={Calculator} eyebrow="Commission" title="ค่าคอมมิชชัน" subtitle="สรุปยอดขายและคอมรายบุคคล · Flat % ตามบริการ หรือ Tier ยอดสะสม" />
 
-      <div className="modebtns">
+      <div className="seg">
         <button onClick={() => changeMode('flat')} className={settings.mode === 'flat' ? 'on' : ''}>Flat % ตามบริการ</button>
         <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''}>Tier ยอดสะสม</button>
       </div>
 
       {settings.mode === 'tier' && (
-        <Card className="tierlegend">
-          <div className="chiprow">
-            <span className="muted" style={{ alignSelf: 'center', fontSize: 11 }}>ขั้นบันได:</span>
-            {TIERS.map((t, i) => <span key={i} className="chip gold">{t.label}</span>)}
+        <Card>
+          <div className="chip-row">
+            <span className="muted" style={{ alignSelf: 'center' }}>ขั้นบันได:</span>
+            {TIERS.map((t, i) => <span key={i} className="badge info">{t.label}</span>)}
           </div>
         </Card>
       )}
 
-      <div className="statgrid g3">
-        <Stat tone="green" label="ยอดขายรวม" value={`฿${Math.round(sumSales).toLocaleString()}`} sub={`${bills.length} บิล`} />
-        <Stat tone="gold" label={`คอมรวม (${settings.mode === 'flat' ? 'Flat' : 'Tier'})`} value={`฿${Math.round(sumComm).toLocaleString()}`} sub={`${((sumComm / (sumSales || 1)) * 100).toFixed(1)}% ของยอดขาย`} />
-        <Stat tone="dark" label="พนักงาน" value={therapists.length} sub="คน" />
+      <div className="kpi-grid">
+        <div className="kpi dark"><div className="kpi-label">ยอดขายรวม</div><div className="kpi-value">฿{Math.round(sumSales).toLocaleString()}</div><div className="kpi-sub">{bills.length} บิล</div></div>
+        <div className="kpi brass"><div className="kpi-label">คอมรวม ({settings.mode === 'flat' ? 'Flat' : 'Tier'})</div><div className="kpi-value">฿{Math.round(sumComm).toLocaleString()}</div><div className="kpi-sub">{((sumComm / (sumSales || 1)) * 100).toFixed(1)}% ของยอดขาย</div></div>
+        <Kpi label="พนักงาน" value={therapists.length} sub="คน" />
+        <Kpi label="เฉลี่ยต่อคน" value={`฿${Math.round(sumSales / (therapists.length || 1)).toLocaleString()}`} small sub="ยอดขาย" />
       </div>
 
-      <Card className="show-desktop">
-        <div className="tablewrap">
+      <Card className="table-card show-desktop">
+        <div className="table-scroll">
           <table className="tbl">
             <thead><tr><th>พนักงาน</th><th className="r">งาน (ครั้ง)</th><th className="r">ยอดขาย</th><th className="r">เรทที่ใช้</th><th className="r">คอมมิชชัน</th></tr></thead>
             <tbody>
@@ -79,11 +80,11 @@ export default function PageCommission({ data, saveData }) {
                 const s = stats[t.id];
                 return (
                   <tr key={t.id}>
-                    <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 500 }}>{t.name} <span className="muted">({t.nickname})</span></b> <span className={`chip ${t.role === 'senior' ? 'green' : 'gold'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span></td>
+                    <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 600 }}>{t.name} <span className="muted">({t.nickname})</span></b> <span className={`badge ${t.role === 'senior' ? 'paid' : 'info'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span></td>
                     <td className="r">{s.jobs}</td>
-                    <td className="r">฿{Math.round(s.totalSales).toLocaleString()}</td>
-                    <td className="r"><span className="chip dark">{settings.mode === 'tier' ? `${(s.rate * 100).toFixed(0)}%` : 'Flat %'}</span></td>
-                    <td className="r"><b style={{ color: '#2C5E3B' }}>฿{s.total.toLocaleString()}</b></td>
+                    <td className="r mono">฿{Math.round(s.totalSales).toLocaleString()}</td>
+                    <td className="r"><span className="badge dark">{settings.mode === 'tier' ? `${(s.rate * 100).toFixed(0)}%` : 'Flat %'}</span></td>
+                    <td className="r"><b style={{ color: 'var(--pine-700)' }}>฿{s.total.toLocaleString()}</b></td>
                   </tr>
                 );
               })}
@@ -92,7 +93,7 @@ export default function PageCommission({ data, saveData }) {
         </div>
       </Card>
 
-      <div className="mcards show-mobile">
+      <div className="mlist show-mobile">
         {ranked.map((t, idx) => {
           const s = stats[t.id];
           const pct = sumSales ? Math.max((s.totalSales / sumSales) * 100, 2) : 2;
@@ -100,16 +101,16 @@ export default function PageCommission({ data, saveData }) {
             <Card key={t.id}>
               <div className="mcard-top">
                 <div className="pagehead-main">
-                  <div className="tava" style={{ width: 46, height: 46 }}>{t.nickname.charAt(0)}</div>
+                  <div className="thera-ava" style={{ width: 46, height: 46 }}>{t.nickname.charAt(0)}</div>
                   <div><b style={{ fontSize: 14 }}>{t.name} <span className="muted">· {t.nickname}</span></b><div className="muted">#{idx + 1} · {s.jobs} งาน · {t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</div></div>
                 </div>
-                {idx === 0 && s.totalSales > 0 && <span className="chip gold"><Crown size={11} /> Top</span>}
+                {idx === 0 && s.totalSales > 0 && <span className="badge info"><Crown size={11} /> Top</span>}
               </div>
-              <div className="bar"><i style={{ width: `${pct}%` }} /></div>
-              <div className="minigrid3">
-                <div className="minibox"><div className="l">ยอดขาย</div><div className="v">฿{Math.round(s.totalSales).toLocaleString()}</div></div>
-                <div className="minibox"><div className="l">เรท</div><div className="v">{settings.mode === 'tier' ? `${(s.rate * 100).toFixed(0)}%` : 'Flat'}</div></div>
-                <div className="minibox hl"><div className="l">คอม</div><div className="v">฿{s.total.toLocaleString()}</div></div>
+              <div className="bar-track"><i className="bar-fill" style={{ width: `${pct}%` }} /></div>
+              <div className="mini3">
+                <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿{Math.round(s.totalSales).toLocaleString()}</div></div>
+                <div className="mini-box"><div className="l">เรท</div><div className="v">{settings.mode === 'tier' ? `${(s.rate * 100).toFixed(0)}%` : 'Flat'}</div></div>
+                <div className="mini-box hl"><div className="l">คอม</div><div className="v">฿{s.total.toLocaleString()}</div></div>
               </div>
             </Card>
           );
@@ -117,13 +118,13 @@ export default function PageCommission({ data, saveData }) {
       </div>
 
       <Card>
-        <SectionTitle hint="อ้างอิง">เรท Flat % ตามประเภทบริการ</SectionTitle>
+        <CardHead title="เรท Flat % ตามประเภทบริการ" hint="อ้างอิง" />
         <div className="refgrid">
           {(data.services || []).filter((s) => s.price > 0).map((s) => (
-            <div key={s.id} className="refbox"><b>{s.name}</b><small>฿{s.price.toLocaleString()} · <b style={{ color: '#2C5E3B' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
+            <div key={s.id} className="refbox"><b>{s.name}</b><small className="muted">฿{s.price.toLocaleString()} · <b style={{ color: 'var(--pine-700)' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
           ))}
         </div>
-        <p className="muted" style={{ marginTop: 8 }}><TrendingUp size={12} style={{ verticalAlign: -1 }} /> ยอดขายรวมทั้งหมดใช้คำนวณ Tier แบบขั้นบันได</p>
+        <p className="muted" style={{ marginTop: 10 }}><TrendingUp size={12} style={{ verticalAlign: -1 }} /> ยอดขายรวมทั้งหมดใช้คำนวณ Tier แบบขั้นบันได</p>
       </Card>
     </div>
   );

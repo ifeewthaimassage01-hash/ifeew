@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Flower2 } from 'lucide-react';
-import { SidebarDesktop, TopBarMobile, BottomNavMobile } from './components/Sidebar';
+import { RailDesktop, TopBar, BottomNav } from './components/Sidebar';
+import { Toaster } from './components/ui';
 import PagePOS from './pages/PagePOS';
 import PageBills from './pages/PageBills';
 import PageCashDrawer from './pages/PageCashDrawer';
@@ -21,7 +22,6 @@ const PAGES = {
 export default function App() {
   const [activePage, setActivePage] = useState('pos');
   const [data, setData] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
@@ -47,12 +47,12 @@ export default function App() {
 
   if (loadError) {
     return (
-      <div className="loading">
+      <div className="loading-screen">
         <div className="card" style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
-          <h2 style={{ fontSize: 24, color: '#1E4229' }}>เกิดข้อผิดพลาด</h2>
+          <h2>เกิดข้อผิดพลาด</h2>
           <p className="muted">{loadError}</p>
           <br />
-          <button className="btn-primary" onClick={() => window.location.reload()}>รีเฟรช</button>
+          <button className="btn btn-primary btn-block" onClick={() => window.location.reload()}>รีเฟรช</button>
         </div>
       </div>
     );
@@ -60,11 +60,11 @@ export default function App() {
 
   if (!data) {
     return (
-      <div className="loading">
-        <div className="loading-box">
-          <div className="loading-logo"><Flower2 size={30} strokeWidth={1.5} /></div>
-          <h2>I'FEEW THAIMASSAGE</h2>
-          <p>Clean &amp; Warm Spa</p>
+      <div className="loading-screen">
+        <div className="loading-card">
+          <div className="loading-mark"><Flower2 size={30} strokeWidth={1.4} /></div>
+          <h2>I'FEEW</h2>
+          <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage & Spa</p>
           <div className="loadbar"><i /></div>
         </div>
       </div>
@@ -75,27 +75,27 @@ export default function App() {
 
   return (
     <div className="app">
-      <TopBarMobile active={activePage} />
-      <div className="app-body">
-        <SidebarDesktop
-          active={activePage}
-          onNavigate={navigate}
-          collapsed={collapsed}
-          onToggle={() => setCollapsed(!collapsed)}
-        />
-        <main className="main">
-          <div className="wrap">
-            <PageComponent data={data} saveData={saveData} onNavigate={navigate} />
-          </div>
-        </main>
-      </div>
-      <footer className="footer">
-        <div className="wrap">
-          <span>I'FEEW Thai Massage &amp; Spa — POS &amp; Back-Office</span>
-          <span>Clean &amp; Warm Spa · {new Date().getFullYear()}</span>
+      <div className="shell">
+        <RailDesktop active={activePage} onNavigate={navigate} />
+        <div className="main-col">
+          <TopBar active={activePage} />
+          <main className="page">
+            <div className="container">
+              <div className="rise" key={activePage}>
+                <PageComponent data={data} saveData={saveData} onNavigate={navigate} />
+              </div>
+            </div>
+          </main>
+          <footer className="foot">
+            <div className="container">
+              <span>I'FEEW Thai Massage & Spa — POS & Back-Office</span>
+              <span>Clean & Warm Spa · {new Date().getFullYear()}</span>
+            </div>
+          </footer>
         </div>
-      </footer>
-      <BottomNavMobile active={activePage} onNavigate={navigate} />
+      </div>
+      <BottomNav active={activePage} onNavigate={navigate} />
+      <Toaster />
     </div>
   );
 }
