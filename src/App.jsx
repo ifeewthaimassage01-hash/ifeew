@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Flower2 } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
-import { Toaster } from './components/ui';
+import { DialogHost } from './components/ui';
 import RoleGate, { saveRole, clearRole } from './components/RoleGate';
 import PageDashboard from './pages/PageDashboard';
 import PagePOS from './pages/PagePOS';
@@ -9,6 +9,7 @@ import PageBills from './pages/PageBills';
 import PageCashDrawer from './pages/PageCashDrawer';
 import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
+import PageManage from './pages/PageManage';
 import PageEOD from './pages/PageEOD';
 import { loadData, persistData } from './data/demoData';
 
@@ -22,6 +23,7 @@ const PAGES = {
   cash: PageCashDrawer,
   expenses: PageExpenses,
   commission: PageCommission,
+  manage: PageManage,
   eod: PageEOD,
 };
 
@@ -95,7 +97,7 @@ export default function App() {
         <div className="loading-card">
           <div className="loading-mark"><Flower2 size={30} strokeWidth={1.4} /></div>
           <h2>I'FEEW</h2>
-          <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage & Spa</p>
+          <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage </p>
           <div className="loadbar"><i /></div>
         </div>
       </div>
@@ -120,14 +122,14 @@ export default function App() {
           </main>
           <footer className="foot">
             <div className="container">
-              <span>I'FEEW Thai Massage & Spa — POS & Back-Office</span>
+              <span>I'FEEW Thai Massage — POS & Back-Office</span>
               <span>Clean & Warm Spa · {new Date().getFullYear()}</span>
             </div>
           </footer>
         </div>
       </div>
       <BottomNav active={activePage} items={navItems} onNavigate={navigate} />
-      <Toaster />
+      <DialogHost />
     </div>
   );
 }

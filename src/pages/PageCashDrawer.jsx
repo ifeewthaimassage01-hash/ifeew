@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Wallet, Banknote, ArrowDownLeft, ArrowUpRight, Landmark, CheckCircle2, TriangleAlert } from 'lucide-react';
-import { PageHeader, Card, CardHead, toast } from '../components/ui';
+import { PageHeader, Card, CardHead, alertDialog } from '../components/ui';
 
 const DENOMS = [
   { v: 1000, label: 'แบงก์พัน' },
@@ -44,7 +44,7 @@ export default function PageCashDrawer({ data, saveData }) {
     setErr('');
     saveData({ ...data, cashDrawer: { ...drawer, startCash, salesCash, otherCashIn, payoutCash, depositCash, lastCountDate: new Date().toISOString().slice(0, 10), lastCountReal: real, lastCountReason: diff !== 0 ? differenceReason : '' } });
     setCountDone(true);
-    toast('บันทึกการนับเงินสดแล้ว');
+    alertDialog({ title: 'บันทึกการนับเงินสดแล้ว', message: `นับจริง ฿${real.toLocaleString()} · ${diff === 0 ? 'ยอดตรงพอดี' : `ส่วนต่าง ${diff > 0 ? '+' : '−'}฿${Math.abs(diff).toLocaleString()}`}` });
     setTimeout(() => setCountDone(false), 3000);
   };
 

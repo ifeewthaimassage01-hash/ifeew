@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ReceiptText, FileText, Wallet, LayoutGrid, Calculator,
-  ShieldCheck, Flower2, LogOut,
+  ShieldCheck, Flower2, LogOut, Store,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
@@ -8,9 +8,10 @@ export const NAV_ITEMS = [
   { label: 'POS ขายหน้าร้าน', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
   { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
   { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash', roles: ['owner', 'staff'] },
-  { label: 'ค่าใช้จ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner'] },
+  { label: 'ค่าใช้จ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
+  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner', 'staff'] },
+  { label: 'จัดการร้าน', short: 'จัดการ', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
   { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
-  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner'] },
 ];
 
 export function RailDesktop({ active, items, onNavigate, onExit }) {
@@ -19,7 +20,7 @@ export function RailDesktop({ active, items, onNavigate, onExit }) {
       <div className="rail-in">
         <div className="rail-brand">
           <div className="mark"><Flower2 size={24} strokeWidth={1.5} /></div>
-          <div><b>I'FEEW</b><small>Thai Massage & Spa</small></div>
+          <div><b>I'FEEW</b><small>Thai Massage</small></div>
         </div>
         <div className="rail-label">เมนูหลัก</div>
         <nav className="rail-nav">
@@ -28,7 +29,7 @@ export function RailDesktop({ active, items, onNavigate, onExit }) {
             return (
               <button key={item.key} onClick={() => onNavigate(item.key)} className={`rail-btn${active === item.key ? ' on' : ''}`}>
                 <span className="ri"><Icon size={18} strokeWidth={1.9} /></span>
-                <span><b>{item.label}</b><small>{item.sub}</small></span>
+                <span><b>{item.label}</b></span>
               </button>
             );
           })}
@@ -54,7 +55,7 @@ export function TopBar({ active, items, role, onExit }) {
       <div className="topbar-in">
         <div className="brand-mark"><Flower2 size={21} strokeWidth={1.6} /></div>
         <div>
-          <div className="brand-name">I'FEEW<small>Thai Massage & Spa</small></div>
+          <div className="brand-name">I'FEEW<small>Thai Massage</small></div>
         </div>
         <div className="topbar-spacer" />
         <div className="date-chip show-desktop"> <b>{current?.label}</b> · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>

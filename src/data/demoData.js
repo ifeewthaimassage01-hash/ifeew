@@ -1,24 +1,35 @@
 // Demo data for I'FEEW THAIMASSAGE POS System
 export const therapists = [
-  { id: 'T01', name: 'คุณน้ำ', nickname: 'น้ำฝน', role: 'senior' },
-  { id: 'T02', name: 'คุณแป้ง', nickname: 'แป้ง', role: 'senior' },
-  { id: 'T03', name: 'คุณเบลล์', nickname: 'เบลล์', role: 'junior' },
-  { id: 'T04', name: 'คุณมิ้น', nickname: 'มิ้น', role: 'junior' },
-  { id: 'T05', name: 'คุณฝน', nickname: 'ฝน', role: 'senior' },
+  { id: 'T01', name: 'คุณน้ำ', nickname: 'น้ำฝน', role: 'senior', active: true },
+  { id: 'T02', name: 'คุณแป้ง', nickname: 'แป้ง', role: 'senior', active: true },
+  { id: 'T03', name: 'คุณเบลล์', nickname: 'เบลล์', role: 'junior', active: true },
+  { id: 'T04', name: 'คุณมิ้น', nickname: 'มิ้น', role: 'junior', active: true },
+  { id: 'T05', name: 'คุณฝน', nickname: 'ฝน', role: 'senior', active: true },
 ];
 
 export const serviceTypes = [
-  { id: 'S01', category: 'นวดไทย', name: 'นวดไทย 60 นาที', price: 350, flatRate: 0.40, tierCategory: 'massage' },
-  { id: 'S02', category: 'นวดไทย', name: 'นวดไทย 90 นาที', price: 500, flatRate: 0.40, tierCategory: 'massage' },
-  { id: 'S03', category: 'นวดน้ำมัน', name: 'นวดน้ำมันอโรมา 60 นาที', price: 600, flatRate: 0.35, tierCategory: 'oil' },
-  { id: 'S04', category: 'นวดน้ำมัน', name: 'นวดน้ำมันอโรมา 90 นาที', price: 850, flatRate: 0.35, tierCategory: 'oil' },
-  { id: 'S05', category: 'นวดเท้า', name: 'นวดเท้า 45 นาที', price: 300, flatRate: 0.40, tierCategory: 'foot' },
-  { id: 'S06', category: 'อโรมา/สปา', name: 'สปาอโรมา 90 นาที', price: 1200, flatRate: 0.30, tierCategory: 'spa' },
-  { id: 'S07', category: 'ขัดผิว', name: 'ขัดผิวตัว + อาบน้ำ 60 นาที', price: 800, flatRate: 0.35, tierCategory: 'scrub' },
-  { id: 'S08', category: 'แพ็กเกจ/คอร์ส', name: 'คอร์ส 10 ครั้ง นวดไทย', price: 3000, flatRate: 0.30, tierCategory: 'package' },
-  { id: 'S09', category: 'ขายสินค้า', name: 'น้ำมันนวดสมุนไพร 200ml', price: 450, flatRate: 0.10, tierCategory: 'product' },
-  { id: 'S10', category: 'รายได้อื่น ๆ', name: 'ค่าบริการเสริม', price: 200, flatRate: 0.25, tierCategory: 'other' },
-  { id: 'S11', category: 'ทิป (Tip)', name: 'ทิปจากลูกค้า', price: 0, flatRate: 1.00, tierCategory: 'tip' },
+  // นวดไทย — แยกตามชั่วโมงให้ชัดเจน (1 ชม / 1.5 ชม / 2 ชม)
+  { id: 'S01', category: 'นวดไทย', name: 'นวดไทย 1 ชม (60 นาที)', price: 350, duration: 60, flatRate: 0.40, tierCategory: 'massage' },
+  { id: 'S02', category: 'นวดไทย', name: 'นวดไทย 1.5 ชม (90 นาที)', price: 500, duration: 90, flatRate: 0.40, tierCategory: 'massage' },
+  { id: 'S12', category: 'นวดไทย', name: 'นวดไทย 2 ชม (120 นาที)', price: 650, duration: 120, flatRate: 0.40, tierCategory: 'massage' },
+  { id: 'S03', category: 'นวดน้ำมัน', name: 'นวดน้ำมันอโรมา 1 ชม (60 นาที)', price: 600, duration: 60, flatRate: 0.35, tierCategory: 'oil' },
+  { id: 'S04', category: 'นวดน้ำมัน', name: 'นวดน้ำมันอโรมา 1.5 ชม (90 นาที)', price: 850, duration: 90, flatRate: 0.35, tierCategory: 'oil' },
+  { id: 'S13', category: 'นวดน้ำมัน', name: 'นวดน้ำมันอโรมา 2 ชม (120 นาที)', price: 1100, duration: 120, flatRate: 0.35, tierCategory: 'oil' },
+  { id: 'S05', category: 'นวดเท้า', name: 'นวดเท้า 45 นาที', price: 300, duration: 45, flatRate: 0.40, tierCategory: 'foot' },
+  { id: 'S14', category: 'นวดเท้า', name: 'นวดเท้า 1 ชม (60 นาที)', price: 350, duration: 60, flatRate: 0.40, tierCategory: 'foot' },
+  { id: 'S15', category: 'นวดเท้า', name: 'นวดเท้า 1.5 ชม (90 นาที)', price: 500, duration: 90, flatRate: 0.40, tierCategory: 'foot' },
+  { id: 'S06', category: 'อโรมา/สปา', name: 'สปาอโรมา 1.5 ชม (90 นาที)', price: 1200, duration: 90, flatRate: 0.30, tierCategory: 'spa' },
+  { id: 'S07', category: 'ขัดผิว', name: 'ขัดผิวตัว + อาบน้ำ 1 ชม (60 นาที)', price: 800, duration: 60, flatRate: 0.35, tierCategory: 'scrub' },
+  { id: 'S08', category: 'แพ็กเกจ/คอร์ส', name: 'คอร์ส 10 ครั้ง นวดไทย', price: 3000, duration: null, flatRate: 0.30, tierCategory: 'package' },
+  { id: 'S09', category: 'ขายสินค้า', name: 'น้ำมันนวดสมุนไพร 200ml', price: 450, duration: null, flatRate: 0.10, tierCategory: 'product' },
+  { id: 'S10', category: 'รายได้อื่น ๆ', name: 'ค่าบริการเสริม', price: 200, duration: null, flatRate: 0.25, tierCategory: 'other' },
+  { id: 'S11', category: 'ทิป (Tip)', name: 'ทิปจากลูกค้า', price: 0, duration: null, flatRate: 1.00, tierCategory: 'tip' },
+];
+
+// ค่าเริ่มต้นสำหรับปุ่มรีเซ็ตในหน้าจัดการร้าน
+export const DEFAULT_SERVICES = serviceTypes;
+export const DEFAULT_CATEGORIES = [
+  'นวดไทย', 'นวดน้ำมัน', 'นวดเท้า', 'อโรมา/สปา', 'ขัดผิว', 'แพ็กเกจ/คอร์ส', 'ขายสินค้า', 'รายได้อื่น ๆ', 'ทิป (Tip)'
 ];
 
 export const categories = [
@@ -43,6 +54,7 @@ function buildSeed() {
   return {
       therapists,
       services: serviceTypes,
+      serviceCategories: [...categories],
       bills: [
         {
           id: 'INV-20261007-001',
@@ -151,15 +163,40 @@ export function loadData() {
     if (!parsed || typeof parsed !== 'object') return buildSeed();
     // ensure required collections exist (merge with seed defaults)
     const seed = buildSeed();
-    return {
+    let services = parsed.services || seed.services;
+    // migrate: เติมรายการใหม่ (S12–S15) ให้ร้านเก่าอัตโนมัติ โดยไม่ทับของที่แก้แล้ว
+    // และรีเนมชื่อเก่า "60 นาที/90 นาที" → "1 ชม/1.5 ชม" ให้แสดงชัด
+    const RENAME = {
+      'นวดไทย 60 นาที': 'นวดไทย 1 ชม (60 นาที)',
+      'นวดไทย 90 นาที': 'นวดไทย 1.5 ชม (90 นาที)',
+      'นวดน้ำมันอโรมา 60 นาที': 'นวดน้ำมันอโรมา 1 ชม (60 นาที)',
+      'นวดน้ำมันอโรมา 90 นาที': 'นวดน้ำมันอโรมา 1.5 ชม (90 นาที)',
+      'สปาอโรมา 90 นาที': 'สปาอโรมา 1.5 ชม (90 นาที)',
+      'ขัดผิวตัว + อาบน้ำ 60 นาที': 'ขัดผิวตัว + อาบน้ำ 1 ชม (60 นาที)',
+    };
+    const byId = new Map(services.map((s) => [s.id, s]));
+    let migrated = false;
+    for (const def of seed.services) {
+      if (!byId.has(def.id)) { byId.set(def.id, { ...def }); migrated = true; }
+    }
+    services = [...byId.values()].map((s) => {
+      if (RENAME[s.name]) { migrated = true; return { ...s, name: RENAME[s.name] }; }
+      return s;
+    });
+    const merged = {
       ...seed,
       ...parsed,
       therapists: parsed.therapists || seed.therapists,
-      services: parsed.services || seed.services,
+      services,
+      serviceCategories: parsed.serviceCategories || seed.serviceCategories,
       bills: parsed.bills || [],
       expenses: parsed.expenses || [],
       auditLog: parsed.auditLog || [],
     };
+    if (migrated) {
+      try { storageSet(merged); } catch { /* ignore */ }
+    }
+    return merged;
   } catch {
     return buildSeed();
   }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { CheckCircle2, TriangleAlert } from 'lucide-react';
 
 export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
   return (
@@ -9,7 +10,6 @@ export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
           {Icon && <div className="pagehead-icon"><Icon size={22} strokeWidth={1.8} /></div>}
           <div style={{ minWidth: 0 }}>
             <h1 className="h1">{title}</h1>
-            {subtitle && <p className="lede">{subtitle}</p>}
           </div>
         </div>
         {actions && <div className="pagehead-actions">{actions}</div>}
@@ -25,7 +25,7 @@ export function Card({ children, className = '', style }) {
 export function CardHead({ title, hint, right }) {
   return (
     <div className="card-h">
-      <div><h2>{title}</h2>{hint && <div className="muted">{hint}</div>}</div>
+      <div><h2>{title}</h2></div>
       {right}
     </div>
   );
@@ -57,6 +57,31 @@ export function StatusBadge({ status }) {
   return <span className="badge info">◷ {status}</span>;
 }
 
+/* ระยะเวลา — แสดงให้ลูกค้า/พนักงานอ่านง่าย เช่น 60 → "1 ชม", 90 → "1.5 ชม", 120 → "2 ชม" */
+export function formatDuration(min) {
+  if (min == null || min === '') return '';
+  const m = Number(min);
+  if (!Number.isFinite(m) || m <= 0) return '';
+  if (m < 60) return `${m} นาที`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (r === 0) return `${h} ชม`;
+  if (r === 30) return `${h}.5 ชม`;
+  return `${h} ชม ${r} นาที`;
+}
+
+export function formatDurationLong(min) {
+  if (min == null || min === '') return '';
+  const m = Number(min);
+  if (!Number.isFinite(m) || m <= 0) return '';
+  if (m < 60) return `${m} นาที`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  if (r === 0) return h === 1 ? '1 ชม (60 นาที)' : `${h} ชม (${m} นาที)`;
+  if (r === 30) return `${h}.5 ชม (${m} นาที)`;
+  return `${h} ชม ${r} นาที (${m} นาที)`;
+}
+
 export function Modal({ children, onClose }) {
   return (
     <div className="modal-ov" onClick={onClose}>
@@ -67,29 +92,50 @@ export function Modal({ children, onClose }) {
   );
 }
 
-/* Lightweight toast bus — call toast('ข้อความ') from anywhere */
-export function toast(message) {
-  window.dispatchEvent(new CustomEvent('ifeew-toast', { detail: message }));
+/* Dialog system — alertDialog() / confirmDialog() return Promises.
+   Call from anywhere: await confirmDialog({ title, message, confirmLabel, danger }) */
+let dialogSeq = 0;
+export function showDialog({ title, message, confirmLabel, danger, cancel }) {
+  return new Promise((resolve) => {
+    const id = ++dialogSeq;
+    window.dispatchEvent(new CustomEvent('ifeew-dialog', { detail: { id, title, message, confirmLabel, danger, cancel, resolve } }));
+  });
 }
 
-export function Toaster() {
-  const [items, setItems] = useState([]);
+export function alertDialog({ title, message }) {
+  return showDialog({ title, message });
+}
+
+export function confirmDialog({ title, message, confirmLabel = 'ยืนยัน', danger = false }) {
+  return showDialog({ title, message, confirmLabel, danger, cancel: true });
+}
+
+export function DialogHost() {
+  const [stack, setStack] = useState([]);
   useEffect(() => {
-    let seq = 0;
-    const onToast = (e) => {
-      const id = ++seq;
-      setItems((prev) => [...prev.slice(-2), { id, message: e.detail }]);
-      setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 2600);
-    };
-    window.addEventListener('ifeew-toast', onToast);
-    return () => window.removeEventListener('ifeew-toast', onToast);
+    const onDialog = (e) => setStack((prev) => [...prev, e.detail]);
+    window.addEventListener('ifeew-dialog', onDialog);
+    return () => window.removeEventListener('ifeew-dialog', onDialog);
   }, []);
-  if (items.length === 0) return null;
+  const close = (d, value) => {
+    setStack((prev) => prev.filter((x) => x.id !== d.id));
+    d.resolve(value);
+  };
+  if (stack.length === 0) return null;
+  const d = stack[0];
   return (
-    <div className="toast-wrap" role="status" aria-live="polite">
-      {items.map((t) => (
-        <div key={t.id} className="toast">✓ {t.message}</div>
-      ))}
+    <div className="modal-ov" onClick={() => { if (d.cancel) close(d, false); }}>
+      <div className="modal dialog-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+        <div className={`dialog-ic${d.danger ? ' danger' : ''}`}>
+          {d.danger ? <TriangleAlert size={26} /> : <CheckCircle2 size={26} />}
+        </div>
+        <h3>{d.title}</h3>
+        {d.message && <p>{d.message}</p>}
+        <div className="modal-row">
+          {d.cancel && <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => close(d, false)}>ยกเลิก</button>}
+          <button className={`btn ${d.danger ? 'btn-danger' : 'btn-primary'}`} style={{ width: '100%' }} onClick={() => close(d, true)}>{d.confirmLabel || 'ตกลง'}</button>
+        </div>
+      </div>
     </div>
   );
 }

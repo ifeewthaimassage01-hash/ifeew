@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { ReceiptText, Plus, Minus, Trash2, ShieldAlert, Banknote, QrCode, CreditCard, Wallet, CheckCircle2, Search, TriangleAlert, User } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, Modal, toast } from '../components/ui';
+import { ReceiptText, Plus, Minus, Trash2, ShieldAlert, Banknote, QrCode, CreditCard, Wallet, CheckCircle2, Search, TriangleAlert, User, ArrowRight, Clock } from 'lucide-react';
+import { PageHeader, Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
 import { generateBillId } from '../data/demoData';
 
 const PAY_METHODS = [
@@ -12,8 +12,35 @@ const PAY_METHODS = [
 
 const MGR_KEY = 'ifeew_mgr_ok';
 
+/* การ์ดบริการแบบรูปอ้างอิง: รูปสี่เหลี่ยมมน + ปุ่ม + เขียวมุมขวาบน, ราคา, ชื่อ, หน่วยเวลา */
+function SvcTile({ svc, count, onAdd }) {
+  const dur = svc.duration != null ? formatDuration(svc.duration) : '';
+  const unit = svc.duration != null ? `${dur} · ${svc.duration} นาที` : (svc.category || '');
+  return (
+    <div className={`prod-card${count > 0 ? ' added' : ''}`}>
+      <div className="prod-img" onClick={onAdd} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}>
+        {svc.imageUrl ? (
+          <img src={svc.imageUrl} alt={svc.name} loading="lazy" />
+        ) : (
+          <div className="prod-img-fallback">
+            <Clock size={26} strokeWidth={1.6} />
+            <b>{dur || 'บริการ'}</b>
+            <small>{svc.category}</small>
+          </div>
+        )}
+        <button className="prod-plus" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={`เพิ่ม ${svc.name}`}>
+          {count > 0 ? <b style={{ fontSize: 15 }}>×{count}</b> : <Plus size={22} strokeWidth={2.4} />}
+        </button>
+      </div>
+      <div className="prod-price">฿{svc.price.toLocaleString()}</div>
+      <div className="prod-name">{svc.name}</div>
+      <div className="prod-unit">{unit}</div>
+    </div>
+  );
+}
+
 export default function PagePOS({ data, saveData, onNavigate }) {
-  const therapistsList = data.therapists || [];
+  const therapistsList = (data.therapists || []).filter((t) => t.active !== false);
   const services = data.services || [];
   const [categoryFilter, setCategoryFilter] = useState('ทั้งหมด');
   const [svcQuery, setSvcQuery] = useState('');
@@ -34,11 +61,18 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   const [err, setErr] = useState('');
   const [successBill, setSuccessBill] = useState(null);
 
-  const categories = useMemo(() => ['ทั้งหมด', ...new Set(services.map((s) => s.category))], [services]);
+  const categories = useMemo(() => ['ทั้งหมด', ...((data.serviceCategories && data.serviceCategories.length ? data.serviceCategories : [...new Set(services.map((s) => s.category))]))], [services, data.serviceCategories]);
+  // แยกให้ชัดเจน: ในแต่ละหมวดเรียงตามเวลา 45 → 60 → 90 → 120 นาที
   const visibleServices = services.filter((s) => {
     const matchCat = categoryFilter === 'ทั้งหมด' || s.category === categoryFilter;
     const q = svcQuery.trim().toLowerCase();
     return matchCat && (!q || s.name.toLowerCase().includes(q));
+  }).sort((a, b) => {
+    if (a.category !== b.category) return String(a.category).localeCompare(String(b.category), 'th');
+    const da = a.duration == null ? 9999 : a.duration;
+    const db = b.duration == null ? 9999 : b.duration;
+    if (da !== db) return da - db;
+    return (a.price || 0) - (b.price || 0);
   });
   const subtotal = items.reduce((s, i) => s + (i.net || 0), 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
@@ -111,14 +145,13 @@ export default function PagePOS({ data, saveData, onNavigate }) {
       }],
     });
     setSuccessBill({ id, total });
-    toast(`เปิดบิล ${id} สำเร็จ`);
     setItems([]); setCustomer(''); setMemberNo(''); setDiscount(''); setSelectedTherapist('');
     setVisitingName(''); setVisitingId('');
     setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); setRememberMgr(false);
   };
 
   const confirmAuth = () => {
-    if (authPass !== 'manager123') { setAuthErr('รหัสไม่ถูกต้อง (ตัวอย่าง: manager123)'); return; }
+    if (authPass !== '123123') { setAuthErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
     if (!authReason.trim()) { setAuthErr('กรุณาระบุเหตุผลสั้น ๆ เช่น รับเงินครบถ้วน'); return; }
     if (rememberMgr) { try { sessionStorage.setItem(MGR_KEY, '1'); } catch { /* ignore */ } }
     openBill(authReason);
@@ -169,11 +202,11 @@ export default function PagePOS({ data, saveData, onNavigate }) {
           </Card>
 
           <Card>
-            <CardHead title="บริการ" hint={items.length > 0 ? `ในบิล ×${items.reduce((s, i) => s + i.qty, 0)}` : 'แตะการ์ดเพื่อเพิ่ม'} />
+            <CardHead title="บริการ" hint={items.length > 0 ? `ในบิล ×${items.reduce((s, i) => s + i.qty, 0)}` : 'แตะ + เพื่อเพิ่ม'} />
             <div className="svc-toolbar" style={{ position: 'static' }}>
               <div className="search-wrap">
                 <Search size={16} />
-                <input value={svcQuery} onChange={(e) => setSvcQuery(e.target.value)} placeholder="ค้นหาบริการ… เช่น นวดเท้า" className="input" />
+                <input value={svcQuery} onChange={(e) => setSvcQuery(e.target.value)} placeholder="ค้นหาบริการ… เช่น นวดไทย 1.5 ชม" className="input" />
               </div>
               <div className="chip-row">
                 {categories.map((c) => (
@@ -181,22 +214,39 @@ export default function PagePOS({ data, saveData, onNavigate }) {
                 ))}
               </div>
             </div>
-            <div className="svc-grid">
-              {visibleServices.map((svc) => {
-                const count = items.filter((i) => i.serviceId === svc.id).reduce((s, i) => s + i.qty, 0);
-                return (
-                  <button key={svc.id} onClick={() => quickAdd(svc)} className={`svc-card${count > 0 ? ' added' : ''}`}>
-                    <span className="svc-top">
-                      <span><b>{svc.name}</b><small>{svc.category} · คอม {(svc.flatRate * 100).toFixed(0)}%</small></span>
-                      <span className="svc-price">฿{svc.price.toLocaleString()}</span>
-                    </span>
-                    <span className="svc-add">
-                      {count > 0 ? <><span className="count-badge">×{count}</span> แตะเพื่อเพิ่มอีก</> : <><Plus size={13} /> แตะเพิ่มลงบิล</>}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+
+            {/* โหมดทั้งหมด + ไม่ได้ค้นหา: แสดงเป็น section ต่อหมวดแบบรูปอ้างอิง */}
+            {categoryFilter === 'ทั้งหมด' && !svcQuery.trim() ? (
+              <div className="cat-list">
+                {categories.filter((c) => c !== 'ทั้งหมด').map((c) => {
+                  const list = visibleServices.filter((s) => s.category === c);
+                  if (list.length === 0) return null;
+                  return (
+                    <section key={c} className="cat-sec">
+                      <div className="cat-sec-head">
+                        <h3>{c} <span className="muted">· {list.length}</span></h3>
+                        <button className="cat-arrow" onClick={() => setCategoryFilter(c)} aria-label={`ดูทั้งหมด ${c}`}>
+                          <ArrowRight size={22} />
+                        </button>
+                      </div>
+                      <div className="hscroll">
+                        {list.map((svc) => {
+                          const count = items.filter((i) => i.serviceId === svc.id).reduce((s, i) => s + i.qty, 0);
+                          return <SvcTile key={svc.id} svc={svc} count={count} onAdd={() => quickAdd(svc)} />;
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="prod-grid">
+                {visibleServices.map((svc) => {
+                  const count = items.filter((i) => i.serviceId === svc.id).reduce((s, i) => s + i.qty, 0);
+                  return <SvcTile key={svc.id} svc={svc} count={count} onAdd={() => quickAdd(svc)} />;
+                })}
+              </div>
+            )}
             {visibleServices.length === 0 && <EmptyState title="ไม่พบบริการ" subtitle="ลองเปลี่ยนคำค้นหรือหมวดหมู่" />}
           </Card>
         </div>
@@ -288,7 +338,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
             <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿{total.toLocaleString()} · {paymentMethod} · {items.reduce((s, i) => s + i.qty, 0)} รายการ</p></div>
           </div>
           {authErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {authErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setAuthErr(''); }} placeholder="manager123" className="input" /></div>
+          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setAuthErr(''); }} placeholder="123123" className="input" /></div>
           <div className="field"><label>หมายเหตุ (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setAuthErr(''); }} placeholder="เช่น รับเงินสดครบถ้วน" className="input" rows={2} /></div>
           <label className="mgr-remember"><input type="checkbox" checked={rememberMgr} onChange={(e) => setRememberMgr(e.target.checked)} /> จำรหัสในกะนี้ (ไม่ต้องกรอกอีก)</label>
           <div className="modal-row">

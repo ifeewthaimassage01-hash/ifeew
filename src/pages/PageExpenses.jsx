@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { LayoutGrid, Plus, Upload, CheckCircle2, Receipt } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, Kpi, toast } from '../components/ui';
+import { PageHeader, Card, CardHead, EmptyState, Kpi, alertDialog } from '../components/ui';
 
 const expenseCategories = [
   { group: 'Fixed Costs', label: 'ประจำ', items: ['ค่าเช่า', 'เงินเดือน', 'ค่าประกัน', 'ค่าอินเทอร์เน็ต', 'ค่าโทรศัพท์', 'ค่า Software'] },
@@ -8,7 +8,7 @@ const expenseCategories = [
   { group: 'Marketing', label: 'การตลาด', items: ['Facebook/IG Ads', 'โปรโมชั่น/คูปอง', 'Influencer', 'ค่าเว็บไซต์'] },
 ];
 
-export default function PageExpenses({ data, saveData }) {
+export default function PageExpenses({ data, saveData, role }) {
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), category: 'Fixed Costs', item: '', amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState('');
@@ -18,19 +18,20 @@ export default function PageExpenses({ data, saveData }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.item || !form.amount) { setErr('กรุณาแตะเลือกรายการและกรอกจำนวนเงินก่อนบันทึก'); return; }
+    if (role === 'staff' && !form.notes.trim()) { setErr('กรุณากรอกหมายเหตุ (บังคับสำหรับพนักงาน)'); return; }
     setErr('');
     const newExpense = { id: `E${String((data.expenses || []).length + 1).padStart(3, '0')}`, ...form, amount: Number(form.amount) };
     saveData({
       ...data,
       expenses: [...(data.expenses || []), newExpense],
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: form.approvedBy || 'ระบบ',
+        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: form.approvedBy || (role === 'staff' ? 'พนักงาน' : 'ระบบ'),
         action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿${newExpense.amount}`, approvedBy: form.approvedBy || '-',
       }],
     });
     setForm({ ...form, item: '', amount: '', notes: '' });
     setSaved(true);
-    toast(`บันทึก ${newExpense.item} ฿${newExpense.amount.toLocaleString()} แล้ว`);
+    alertDialog({ title: 'บันทึกค่าใช้จ่ายแล้ว', message: `${newExpense.item} · ฿${newExpense.amount.toLocaleString()}` });
     setTimeout(() => setSaved(false), 2500);
   };
 
@@ -86,7 +87,7 @@ export default function PageExpenses({ data, saveData }) {
                 <input type="file" hidden onChange={(e) => setForm({ ...form, receiptUrl: e.target.files[0]?.name || '' })} />
               </label>
             </div>
-            <div className="field"><label>หมายเหตุ</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="รายละเอียดเพิ่มเติม…" className="input" rows={2} /></div>
+            <div className="field"><label>หมายเหตุ{role === 'staff' ? ' *' : ''}</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={role === 'staff' ? 'บังคับกรอก เช่น ซื้อน้ำมันนวดร้านสมุนไพร' : 'รายละเอียดเพิ่มเติม…'} className="input" rows={2} /></div>
             <button type="submit" className="btn btn-primary btn-block"><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿${Number(form.amount).toLocaleString()}` : ''}</button>
             {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
           </form>

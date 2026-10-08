@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Flower2, UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 
-export const OWNER_PASS = 'manager123';
+export const OWNER_PASS = '123123';
 const ROLE_KEY = 'ifeew_role';
 
 export function saveRole(role) {
@@ -35,7 +35,7 @@ export default function RoleGate({ onSelect }) {
       <div className="gate-card">
         <div className="gate-mark"><Flower2 size={30} strokeWidth={1.5} /></div>
         <h1 className="gate-title">I'FEEW</h1>
-        <p className="gate-sub">Thai Massage & Spa · เลือกบทบาทเพื่อเข้าใช้งาน</p>
+        <p className="gate-sub">Thai Massage · เลือกบทบาทเพื่อเข้าใช้งาน</p>
 
         {mode === 'select' ? (
           <div className="gate-roles">
@@ -62,7 +62,7 @@ export default function RoleGate({ onSelect }) {
             <button type="submit" className="btn btn-primary btn-block" disabled={!pass}>
               <KeyRound size={17} /> เข้าสู่ระบบเจ้าของร้าน
             </button>
-            <p className="muted" style={{ marginTop: 10, textAlign: 'center' }}>รหัสตัวอย่าง: manager123</p>
+            <p className="muted" style={{ marginTop: 10, textAlign: 'center' }}>รหัสตัวอย่าง: 123123</p>
             <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => setMode('select')}>
               <ArrowLeft size={16} /> กลับไปเลือกบทบาท
             </button>

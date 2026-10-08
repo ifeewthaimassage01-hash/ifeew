@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { FileText, Search, ShieldAlert, ReceiptText, TriangleAlert } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, toast } from '../components/ui';
+import { FileText, Search, ShieldAlert, ReceiptText, TriangleAlert, ClipboardList } from 'lucide-react';
+import { PageHeader, Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog } from '../components/ui';
 
 function localDay(offset = 0) {
   const d = new Date();
@@ -10,6 +10,7 @@ function localDay(offset = 0) {
 
 export default function PageBills({ data, saveData, onNavigate, role }) {
   const canVoid = role !== 'staff';
+  const [view, setView] = useState('bills');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
@@ -21,19 +22,32 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
   const [voidErr, setVoidErr] = useState('');
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
+  const matchDay = (date) => {
+    const day = (date || '').slice(0, 10);
+    return dateFilter === 'all' || (dateFilter === 'today' && day === localDay(0)) || (dateFilter === 'yesterday' && day === localDay(-1));
+  };
   const filtered = bills.filter((b) => {
     const q = query.trim().toLowerCase();
     const matchQ = !q || b.id.toLowerCase().includes(q) || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    const day = (b.date || '').slice(0, 10);
-    const matchD = dateFilter === 'all' || (dateFilter === 'today' && day === localDay(0)) || (dateFilter === 'yesterday' && day === localDay(-1));
-    return matchQ && matchD && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && matchDay(b.date) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const billTotal = (b) => Math.max(0, (b.items || []).reduce((s, i) => s + (i.net || 0), 0) - (b.discount || 0));
   const totalSum = filtered.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
   const payMethods = ['เงินสด', 'QR Code / โอนเงิน', 'บัตรเครดิต', 'E-Wallet'];
 
+  const serviceRows = [];
+  filtered.forEach((b) => {
+    (b.items || []).forEach((it) => {
+      const q = query.trim().toLowerCase();
+      if (q && !((it.serviceName || '').toLowerCase().includes(q) || (it.therapistName || '').toLowerCase().includes(q) || (b.customer || '').toLowerCase().includes(q) || b.id.toLowerCase().includes(q))) return;
+      serviceRows.push({ bill: b, item: it });
+    });
+  });
+  const svcRevenue = serviceRows.filter((r) => r.bill.status === 'paid').reduce((s, r) => s + (r.item.net || 0), 0);
+  const svcQty = serviceRows.reduce((s, r) => s + (r.item.qty || 1), 0);
+
   const confirmVoid = () => {
-    if (authPass !== 'manager123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: manager123)'); return; }
+    if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -44,33 +58,28 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
         oldValue: 'paid', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
       }],
     });
+    const voidId = voidTarget.id;
     setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr('');
-    toast(`Void บิล ${voidTarget.id} แล้ว`);
+    alertDialog({ title: `Void บิล ${voidId} แล้ว`, message: 'สถานะเปลี่ยนเป็นยกเลิกแล้ว' });
   };
 
   return (
     <div>
       <PageHeader
         icon={FileText} eyebrow="Bill History" title="ประวัติบิล"
-        subtitle={canVoid ? 'ค้นหา ตรวจรายละเอียด และ Void บิลที่ต้องอนุมัติผู้จัดการ' : 'ค้นหาและตรวจรายละเอียดบิล (ดูได้อย่างเดียว)'}
         actions={<button onClick={() => onNavigate && onNavigate('pos')} className="btn btn-primary auto"><ReceiptText size={17} /> เปิดบิลใหม่</button>}
       />
 
-      <div className="kpi-grid">
-        <div className="kpi dark span2">
-          <div className="kpi-label">ยอดรวมที่กรอง (ชำระแล้ว)</div>
-          <div className="kpi-value">฿{totalSum.toLocaleString()}</div>
-          <div className="kpi-sub">{filtered.length} บิล · ชำระแล้ว {filtered.filter((b) => b.status === 'paid').length} · ยกเลิก {filtered.filter((b) => b.status === 'cancelled').length}</div>
-        </div>
-        <Kpi label="บิลทั้งหมด" value={bills.length} />
-        <Kpi label="บิลวันนี้" value={bills.filter((b) => b.date && b.date.slice(0, 10) === localDay(0)).length} />
+      <div className="seg">
+        <button onClick={() => setView('bills')} className={view === 'bills' ? 'on' : ''}>ประวัติบิล</button>
+        <button onClick={() => setView('services')} className={view === 'services' ? 'on' : ''}>ประวัติการบริการ</button>
       </div>
 
       <Card>
         <div className="field" style={{ marginBottom: 10 }}>
           <div className="search-wrap">
             <Search size={16} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาเลขบิล / ชื่อลูกค้า / เบอร์สมาชิก…" className="input" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={view === 'services' ? 'ค้นหาบริการ / หมอ / ลูกค้า / เลขบิล…' : 'ค้นหาเลขบิล / ชื่อลูกค้า / เบอร์สมาชิก…'} className="input" />
           </div>
         </div>
         <div className="chip-row" style={{ marginBottom: 8 }}>
@@ -83,54 +92,121 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             <button key={o.v} onClick={() => setStatusFilter(o.v)} className={`chip${statusFilter === o.v ? ' on' : ''}`}>{o.l}</button>
           ))}
         </div>
-        <div className="chip-row">
-          {['all', ...payMethods].map((m) => (
-            <button key={m} onClick={() => setPayFilter(m)} className={`chip sage${payFilter === m ? ' on' : ''}`}>{m === 'all' ? 'ทุกช่องทาง' : m}</button>
-          ))}
-        </div>
+        {view === 'bills' && (
+          <div className="chip-row">
+            {['all', ...payMethods].map((m) => (
+              <button key={m} onClick={() => setPayFilter(m)} className={`chip sage${payFilter === m ? ' on' : ''}`}>{m === 'all' ? 'ทุกช่องทาง' : m}</button>
+            ))}
+          </div>
+        )}
       </Card>
 
-      <Card className="table-card show-desktop">
-        <div className="table-scroll">
-          <table className="tbl">
-            <thead><tr><th>เลขบิล</th><th>วันที่</th><th>ลูกค้า</th><th>ช่องทาง</th><th className="r">ยอด</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
-            <tbody>
-              {filtered.map((b) => (
-                <tr key={b.id}>
-                  <td className="mono">{b.id}</td>
-                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                  <td><b style={{ fontWeight: 600 }}>{b.customer || '—'}</b>{b.memberNo && <div className="muted">{b.memberNo}</div>}</td>
-                  <td className="muted">{b.paymentMethod}</td>
-                  <td className="r"><b>฿{billTotal(b).toLocaleString()}</b></td>
-                  <td><StatusBadge status={b.status} /></td>
-                  <td className="c">
-                    <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
-                    {canVoid && b.status === 'paid' && <> <button onClick={() => setVoidTarget(b)} className="btn-soft-danger">Void</button></>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 && <EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
-      </Card>
+      {view === 'bills' && (
+        <>
+          <div className="kpi-grid">
+            <div className="kpi dark span2">
+              <div className="kpi-label">ยอดรวมที่กรอง (ชำระแล้ว)</div>
+              <div className="kpi-value">฿{totalSum.toLocaleString()}</div>
+              <div className="kpi-sub">{filtered.length} บิล · ชำระแล้ว {filtered.filter((b) => b.status === 'paid').length} · ยกเลิก {filtered.filter((b) => b.status === 'cancelled').length}</div>
+            </div>
+            <Kpi label="บิลทั้งหมด" value={bills.length} />
+            <Kpi label="บิลวันนี้" value={bills.filter((b) => b.date && b.date.slice(0, 10) === localDay(0)).length} />
+          </div>
 
-      <div className="mlist show-mobile">
-        {filtered.map((b) => (
-          <button key={b.id} onClick={() => setDetailBill(b)} className="mcard">
-            <div className="mcard-top">
-              <div><div className="mono">{b.id}</div><div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {b.paymentMethod}</div></div>
-              <StatusBadge status={b.status} />
+          <Card className="table-card show-desktop">
+            <div className="table-scroll">
+              <table className="tbl">
+                <thead><tr><th>เลขบิล</th><th>วันที่</th><th>ลูกค้า</th><th>ช่องทาง</th><th className="r">ยอด</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
+                <tbody>
+                  {filtered.map((b) => (
+                    <tr key={b.id}>
+                      <td className="mono">{b.id}</td>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td><b style={{ fontWeight: 600 }}>{b.customer || '—'}</b>{b.memberNo && <div className="muted">{b.memberNo}</div>}</td>
+                      <td className="muted">{b.paymentMethod}</td>
+                      <td className="r"><b>฿{billTotal(b).toLocaleString()}</b></td>
+                      <td><StatusBadge status={b.status} /></td>
+                      <td className="c">
+                        <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
+                        {canVoid && b.status === 'paid' && <> <button onClick={() => setVoidTarget(b)} className="btn-soft-danger">Void</button></>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="mcard-bot">
-              <b style={{ fontWeight: 600, fontSize: 14 }}>{b.customer || 'ลูกค้าทั่วไป'}</b>
-              <span className="big-price">฿{billTotal(b).toLocaleString()}</span>
+            {filtered.length === 0 && <EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
+          </Card>
+
+          <div className="mlist show-mobile">
+            {filtered.map((b) => (
+              <button key={b.id} onClick={() => setDetailBill(b)} className="mcard">
+                <div className="mcard-top">
+                  <div><div className="mono">{b.id}</div><div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {b.paymentMethod}</div></div>
+                  <StatusBadge status={b.status} />
+                </div>
+                <div className="mcard-bot">
+                  <b style={{ fontWeight: 600, fontSize: 14 }}>{b.customer || 'ลูกค้าทั่วไป'}</b>
+                  <span className="big-price">฿{billTotal(b).toLocaleString()}</span>
+                </div>
+                <div className="muted" style={{ marginTop: 4 }}>{(b.items || []).length} รายการ</div>
+              </button>
+            ))}
+            {filtered.length === 0 && <Card><EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
+          </div>
+        </>
+      )}
+
+      {view === 'services' && (
+        <>
+          <div className="kpi-grid">
+            <div className="kpi dark span2">
+              <div className="kpi-label">ยอดบริการที่กรอง (ชำระแล้ว)</div>
+              <div className="kpi-value">฿{svcRevenue.toLocaleString()}</div>
+              <div className="kpi-sub">{serviceRows.length} ครั้งบริการ · รวม {svcQty} หน่วย</div>
             </div>
-            <div className="muted" style={{ marginTop: 4 }}>{(b.items || []).length} รายการ</div>
-          </button>
-        ))}
-        {filtered.length === 0 && <Card><EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
-      </div>
+          </div>
+
+          <Card className="table-card show-desktop">
+            <div className="table-scroll">
+              <table className="tbl">
+                <thead><tr><th>วันที่</th><th>บิล</th><th>ลูกค้า</th><th>บริการ</th><th>พนักงาน</th><th className="r">จำนวน</th><th className="r">ยอด</th><th>สถานะ</th></tr></thead>
+                <tbody>
+                  {serviceRows.map((r, i) => (
+                    <tr key={`${r.bill.id}-${i}`}>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{new Date(r.bill.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="mono">{r.bill.id}</td>
+                      <td><b style={{ fontWeight: 600 }}>{r.bill.customer || '—'}</b></td>
+                      <td>{r.item.serviceName || r.item.serviceId}</td>
+                      <td className="muted">{r.item.therapistName || r.item.therapistId}{String(r.item.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</td>
+                      <td className="r">×{r.item.qty || 1}</td>
+                      <td className="r"><b>฿{(r.item.net || 0).toLocaleString()}</b></td>
+                      <td><StatusBadge status={r.bill.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {serviceRows.length === 0 && <EmptyState icon={ClipboardList} title="ไม่พบประวัติบริการ" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
+          </Card>
+
+          <div className="mlist show-mobile">
+            {serviceRows.map((r, i) => (
+              <div key={`${r.bill.id}-${i}`} className="mcard">
+                <div className="mcard-top">
+                  <div><b style={{ fontSize: 14 }}>{r.item.serviceName || r.item.serviceId}</b><div className="muted">{new Date(r.bill.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {r.bill.id}</div></div>
+                  <StatusBadge status={r.bill.status} />
+                </div>
+                <div className="mcard-bot">
+                  <span className="muted">{r.item.therapistName}{String(r.item.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''} · {r.bill.customer || 'ลูกค้าทั่วไป'} · ×{r.item.qty || 1}</span>
+                  <span className="big-price">฿{(r.item.net || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            ))}
+            {serviceRows.length === 0 && <Card><EmptyState icon={ClipboardList} title="ไม่พบประวัติบริการ" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
+          </div>
+        </>
+      )}
 
       {detailBill && (
         <Modal onClose={() => setDetailBill(null)}>
@@ -170,7 +246,7 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             <div><h3>Void บิล {voidTarget.id}</h3><p className="muted">ยอด ฿{billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยผู้จัดการ</p></div>
           </div>
           {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="manager123" className="input" /></div>
+          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="123123" className="input" /></div>
           <div className="field"><label>เหตุผลการยกเลิก (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setVoidErr(''); }} placeholder="เช่น ลูกค้าขอเปลี่ยนบริการ…" className="input" rows={3} /></div>
           <div className="modal-row">
             <button onClick={() => { setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>

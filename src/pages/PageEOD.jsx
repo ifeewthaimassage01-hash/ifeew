@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ShieldCheck, Lock, FileSearch, ScrollText, Check, Circle, TriangleAlert } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, Kpi, toast } from '../components/ui';
+import { PageHeader, Card, CardHead, EmptyState, Kpi, alertDialog } from '../components/ui';
 
 function localDay(offset = 0) {
   const d = new Date();
@@ -8,7 +8,7 @@ function localDay(offset = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function PageEOD({ data, saveData }) {
+export default function PageEOD({ data, saveData, role }) {
   const [managerPass, setManagerPass] = useState('');
   const [showAll, setShowAll] = useState(false);
   const [auditQuery, setAuditQuery] = useState('');
@@ -35,26 +35,28 @@ export default function PageEOD({ data, saveData }) {
     return !q || l.action.toLowerCase().includes(q) || l.user.toLowerCase().includes(q) || l.detail.toLowerCase().includes(q);
   });
 
+  const actor = role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ';
   const pushAudit = (action, detail, oldV, newV) => ({
-    id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: 'ผู้จัดการ',
-    action, detail, oldValue: oldV, newValue: newV, approvedBy: 'ผู้จัดการ',
+    id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: actor,
+    action, detail, oldValue: oldV, newValue: newV, approvedBy: actor,
   });
 
   const needPass = () => {
-    if (managerPass !== 'manager123') { setPassErr('รหัสผู้จัดการไม่ถูกต้อง (ตัวอย่าง: manager123)'); return false; }
+    if (role === 'staff') return true;
+    if (managerPass !== '123123') { setPassErr('รหัสผู้จัดการไม่ถูกต้อง (ตัวอย่าง: 123123)'); return false; }
     setPassErr('');
     return true;
   };
   const handleClose = () => {
     if (!needPass()) return;
-    saveData({ ...data, eodStatus: { lastClosed: today, locked: true, approvedBy: 'ผู้จัดการ' }, auditLog: [...(data.auditLog || []), pushAudit('ปิดวัน (EOD)', `${today} · ยอด ฿${dayTotal.toLocaleString()} · ${todayBills.length} บิล`, 'open', 'locked')] });
-    toast('ปิดวันสำเร็จ — ข้อมูลถูกล็อกแล้ว');
+    saveData({ ...data, eodStatus: { lastClosed: today, locked: true, approvedBy: actor }, auditLog: [...(data.auditLog || []), pushAudit('ปิดวัน (EOD)', `${today} · ยอด ฿${dayTotal.toLocaleString()} · ${todayBills.length} บิล`, 'open', 'locked')] });
+    alertDialog({ title: 'ปิดวันสำเร็จ', message: `ยอดวันนี้ ฿${dayTotal.toLocaleString()} · ${todayBills.length} บิล — ข้อมูลถูกล็อกแล้ว` });
     setManagerPass('');
   };
   const handleUnlock = () => {
     if (!needPass()) return;
     saveData({ ...data, eodStatus: { ...eodStatus, locked: false }, auditLog: [...(data.auditLog || []), pushAudit('ปลดล็อกข้อมูล', 'ปรับปรุงย้อนหลัง', 'locked', 'unlocked')] });
-    toast('ปลดล็อกแล้ว — การแก้ไขจะถูกบันทึกใน Audit');
+    alertDialog({ title: 'ปลดล็อกแล้ว', message: 'การแก้ไขจะถูกบันทึกใน Audit' });
     setManagerPass('');
   };
 
@@ -94,9 +96,11 @@ export default function PageEOD({ data, saveData }) {
           ))}
         </Card>
         {passErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {passErr}</div>}
-        <div className="field" style={{ marginBottom: 8 }}><label style={{ color: 'rgba(255,255,255,0.65)' }}>รหัสผ่านผู้จัดการ</label>
-          <input type="password" value={managerPass} onChange={(e) => { setManagerPass(e.target.value); setPassErr(''); }} placeholder="manager123" className="input" style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }} />
-        </div>
+        {role !== 'staff' && (
+          <div className="field" style={{ marginBottom: 8 }}><label style={{ color: 'rgba(255,255,255,0.65)' }}>รหัสผ่านผู้จัดการ</label>
+            <input type="password" value={managerPass} onChange={(e) => { setManagerPass(e.target.value); setPassErr(''); }} placeholder="123123" className="input" style={{ background: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.25)', color: '#fff' }} />
+          </div>
+        )}
         {eodStatus.locked
           ? <button onClick={handleUnlock} className="btn btn-brass btn-block">ปลดล็อกเพื่อปรับปรุง</button>
           : <button onClick={handleClose} className="btn-white">อนุมัติปิดวัน (Lock)</button>}
