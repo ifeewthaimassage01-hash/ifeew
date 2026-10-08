@@ -15,10 +15,12 @@ export default function PageCommission({ data, saveData }) {
 
   const stats = {};
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, tieredCommission: 0, rate: 0.30, total: 0 }; });
+  let freelanceTotal = 0;
+  let freelanceJobs = 0;
   bills.forEach((bill) => {
     (bill.items || []).forEach((itm) => {
       const s = stats[itm.therapistId];
-      if (!s) return;
+      if (!s) { freelanceTotal += itm.net || 0; freelanceJobs += itm.qty || 1; return; }
       const svc = (data.services || []).find((x) => x.id === itm.serviceId);
       if (!svc) return;
       const net = itm.net || 0;
@@ -62,6 +64,10 @@ export default function PageCommission({ data, saveData }) {
             {TIERS.map((t, i) => <span key={i} className="badge info">{t.label}</span>)}
           </div>
         </Card>
+      )}
+
+      {freelanceTotal > 0 && (
+        <div className="alert warn" style={{ marginBottom: 12 }}>ยอดหมอวิ่ง (นอกระบบ) ฿{Math.round(freelanceTotal).toLocaleString()} · {freelanceJobs} งาน — ไม่รวมในคอมพนักงานประจำ</div>
       )}
 
       <div className="kpi-grid">

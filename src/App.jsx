@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Flower2 } from 'lucide-react';
-import { RailDesktop, TopBar, BottomNav } from './components/Sidebar';
+import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { Toaster } from './components/ui';
+import RoleGate, { saveRole, clearRole } from './components/RoleGate';
+import PageDashboard from './pages/PageDashboard';
 import PagePOS from './pages/PagePOS';
 import PageBills from './pages/PageBills';
 import PageCashDrawer from './pages/PageCashDrawer';
@@ -10,7 +12,11 @@ import PageCommission from './pages/PageCommission';
 import PageEOD from './pages/PageEOD';
 import { loadData, persistData } from './data/demoData';
 
+const ROLE_KEY = 'ifeew_role';
+const DEFAULT_PAGE = { owner: 'dashboard', staff: 'pos' };
+
 const PAGES = {
+  dashboard: PageDashboard,
   pos: PagePOS,
   bills: PageBills,
   cash: PageCashDrawer,
@@ -19,8 +25,13 @@ const PAGES = {
   eod: PageEOD,
 };
 
+function loadRole() {
+  try { return sessionStorage.getItem(ROLE_KEY); } catch { return null; }
+}
+
 export default function App() {
-  const [activePage, setActivePage] = useState('pos');
+  const [role, setRole] = useState(loadRole);
+  const [activePage, setActivePage] = useState(() => DEFAULT_PAGE[loadRole()] || 'pos');
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
 
@@ -44,6 +55,26 @@ export default function App() {
     setActivePage(key);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const selectRole = (r) => {
+    saveRole(r);
+    setRole(r);
+    setActivePage(DEFAULT_PAGE[r]);
+    window.scrollTo({ top: 0 });
+  };
+
+  const exitRole = () => {
+    clearRole();
+    setRole(null);
+  };
+
+  if (!role) {
+    return (
+      <div className="app">
+        <RoleGate onSelect={selectRole} />
+      </div>
+    );
+  }
 
   if (loadError) {
     return (
@@ -71,18 +102,19 @@ export default function App() {
     );
   }
 
-  const PageComponent = PAGES[activePage] || PagePOS;
+  const navItems = NAV_ITEMS.filter((i) => i.roles.includes(role));
+  const PageComponent = PAGES[navItems.some((i) => i.key === activePage) ? activePage : navItems[0].key] || PagePOS;
 
   return (
     <div className="app">
       <div className="shell">
-        <RailDesktop active={activePage} onNavigate={navigate} />
+        <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} />
         <div className="main-col">
-          <TopBar active={activePage} />
+          <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} />
           <main className="page">
             <div className="container">
               <div className="rise" key={activePage}>
-                <PageComponent data={data} saveData={saveData} onNavigate={navigate} />
+                <PageComponent data={data} saveData={saveData} onNavigate={navigate} role={role} />
               </div>
             </div>
           </main>
@@ -94,7 +126,7 @@ export default function App() {
           </footer>
         </div>
       </div>
-      <BottomNav active={activePage} onNavigate={navigate} />
+      <BottomNav active={activePage} items={navItems} onNavigate={navigate} />
       <Toaster />
     </div>
   );

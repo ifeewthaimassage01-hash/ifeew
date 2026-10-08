@@ -1,18 +1,19 @@
 import {
-  ReceiptText, FileText, Wallet, LayoutGrid, Calculator,
-  ShieldCheck, Flower2,
+  LayoutDashboard, ReceiptText, FileText, Wallet, LayoutGrid, Calculator,
+  ShieldCheck, Flower2, LogOut,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
-  { label: 'POS ขายหน้าร้าน', short: 'POS', sub: 'เปิดบิล · 3 ขั้นตอน', icon: ReceiptText, key: 'pos' },
-  { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา · ตรวจสอบ · Void', icon: FileText, key: 'bills' },
-  { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash' },
-  { label: 'ค่าใช้จ่าย', short: 'ค่าใช้จ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses' },
-  { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission' },
-  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod' },
+  { label: 'ภาพรวมกิจการ', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
+  { label: 'POS ขายหน้าร้าน', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
+  { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
+  { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash', roles: ['owner', 'staff'] },
+  { label: 'ค่าใช้จ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner'] },
+  { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
+  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner'] },
 ];
 
-export function RailDesktop({ active, onNavigate }) {
+export function RailDesktop({ active, items, onNavigate, onExit }) {
   return (
     <aside className="rail">
       <div className="rail-in">
@@ -22,7 +23,7 @@ export function RailDesktop({ active, onNavigate }) {
         </div>
         <div className="rail-label">เมนูหลัก</div>
         <nav className="rail-nav">
-          {NAV_ITEMS.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
             return (
               <button key={item.key} onClick={() => onNavigate(item.key)} className={`rail-btn${active === item.key ? ' on' : ''}`}>
@@ -36,7 +37,9 @@ export function RailDesktop({ active, onNavigate }) {
           <div className="rail-status">
             <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', opacity: 0.6 }}>วันนี้</div>
             <div style={{ fontWeight: 600, marginTop: 2 }}>{new Date().toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'short' })}</div>
-            <div style={{ opacity: 0.6, fontSize: 11, marginTop: 2 }}>กะเช้า · พร้อมขาย</div>
+            <button className="btn btn-ghost btn-block" style={{ marginTop: 10, padding: '9px 10px', fontSize: 12.5 }} onClick={onExit}>
+              <LogOut size={15} /> สลับบทบาท / ออก
+            </button>
           </div>
         </div>
       </div>
@@ -44,8 +47,8 @@ export function RailDesktop({ active, onNavigate }) {
   );
 }
 
-export function TopBar({ active }) {
-  const current = NAV_ITEMS.find((n) => n.key === active);
+export function TopBar({ active, items, role, onExit }) {
+  const current = items.find((n) => n.key === active) || items[0];
   return (
     <div className="topbar">
       <div className="topbar-in">
@@ -55,17 +58,20 @@ export function TopBar({ active }) {
         </div>
         <div className="topbar-spacer" />
         <div className="date-chip show-desktop"> <b>{current?.label}</b> · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
-        <span className="status-pill"><i className="pulse" /> พร้อมขาย</span>
+        <span className="role-chip">{role === 'owner' ? 'เจ้าของร้าน' : 'พนักงาน'}</span>
+        <button className="icon-btn" title="สลับบทบาท / ออก" onClick={onExit} aria-label="ออกจากระบบ">
+          <LogOut size={17} />
+        </button>
       </div>
     </div>
   );
 }
 
-export function BottomNav({ active, onNavigate }) {
+export function BottomNav({ active, items, onNavigate }) {
   return (
     <nav className="bottomnav" aria-label="เมนูหลัก">
-      <div className="bottomnav-in">
-        {NAV_ITEMS.map((item) => {
+      <div className="bottomnav-in" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
+        {items.map((item) => {
           const Icon = item.icon;
           const isFab = item.key === 'pos';
           if (isFab) {

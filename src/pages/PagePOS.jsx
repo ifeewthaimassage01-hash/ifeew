@@ -23,6 +23,9 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   const [paymentMethod, setPaymentMethod] = useState('เงินสด');
   const [discount, setDiscount] = useState('');
   const [selectedTherapist, setSelectedTherapist] = useState('');
+  const [therapistType, setTherapistType] = useState('resident');
+  const [visitingName, setVisitingName] = useState('');
+  const [visitingId, setVisitingId] = useState('');
   const [showAuth, setShowAuth] = useState(false);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
@@ -40,16 +43,27 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   const subtotal = items.reduce((s, i) => s + (i.net || 0), 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
   const total = subtotal - discVal;
-  const therapist = therapistsList.find((t) => t.id === selectedTherapist);
+  const getActiveTherapist = () => {
+    if (therapistType === 'resident') return therapistsList.find((t) => t.id === selectedTherapist) || null;
+    const name = visitingName.trim();
+    return name ? { id: visitingId, name, nickname: name, role: 'visiting' } : null;
+  };
+  const therapist = getActiveTherapist();
 
   const scrollToTicket = () => {
     document.getElementById('bill-ticket')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const quickAdd = (svc) => {
-    if (!therapist) { setErr('แตะเลือกพนักงานด้านบนก่อนเพิ่มบริการ — ระบบผูกค่าคอมให้อัตโนมัติ'); return; }
+    const th = getActiveTherapist();
+    if (!th) { setErr(therapistType === 'resident' ? 'แตะเลือกพนักงานด้านบนก่อนเพิ่มบริการ — ระบบผูกค่าคอมให้อัตโนมัติ' : 'กรอกชื่อหมอวิ่งก่อนเพิ่มบริการ'); return; }
     setErr('');
-    const found = items.findIndex((i) => i.serviceId === svc.id && i.therapistId === therapist.id);
+    let tid = th.id;
+    if (therapistType === 'visiting' && !tid) {
+      tid = `EXT-${Date.now().toString(36).toUpperCase()}`;
+      setVisitingId(tid);
+    }
+    const found = items.findIndex((i) => i.serviceId === svc.id && i.therapistId === tid);
     if (found >= 0) {
       const next = [...items];
       next[found] = { ...next[found], qty: next[found].qty + 1, net: (next[found].qty + 1) * next[found].price };
@@ -57,7 +71,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     } else {
       setItems([...items, {
         serviceId: svc.id, serviceName: svc.name, category: svc.category,
-        therapistId: therapist.id, therapistName: therapist.name, qty: 1, price: svc.price, discount: 0, net: svc.price,
+        therapistId: tid, therapistName: th.name, qty: 1, price: svc.price, discount: 0, net: svc.price,
       }]);
     }
   };
@@ -70,7 +84,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   };
 
   const startCheckout = () => {
-    if (!selectedTherapist) { setErr('กรุณาเลือกพนักงานก่อนเปิดบิล'); return; }
+    if (!getActiveTherapist()) { setErr(therapistType === 'resident' ? 'กรุณาเลือกพนักงานก่อนเปิดบิล' : 'กรุณากรอกชื่อหมอวิ่งก่อนเปิดบิล'); return; }
     if (items.length === 0) { setErr('แตะเพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
     setErr('');
     try {
@@ -99,6 +113,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     setSuccessBill({ id, total });
     toast(`เปิดบิล ${id} สำเร็จ`);
     setItems([]); setCustomer(''); setMemberNo(''); setDiscount(''); setSelectedTherapist('');
+    setVisitingName(''); setVisitingId('');
     setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); setRememberMgr(false);
   };
 
@@ -124,19 +139,33 @@ export default function PagePOS({ data, saveData, onNavigate }) {
         {/* ---- left: pick staff + services ---- */}
         <div className="pos-main">
           <Card>
-            <CardHead title="พนักงานผู้ให้บริการ" hint={therapist ? `✓ ${therapist.name}` : 'แตะเลือก 1 คน'} right={<User size={18} color="var(--faint)" />} />
-            <div className="thera-scroll">
-              {therapistsList.map((th) => {
-                const active = selectedTherapist === th.id;
-                return (
-                  <button key={th.id} onClick={() => { setSelectedTherapist(active ? '' : th.id); setErr(''); }} className={`thera${active ? ' on' : ''}`}>
-                    <span className="thera-ava">{th.nickname.charAt(0)}</span>
-                    <span><b>{th.name}</b><small>{th.nickname} · {th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
-                    <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเพื่อเลือก'}</span>
-                  </button>
-                );
-              })}
+            <CardHead title="พนักงานผู้ให้บริการ" hint={therapist ? `✓ ${therapist.name}${therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}` : 'เลือกประเภทก่อน'} right={<User size={18} color="var(--faint)" />} />
+            <div className="seg">
+              <button onClick={() => { setTherapistType('resident'); setErr(''); }} className={therapistType === 'resident' ? 'on' : ''}>หมอประจำ</button>
+              <button onClick={() => { setTherapistType('visiting'); setErr(''); }} className={therapistType === 'visiting' ? 'on' : ''}>หมอวิ่ง</button>
             </div>
+            {therapistType === 'resident' ? (
+              <div className="thera-scroll">
+                {therapistsList.map((th) => {
+                  const active = selectedTherapist === th.id;
+                  return (
+                    <button key={th.id} onClick={() => { setSelectedTherapist(active ? '' : th.id); setErr(''); }} className={`thera${active ? ' on' : ''}`}>
+                      <span className="thera-ava">{th.nickname.charAt(0)}</span>
+                      <span><b>{th.name}</b><small>{th.nickname} · {th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
+                      <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเพื่อเลือก'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div>
+                <div className="field" style={{ marginBottom: 8 }}>
+                  <label>ชื่อหมอวิ่ง</label>
+                  <input value={visitingName} onChange={(e) => { setVisitingName(e.target.value); setErr(''); }} placeholder="เช่น หมอนิด (รับจ้าง)" className="input" />
+                </div>
+                <p className="muted">บิลจะบันทึกชื่อนี้ · ไม่คิดคอมมิชชันในระบบพนักงานประจำ</p>
+              </div>
+            )}
           </Card>
 
           <Card>
@@ -176,7 +205,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
         <div className="pos-side" id="bill-ticket">
           <div className="ticket">
             <div className="ticket-head">
-              <div className="t-no">Live Bill · {therapist ? `${therapist.name} (${therapist.nickname})` : 'ยังไม่เลือกพนักงาน'}</div>
+              <div className="t-no">Live Bill · {therapist ? (therapistType === 'visiting' ? `${therapist.name} · หมอวิ่ง` : `${therapist.name} (${therapist.nickname})`) : 'ยังไม่เลือกพนักงาน'}</div>
               <div className="t-total">฿{total.toLocaleString()}</div>
               <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{items.reduce((s, i) => s + i.qty, 0)} รายการ · {paymentMethod}</div>
             </div>
@@ -185,7 +214,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
               {items.map((it, idx) => (
                 <div key={idx} className="tline">
                   <span className="q">{idx + 1}</span>
-                  <span className="tt"><b>{it.serviceName}</b><small>{it.therapistName} · ฿{it.price.toLocaleString()}</small></span>
+                  <span className="tt"><b>{it.serviceName}</b><small>{it.therapistName}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''} · ฿{it.price.toLocaleString()}</small></span>
                   <span className="qty">
                     <button onClick={() => changeQty(idx, -1)} aria-label="ลด">{it.qty === 1 ? <Trash2 size={13} /> : <Minus size={13} />}</button>
                     <b>{it.qty}</b>

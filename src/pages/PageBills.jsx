@@ -8,7 +8,8 @@ function localDay(offset = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function PageBills({ data, saveData, onNavigate }) {
+export default function PageBills({ data, saveData, onNavigate, role }) {
+  const canVoid = role !== 'staff';
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
@@ -51,7 +52,7 @@ export default function PageBills({ data, saveData, onNavigate }) {
     <div>
       <PageHeader
         icon={FileText} eyebrow="Bill History" title="ประวัติบิล"
-        subtitle="ค้นหา ตรวจรายละเอียด และ Void บิลที่ต้องอนุมัติผู้จัดการ"
+        subtitle={canVoid ? 'ค้นหา ตรวจรายละเอียด และ Void บิลที่ต้องอนุมัติผู้จัดการ' : 'ค้นหาและตรวจรายละเอียดบิล (ดูได้อย่างเดียว)'}
         actions={<button onClick={() => onNavigate && onNavigate('pos')} className="btn btn-primary auto"><ReceiptText size={17} /> เปิดบิลใหม่</button>}
       />
 
@@ -104,7 +105,7 @@ export default function PageBills({ data, saveData, onNavigate }) {
                   <td><StatusBadge status={b.status} /></td>
                   <td className="c">
                     <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
-                    {b.status === 'paid' && <> <button onClick={() => setVoidTarget(b)} className="btn-soft-danger">Void</button></>}
+                    {canVoid && b.status === 'paid' && <> <button onClick={() => setVoidTarget(b)} className="btn-soft-danger">Void</button></>}
                   </td>
                 </tr>
               ))}
@@ -146,7 +147,7 @@ export default function PageBills({ data, saveData, onNavigate }) {
           {(detailBill.items || []).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
-              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId}</small></span>
+              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
               <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿{(it.net || 0).toLocaleString()}</b>
             </div>
           ))}
@@ -157,7 +158,7 @@ export default function PageBills({ data, saveData, onNavigate }) {
           </div>
           <div className="modal-row">
             <button onClick={() => setDetailBill(null)} className="btn btn-ghost" style={{ width: '100%' }}>ปิด</button>
-            {detailBill.status === 'paid' && <button onClick={() => { setVoidTarget(detailBill); setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>Void บิลนี้</button>}
+            {canVoid && detailBill.status === 'paid' && <button onClick={() => { setVoidTarget(detailBill); setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>Void บิลนี้</button>}
           </div>
         </Modal>
       )}
