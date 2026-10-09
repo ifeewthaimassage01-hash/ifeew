@@ -1,13 +1,11 @@
 import { useState, useMemo } from 'react';
-import { ReceiptText, Plus, Minus, Trash2, ShieldAlert, Banknote, QrCode, CreditCard, Wallet, CheckCircle2, Search, TriangleAlert, User, ArrowRight, Clock } from 'lucide-react';
+import { ReceiptText, Plus, Minus, Trash2, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, User, ArrowRight, Clock } from 'lucide-react';
 import { PageHeader, Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
 import { generateBillId } from '../data/demoData';
 
 const PAY_METHODS = [
   { label: 'เงินสด', icon: Banknote },
   { label: 'QR Code / โอนเงิน', icon: QrCode },
-  { label: 'บัตรเครดิต', icon: CreditCard },
-  { label: 'E-Wallet', icon: Wallet },
 ];
 
 const MGR_KEY = 'ifeew_mgr_ok';
@@ -194,9 +192,9 @@ export default function PagePOS({ data, saveData, onNavigate }) {
               <div>
                 <div className="field" style={{ marginBottom: 8 }}>
                   <label>ชื่อหมอวิ่ง</label>
-                  <input value={visitingName} onChange={(e) => { setVisitingName(e.target.value); setErr(''); }} placeholder="เช่น หมอนิด (รับจ้าง)" className="input" />
+                  <input value={visitingName} onChange={(e) => { setVisitingName(e.target.value); setErr(''); }} placeholder="เช่น หมอนิด" className="input" />
                 </div>
-                <p className="muted">บิลจะบันทึกชื่อนี้ · ไม่คิดคอมมิชชันในระบบพนักงานประจำ</p>
+            
               </div>
             )}
           </Card>
@@ -351,10 +349,10 @@ export default function PagePOS({ data, saveData, onNavigate }) {
       {successBill && (
         <Modal onClose={() => setSuccessBill(null)}>
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
-            <div className="empty-ic" style={{ background: '#ddf2e4', color: '#0c6b3f', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
+            <div className="empty-ic" style={{ background: '#f5efe6', color: '#8b5e3c', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
             <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 27 }}>เปิดบิลสำเร็จ</h3>
             <div className="mono" style={{ marginTop: 4 }}>{successBill.id}</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 44, color: 'var(--pine-700)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
             <div className="modal-row">
               <button onClick={() => setSuccessBill(null)} className="btn btn-ghost" style={{ width: '100%' }}>เปิดบิลต่อ</button>
               <button onClick={() => { setSuccessBill(null); onNavigate && onNavigate('bills'); }} className="btn btn-primary" style={{ width: '100%' }}>ดูประวัติบิล</button>

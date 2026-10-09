@@ -90,7 +90,7 @@ export default function PageCommission({ data, saveData }) {
                     <td className="r">{s.jobs}</td>
                     <td className="r mono">฿{Math.round(s.totalSales).toLocaleString()}</td>
                     <td className="r"><span className="badge dark">{settings.mode === 'tier' ? `${(s.rate * 100).toFixed(0)}%` : 'Flat %'}</span></td>
-                    <td className="r"><b style={{ color: 'var(--pine-700)' }}>฿{s.total.toLocaleString()}</b></td>
+                    <td className="r"><b style={{ color: 'var(--brown)' }}>฿{s.total.toLocaleString()}</b></td>
                   </tr>
                 );
               })}
@@ -127,7 +127,7 @@ export default function PageCommission({ data, saveData }) {
         <CardHead title="เรท Flat % ตามประเภทบริการ" hint="อ้างอิง" />
         <div className="refgrid">
           {(data.services || []).filter((s) => s.price > 0).map((s) => (
-            <div key={s.id} className="refbox"><b>{s.name}</b><small className="muted">฿{s.price.toLocaleString()} · <b style={{ color: 'var(--pine-700)' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
+            <div key={s.id} className="refbox"><b>{s.name}</b><small className="muted">฿{s.price.toLocaleString()} · <b style={{ color: 'var(--brown)' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
           ))}
         </div>
         <p className="muted" style={{ marginTop: 10 }}><TrendingUp size={12} style={{ verticalAlign: -1 }} /> ยอดขายรวมทั้งหมดใช้คำนวณ Tier แบบขั้นบันได</p>

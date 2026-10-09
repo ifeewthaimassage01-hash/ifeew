@@ -9,7 +9,7 @@ function localDay(offset = 0) {
 
 const billTotal = (b) => Math.max(0, (b.items || []).reduce((s, i) => s + (i.net || 0), 0) - (b.discount || 0));
 
-const PAY_LABELS = ['เงินสด', 'QR Code / โอนเงิน', 'บัตรเครดิต', 'E-Wallet'];
+const PAY_LABELS = ['เงินสด', 'QR Code / โอนเงิน'];
 
 export default function PageDashboard({ data, onNavigate }) {
   const today = localDay(0);
@@ -138,7 +138,7 @@ export default function PageDashboard({ data, onNavigate }) {
               <div key={t.id} className="rank-row">
                 <span className="thera-ava" style={{ width: 40, height: 40, fontSize: 18 }}>{(t.nickname || '?').charAt(0)}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 13.5 }}>{i === 0 && <Crown size={12} style={{ color: 'var(--teal)', verticalAlign: -1 }} />} {t.name || t.id}</b>
+                  <b style={{ fontSize: 13.5 }}>{i === 0 && <Crown size={12} style={{ color: 'var(--brown)', verticalAlign: -1 }} />} {t.name || t.id}</b>
                   <small className="muted" style={{ display: 'block' }}>{t.nickname || ''}</small>
                 </span>
                 <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿{Math.round(t.revenue).toLocaleString()}</b>

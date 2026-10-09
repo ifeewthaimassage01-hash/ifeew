@@ -1,6 +1,39 @@
-import { useState, useMemo } from 'react';
-import { FileText, Search, ShieldAlert, ReceiptText, TriangleAlert, ClipboardList } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { FileText, Search, ShieldAlert, ReceiptText, TriangleAlert, ClipboardList, Plus, Minus, Pencil, Trash2, Calendar, ChevronDown, Check, Banknote, Smartphone, Filter, Tag } from 'lucide-react';
 import { PageHeader, Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog } from '../components/ui';
+
+/* Dropdown filter — ใช้ซ้ำได้สำหรับตัวกรองทั้งหมด */
+function Dropdown({ icon: Icon, label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const current = options.find((o) => o.v === value);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div className={`dropdown${open ? ' open' : ''}`} ref={ref}>
+      <button className="dropdown-btn" onClick={() => setOpen(!open)} type="button">
+        {Icon && <Icon size={15} className="dd-icon" />}
+        <span className="dd-label">{current?.l || label}</span>
+        <ChevronDown size={14} className="dd-caret" />
+      </button>
+      {open && (
+        <div className="dropdown-menu">
+          {options.map((o) => (
+            <button key={o.v} className={`dropdown-item${value === o.v ? ' on' : ''}`} onClick={() => { onChange(o.v); setOpen(false); }}>
+              {o.l}
+              {value === o.v && <Check size={14} className="dd-check" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function localDay(offset = 0) {
   const d = new Date();
@@ -33,7 +66,7 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
   });
   const billTotal = (b) => Math.max(0, (b.items || []).reduce((s, i) => s + (i.net || 0), 0) - (b.discount || 0));
   const totalSum = filtered.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
-  const payMethods = ['เงินสด', 'QR Code / โอนเงิน', 'บัตรเครดิต', 'E-Wallet'];
+  const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
   const serviceRows = [];
   filtered.forEach((b) => {
@@ -70,9 +103,14 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
         actions={<button onClick={() => onNavigate && onNavigate('pos')} className="btn btn-primary auto"><ReceiptText size={17} /> เปิดบิลใหม่</button>}
       />
 
-      <div className="seg">
-        <button onClick={() => setView('bills')} className={view === 'bills' ? 'on' : ''}>ประวัติบิล</button>
-        <button onClick={() => setView('services')} className={view === 'services' ? 'on' : ''}>ประวัติการบริการ</button>
+      <div className="filter-bar" style={{ marginBottom: 12 }}>
+        <Dropdown
+          icon={FileText}
+          label="ประเภทประวัติ"
+          value={view}
+          onChange={setView}
+          options={[{ v: 'bills', l: 'ประวัติบิล' }, { v: 'services', l: 'ประวัติการบริการ' }]}
+        />
       </div>
 
       <Card>
@@ -82,23 +120,31 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={view === 'services' ? 'ค้นหาบริการ / หมอ / ลูกค้า / เลขบิล…' : 'ค้นหาเลขบิล / ชื่อลูกค้า / เบอร์สมาชิก…'} className="input" />
           </div>
         </div>
-        <div className="chip-row" style={{ marginBottom: 8 }}>
-          {[{ v: 'all', l: 'ทุกวัน' }, { v: 'today', l: 'วันนี้' }, { v: 'yesterday', l: 'เมื่อวาน' }].map((o) => (
-            <button key={o.v} onClick={() => setDateFilter(o.v)} className={`chip sage${dateFilter === o.v ? ' on' : ''}`}>{o.l}</button>
-          ))}
+        <div className="filter-bar">
+          <Dropdown
+            icon={Calendar}
+            label="เลือกวันที่"
+            value={dateFilter}
+            onChange={setDateFilter}
+            options={[{ v: 'all', l: 'ทุกวัน' }, { v: 'today', l: 'วันนี้' }, { v: 'yesterday', l: 'เมื่อวาน' }]}
+          />
+          <Dropdown
+            icon={Tag}
+            label="เลือกสถานะ"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[{ v: 'all', l: 'ทุกสถานะ' }, { v: 'paid', l: 'ชำระแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }]}
+          />
+          {view === 'bills' && (
+            <Dropdown
+              icon={Filter}
+              label="ช่องทางชำระ"
+              value={payFilter}
+              onChange={setPayFilter}
+              options={[{ v: 'all', l: 'ทุกช่องทาง' }, ...payMethods.map((m) => ({ v: m, l: m }))]}
+            />
+          )}
         </div>
-        <div className="chip-row" style={{ marginBottom: 8 }}>
-          {[{ v: 'all', l: 'ทุกสถานะ' }, { v: 'paid', l: 'ชำระแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }].map((o) => (
-            <button key={o.v} onClick={() => setStatusFilter(o.v)} className={`chip${statusFilter === o.v ? ' on' : ''}`}>{o.l}</button>
-          ))}
-        </div>
-        {view === 'bills' && (
-          <div className="chip-row">
-            {['all', ...payMethods].map((m) => (
-              <button key={m} onClick={() => setPayFilter(m)} className={`chip sage${payFilter === m ? ' on' : ''}`}>{m === 'all' ? 'ทุกช่องทาง' : m}</button>
-            ))}
-          </div>
-        )}
       </Card>
 
       {view === 'bills' && (
@@ -139,19 +185,43 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
           </Card>
 
           <div className="mlist show-mobile">
-            {filtered.map((b) => (
-              <button key={b.id} onClick={() => setDetailBill(b)} className="mcard">
-                <div className="mcard-top">
-                  <div><div className="mono">{b.id}</div><div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {b.paymentMethod}</div></div>
-                  <StatusBadge status={b.status} />
+            {filtered.map((b) => {
+              const isCancelled = b.status === 'cancelled';
+              const payIcon = b.paymentMethod === 'เงินสด' ? Banknote : Smartphone;
+              const PayIcon = payIcon;
+              return (
+                <div key={b.id} className="mcard bill-card">
+                  <div className="bill-card-main" onClick={() => setDetailBill(b)}>
+                    <div className="bill-icon-wrap">
+                      <PayIcon size={18} strokeWidth={1.8} />
+                    </div>
+                    <div className="bill-info">
+                      <div className="bill-customer">{b.customer || 'ลูกค้าทั่วไป'}</div>
+                      <div className="bill-meta">
+                        <Calendar size={11} style={{ verticalAlign: -1 }} />
+                        {new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        <span className="bill-dot">·</span>
+                        {b.paymentMethod}
+                      </div>
+                    </div>
+                    <div className={`bill-amount ${isCancelled ? 'cancelled' : 'income'}`}>
+                      {isCancelled ? <Minus size={14} /> : <Plus size={14} />}
+                      ฿{billTotal(b).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="bill-actions">
+                    <button className="bill-action-btn edit" onClick={() => setDetailBill(b)} title="ดูรายละเอียด">
+                      <Pencil size={14} />
+                    </button>
+                    {canVoid && b.status === 'paid' && (
+                      <button className="bill-action-btn delete" onClick={() => setVoidTarget(b)} title="Void บิล">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="mcard-bot">
-                  <b style={{ fontWeight: 600, fontSize: 14 }}>{b.customer || 'ลูกค้าทั่วไป'}</b>
-                  <span className="big-price">฿{billTotal(b).toLocaleString()}</span>
-                </div>
-                <div className="muted" style={{ marginTop: 4 }}>{(b.items || []).length} รายการ</div>
-              </button>
-            ))}
+              );
+            })}
             {filtered.length === 0 && <Card><EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
           </div>
         </>

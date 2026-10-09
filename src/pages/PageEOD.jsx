@@ -24,10 +24,8 @@ export default function PageEOD({ data, saveData, role }) {
   const summary = {
     cash: sum((b) => b.paymentMethod === 'เงินสด'),
     qr: sum((b) => b.paymentMethod === 'QR Code / โอนเงิน'),
-    card: sum((b) => b.paymentMethod === 'บัตรเครดิต'),
-    ewallet: sum((b) => b.paymentMethod === 'E-Wallet'),
   };
-  const dayTotal = summary.cash + summary.qr + summary.card + summary.ewallet;
+  const dayTotal = summary.cash + summary.qr;
   const expenseToday = (data.expenses || []).filter((e) => e.date === today).reduce((s, e) => s + e.amount, 0);
 
   const filteredAudit = auditLog.filter((l) => {
@@ -70,7 +68,7 @@ export default function PageEOD({ data, saveData, role }) {
           <span className="badge" style={{ background: eodStatus.locked ? '#fde68a' : 'rgba(255,255,255,0.15)', color: eodStatus.locked ? '#713f12' : '#fff', border: '1px solid rgba(255,255,255,0.25)' }}>{eodStatus.locked ? '🔒 ล็อกแล้ว' : '● ยังเปิดอยู่'}</span>
         </div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          {[{ l: 'เงินสด', v: summary.cash }, { l: 'QR / โอน', v: summary.qr }, { l: 'บัตรเครดิต', v: summary.card }, { l: 'E-Wallet', v: summary.ewallet }].map((r) => (
+          {[{ l: 'เงินสด', v: summary.cash }, { l: 'QR / โอน', v: summary.qr }].map((r) => (
             <div key={r.l} className="hero-box"><div className="hl">{r.l}</div><div className="hv">฿{r.v.toLocaleString()}</div></div>
           ))}
         </div>
@@ -131,7 +129,7 @@ export default function PageEOD({ data, saveData, role }) {
                     <td><b style={{ fontWeight: 600 }}>{l.user}</b></td>
                     <td><span className="badge paid">{l.action}</span></td>
                     <td className="muted">{l.detail}</td>
-                    <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}><span style={{ color: 'var(--red)' }}>{l.oldValue}</span> → <span style={{ color: 'var(--pine-700)', fontWeight: 700 }}>{l.newValue}</span></td>
+                    <td style={{ whiteSpace: 'nowrap', fontSize: 12 }}><span style={{ color: 'var(--red)' }}>{l.oldValue}</span> → <span style={{ color: 'var(--brown)', fontWeight: 700 }}>{l.newValue}</span></td>
                     <td className="muted">{l.approvedBy}</td>
                   </tr>
                 ))}
@@ -144,7 +142,7 @@ export default function PageEOD({ data, saveData, role }) {
             <div key={l.id} className="audit-row">
               <div className="a1"><span className="badge paid" style={{ fontSize: 10 }}>{l.action}</span><time>{new Date(l.timestamp).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</time></div>
               <b style={{ fontSize: 13 }}>{l.detail}</b>
-              <div className="muted"><ScrollText size={11} style={{ verticalAlign: -1 }} /> {l.user} · อนุมัติ: {l.approvedBy} · <span style={{ color: 'var(--red)' }}>{l.oldValue}</span> → <span style={{ color: 'var(--pine-700)', fontWeight: 700 }}>{l.newValue}</span></div>
+              <div className="muted"><ScrollText size={11} style={{ verticalAlign: -1 }} /> {l.user} · อนุมัติ: {l.approvedBy} · <span style={{ color: 'var(--red)' }}>{l.oldValue}</span> → <span style={{ color: 'var(--brown)', fontWeight: 700 }}>{l.newValue}</span></div>
             </div>
           ))}
         </div>

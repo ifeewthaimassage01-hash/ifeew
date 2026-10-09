@@ -86,7 +86,7 @@ export default function PageCashDrawer({ data, saveData }) {
           ))}
           <div className="formula">
             สูตร: <b>ควรมี = ต้นวัน + ขาย + รับอื่น − จ่ายออก − ฝาก</b><br />
-            = {startCash.toLocaleString()} + {salesCash.toLocaleString()} + {otherCashIn.toLocaleString()} − {payoutCash.toLocaleString()} − {depositCash.toLocaleString()} = <b style={{ color: 'var(--pine-700)' }}>฿{expected.toLocaleString()}</b>
+            = {startCash.toLocaleString()} + {salesCash.toLocaleString()} + {otherCashIn.toLocaleString()} − {payoutCash.toLocaleString()} − {depositCash.toLocaleString()} = <b style={{ color: 'var(--brown)' }}>฿{expected.toLocaleString()}</b>
           </div>
         </Card>
 

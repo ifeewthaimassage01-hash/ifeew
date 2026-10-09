@@ -77,7 +77,7 @@ export default function PageExpenses({ data, saveData, role }) {
             <div className="f2">
               <div className="field"><label>วิธีจ่าย</label>
                 <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="input">
-                  <option>เงินสด</option><option>QR Code</option><option>บัตรเครดิต</option><option>E-Wallet</option><option>โอนเงิน</option>
+                  <option>เงินสด</option><option>QR Code / โอนเงิน</option>
                 </select>
               </div>
               <div className="field"><label>ผู้อนุมัติ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้อนุมัติ" className="input" /></div>

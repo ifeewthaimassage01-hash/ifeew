@@ -4,14 +4,14 @@ import {
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
-  { label: 'ภาพรวมกิจการ', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
-  { label: 'POS ขายหน้าร้าน', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
-  { label: 'ประวัติบิล', short: 'บิล', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
-  { label: 'ลิ้นชักเงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash', roles: ['owner', 'staff'] },
-  { label: 'ค่าใช้จ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
-  { label: 'สรุปปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner', 'staff'] },
-  { label: 'จัดการร้าน', short: 'จัดการ', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
-  { label: 'ค่าคอมมิชชัน', short: 'คอมฯ', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
+  { label: 'ภาพรวม', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
+  { label: 'POS', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
+  { label: 'ประวัติ', short: 'ประวัติ', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
+  { label: 'เงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash', roles: ['owner', 'staff'] },
+  { label: 'รายจ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
+  { label: 'ปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner', 'staff'] },
+  { label: 'จัดการร้าน', short: 'จัดการร้าน', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
+  { label: 'ค่าคอม', short: 'ค่าคอม', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
 ];
 
 export function RailDesktop({ active, items, onNavigate, onExit }) {
