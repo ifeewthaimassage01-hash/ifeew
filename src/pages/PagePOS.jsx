@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { ReceiptText, Plus, Minus, Trash2, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, User, ArrowRight, Clock } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { ReceiptText, Plus, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, Pencil, Trash2, ChevronDown, Check } from 'lucide-react';
+import { Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
 import { generateBillId } from '../data/demoData';
 
 const PAY_METHODS = [
@@ -9,30 +9,69 @@ const PAY_METHODS = [
 ];
 
 const MGR_KEY = 'ifeew_mgr_ok';
+const BREAK_MINUTES = 15;
 
-/* การ์ดบริการแบบรูปอ้างอิง: รูปสี่เหลี่ยมมน + ปุ่ม + เขียวมุมขวาบน, ราคา, ชื่อ, หน่วยเวลา */
-function SvcTile({ svc, count, onAdd }) {
-  const dur = svc.duration != null ? formatDuration(svc.duration) : '';
-  const unit = svc.duration != null ? `${dur} · ${svc.duration} นาที` : (svc.category || '');
+function minutesToTime(m) {
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+/* สร้าง timeline slots จาก booked slots (ใช้หาช่วงว่างแนะนำ) */
+function buildTimeline(bookedSlots, duration) {
+  const slots = [];
+  const startOfDay = 10 * 60;
+  const endOfDay = 22 * 60;
+  for (let t = startOfDay; t + duration <= endOfDay; t += 30) {
+    const conflict = bookedSlots.some((s) => t < s.end && t + duration > s.start);
+    slots.push({ start: t, end: t + duration, available: !conflict });
+  }
+  return slots;
+}
+
+/* เวลาปัจจุบัน (นาที) ปัดขึ้นเป็น 5 นาที */
+function nowMinutes() {
+  const now = new Date();
+  const m = now.getHours() * 60 + now.getMinutes();
+  return Math.ceil(m / 5) * 5;
+}
+
+const OPEN_MIN = 10 * 60;
+const CLOSE_MIN = 22 * 60;
+
+/* Dropdown เวลาแบบ custom — แต่งได้เต็มที่ เข้าธีมน้ำตาล-ครีม */
+function TimeDropdown({ value, options, onChange, label }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const current = options.find((o) => o.v === value);
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   return (
-    <div className={`prod-card${count > 0 ? ' added' : ''}`}>
-      <div className="prod-img" onClick={onAdd} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onAdd(); }}>
-        {svc.imageUrl ? (
-          <img src={svc.imageUrl} alt={svc.name} loading="lazy" />
-        ) : (
-          <div className="prod-img-fallback">
-            <Clock size={26} strokeWidth={1.6} />
-            <b>{dur || 'บริการ'}</b>
-            <small>{svc.category}</small>
-          </div>
-        )}
-        <button className="prod-plus" onClick={(e) => { e.stopPropagation(); onAdd(); }} aria-label={`เพิ่ม ${svc.name}`}>
-          {count > 0 ? <b style={{ fontSize: 15 }}>×{count}</b> : <Plus size={22} strokeWidth={2.4} />}
-        </button>
-      </div>
-      <div className="prod-price">฿{svc.price.toLocaleString()}</div>
-      <div className="prod-name">{svc.name}</div>
-      <div className="prod-unit">{unit}</div>
+    <div className={`dropdown timepick-dd${open ? ' open' : ''}`} ref={ref}>
+      <button className="dropdown-btn timepick-btn" onClick={() => setOpen(!open)} type="button" aria-label={label}>
+        <span className="dd-label timepick-val">{current?.l ?? '--'}</span>
+        <ChevronDown size={16} className="dd-caret" />
+      </button>
+      {open && (
+        <div className="dropdown-menu time-menu">
+          {options.map((o) => (
+            <button key={o.v} type="button" className={`dropdown-item${value === o.v ? ' on' : ''}`} onClick={() => { onChange(o.v); setOpen(false); }}>
+              {o.l}
+              {value === o.v && <Check size={14} className="dd-check" />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -40,17 +79,41 @@ function SvcTile({ svc, count, onAdd }) {
 export default function PagePOS({ data, saveData, onNavigate }) {
   const therapistsList = (data.therapists || []).filter((t) => t.active !== false);
   const services = data.services || [];
-  const [categoryFilter, setCategoryFilter] = useState('ทั้งหมด');
-  const [svcQuery, setSvcQuery] = useState('');
-  const [items, setItems] = useState([]);
+
+  // Step: 1=รายการ, 2=เวลา+หมอ, 3=ยืนยัน
+  const [step, setStep] = useState(1);
+
+  // Step 1: รายการ (ไม่มีรายการย่อยแล้ว)
+  const [selectedCategory, setSelectedCategory] = useState(null);
+
+  // Step 2: ระยะเวลา + หมอ + เวลา
+  const [selectedDuration, setSelectedDuration] = useState(null);
+  const [selectedTherapist, setSelectedTherapist] = useState(null);
+  const [selectedStartTime, setSelectedStartTime] = useState(null);
+  const [therapistType, setTherapistType] = useState('resident'); // resident | visiting
+  // หมอวิ่ง = พิมพ์ชื่อใช้เลย ไม่ต้องเพิ่มเข้าทะเบียน
+  const [visitingName, setVisitingName] = useState('');
+  const activeTherapistId = therapistType === 'visiting'
+    ? (visitingName.trim() ? `EXT-VIS-${visitingName.trim()}` : null)
+    : selectedTherapist;
+  const activeTherapistName = therapistType === 'visiting'
+    ? visitingName.trim()
+    : (therapistsList.find((t) => t.id === selectedTherapist)?.name || '');
+
+  const switchTherapistType = (t) => {
+    setTherapistType(t);
+    setSelectedTherapist(null);
+    setErr('');
+  };
+
+  // Step 3
+  const [customers, setCustomers] = useState([]);
+  const [editingIdx, setEditingIdx] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('เงินสด');
   const [customer, setCustomer] = useState('');
   const [memberNo, setMemberNo] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('เงินสด');
   const [discount, setDiscount] = useState('');
-  const [selectedTherapist, setSelectedTherapist] = useState('');
-  const [therapistType, setTherapistType] = useState('resident');
-  const [visitingName, setVisitingName] = useState('');
-  const [visitingId, setVisitingId] = useState('');
+
   const [showAuth, setShowAuth] = useState(false);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
@@ -59,65 +122,194 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   const [err, setErr] = useState('');
   const [successBill, setSuccessBill] = useState(null);
 
-  const categories = useMemo(() => ['ทั้งหมด', ...((data.serviceCategories && data.serviceCategories.length ? data.serviceCategories : [...new Set(services.map((s) => s.category))]))], [services, data.serviceCategories]);
-  // แยกให้ชัดเจน: ในแต่ละหมวดเรียงตามเวลา 45 → 60 → 90 → 120 นาที
-  const visibleServices = services.filter((s) => {
-    const matchCat = categoryFilter === 'ทั้งหมด' || s.category === categoryFilter;
-    const q = svcQuery.trim().toLowerCase();
-    return matchCat && (!q || s.name.toLowerCase().includes(q));
-  }).sort((a, b) => {
-    if (a.category !== b.category) return String(a.category).localeCompare(String(b.category), 'th');
-    const da = a.duration == null ? 9999 : a.duration;
-    const db = b.duration == null ? 9999 : b.duration;
-    if (da !== db) return da - db;
-    return (a.price || 0) - (b.price || 0);
-  });
-  const subtotal = items.reduce((s, i) => s + (i.net || 0), 0);
+  // รายการที่จองได้ = มีบริการแบบมีระยะเวลา
+  const bookableCats = useMemo(() => {
+    const base = data.serviceCategories?.length ? data.serviceCategories : [...new Set(services.map((s) => s.category))];
+    return base.filter((c) => services.some((s) => s.category === c && s.duration != null));
+  }, [services, data.serviceCategories]);
+
+  const visibleCats = bookableCats;
+
+  // ระยะเวลาที่มีจริงในรายการนั้น + ราคาตรงจาก data (ไม่คำนวณเอง)
+  const durationsForCat = (cat) => {
+    const rows = services.filter((s) => s.category === cat && s.duration != null);
+    const map = new Map();
+    rows.forEach((s) => { if (!map.has(s.duration)) map.set(s.duration, s); });
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([dur, svc]) => ({ duration: dur, price: svc.price, svc }));
+  };
+  const availableDurations = selectedCategory ? durationsForCat(selectedCategory) : [];
+  const priceFor = (dur) => availableDurations.find((d) => d.duration === dur)?.price || 0;
+  const svcFor = (dur) => availableDurations.find((d) => d.duration === dur)?.svc || null;
+
+  // บริการเสริม (หลายอย่างได้) — บวกเงิน + บวกเวลา (ประกาศก่อน memo ที่ใช้)
+  const [selectedAddons, setSelectedAddons] = useState([]);
+  const addonsActive = (data.addons || []).filter((a) => a.active !== false);
+  const toggleAddon = (id) => {
+    setSelectedAddons((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    setErr('');
+  };
+  const addonMinutes = selectedAddons.reduce((s, id) => s + (addonsActive.find((a) => a.id === id)?.minutes || 0), 0);
+  const addonPrice = selectedAddons.reduce((s, id) => s + (addonsActive.find((a) => a.id === id)?.price || 0), 0);
+  const totalMinutes = (selectedDuration || 0) + addonMinutes;
+
+  const bookedSlots = useMemo(() => {
+    if (!activeTherapistId) return [];
+    const slots = [];
+    (data.bills || []).forEach((b) => {
+      if (b.status === 'cancelled') return;
+      const rows = b.customers || b.items || [];
+      rows.forEach((it) => {
+        if (it.therapistId === activeTherapistId && it.startTime) {
+          const start = timeToMinutes(it.startTime);
+          const end = start + (it.totalMinutes || it.duration || 60) + BREAK_MINUTES;
+          slots.push({ start, end });
+        }
+      });
+    });
+    return slots;
+  }, [data.bills, activeTherapistId]);
+
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
+
+  const timeline = useMemo(() => {
+    if (!selectedDuration) return [];
+    return buildTimeline(bookedSlots, totalMinutes);
+  }, [bookedSlots, totalMinutes, selectedDuration]);
+
+  // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก)
+  const timeError = useMemo(() => {
+    if (selectedStartTime == null || !selectedDuration) return '';
+    if (selectedStartTime < OPEN_MIN) return `ร้านเปิด ${minutesToTime(OPEN_MIN)} — เลือกเวลาหลังจากนั้น`;
+    if (selectedStartTime + totalMinutes > CLOSE_MIN) return `เวลานี้จบเกิน ${minutesToTime(CLOSE_MIN)} — ร้านปิดแล้ว`;
+    const clash = bookedSlots.some((s) => selectedStartTime < s.end && selectedStartTime + totalMinutes > s.start);
+    if (clash) return 'เวลานี้ชนกับคิวที่จองแล้ว ลองขยับเวลา';
+    return '';
+  }, [selectedStartTime, selectedDuration, totalMinutes, bookedSlots]);
+
+  // ช่วงว่างถัดไปที่แนะนำ (หลังเวลาที่ pick)
+  const suggestedTime = useMemo(() => {
+    if (!timeError || !selectedDuration || selectedStartTime == null) return null;
+    const next = timeline.find((s) => s.available && s.start >= selectedStartTime);
+    return next ? next.start : null;
+  }, [timeError, timeline, selectedDuration, selectedStartTime]);
+
+  const subtotal = customers.reduce((s, c) => s + c.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
   const total = subtotal - discVal;
-  const getActiveTherapist = () => {
-    if (therapistType === 'resident') return therapistsList.find((t) => t.id === selectedTherapist) || null;
-    const name = visitingName.trim();
-    return name ? { id: visitingId, name, nickname: name, role: 'visiting' } : null;
-  };
-  const therapist = getActiveTherapist();
 
-  const scrollToTicket = () => {
-    document.getElementById('bill-ticket')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const resetPick = () => {
+    setSelectedCategory(null);
+    setSelectedDuration(null);
+    setSelectedTherapist(null);
+    setSelectedStartTime(null);
+    setSelectedAddons([]);
+    setVisitingName('');
+    setTherapistType('resident');
   };
 
-  const quickAdd = (svc) => {
-    const th = getActiveTherapist();
-    if (!th) { setErr(therapistType === 'resident' ? 'แตะเลือกพนักงานด้านบนก่อนเพิ่มบริการ — ระบบผูกค่าคอมให้อัตโนมัติ' : 'กรอกชื่อหมอวิ่งก่อนเพิ่มบริการ'); return; }
+  const handleSelectCategory = (cat) => {
+    if (selectedCategory !== cat) {
+      setSelectedCategory(cat);
+      setSelectedDuration(null);
+      setSelectedTherapist(null);
+      setSelectedAddons([]);
+      // default = เวลาปัจจุบัน (clamp ในเวลาเปิดร้าน)
+      setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), CLOSE_MIN - 30));
+    }
     setErr('');
-    let tid = th.id;
-    if (therapistType === 'visiting' && !tid) {
-      tid = `EXT-${Date.now().toString(36).toUpperCase()}`;
-      setVisitingId(tid);
-    }
-    const found = items.findIndex((i) => i.serviceId === svc.id && i.therapistId === tid);
-    if (found >= 0) {
-      const next = [...items];
-      next[found] = { ...next[found], qty: next[found].qty + 1, net: (next[found].qty + 1) * next[found].price };
-      setItems(next);
-    } else {
-      setItems([...items, {
-        serviceId: svc.id, serviceName: svc.name, category: svc.category,
-        therapistId: tid, therapistName: th.name, qty: 1, price: svc.price, discount: 0, net: svc.price,
-      }]);
-    }
   };
 
-  const changeQty = (idx, d) => {
-    const next = [...items];
-    const q = next[idx].qty + d;
-    if (q <= 0) { next.splice(idx, 1); } else { next[idx] = { ...next[idx], qty: q, net: q * next[idx].price }; }
-    setItems(next);
+  // เลือกแล้วค้างหน้านี้ — ไปต่อด้วยปุ่มถัดไปเท่านั้น
+  const pickDuration = (dur) => {
+    setSelectedDuration(dur);
+    setErr('');
+  };
+  const pickTherapist = (id) => {
+    setSelectedTherapist(id);
+    setErr('');
+  };
+
+  const buildCustomer = () => {
+    const matched = svcFor(selectedDuration);
+    const pickedAddons = selectedAddons
+      .map((id) => addonsActive.find((a) => a.id === id))
+      .filter(Boolean)
+      .map((a) => ({ id: a.id, name: a.name, minutes: a.minutes, price: a.price }));
+    const extraMin = pickedAddons.reduce((s, a) => s + (a.minutes || 0), 0);
+    const extraPrice = pickedAddons.reduce((s, a) => s + (a.price || 0), 0);
+    const mins = (selectedDuration || 0) + extraMin;
+    return {
+      id: Date.now(),
+      serviceId: matched?.id || `${selectedCategory}-${selectedDuration}`,
+      serviceName: `${selectedCategory} ${formatDuration(selectedDuration)}`,
+      category: selectedCategory,
+      duration: selectedDuration,
+      addons: pickedAddons,
+      addonMinutes: extraMin,
+      totalMinutes: mins,
+      startTime: minutesToTime(selectedStartTime),
+      endTime: minutesToTime(selectedStartTime + mins),
+      therapistId: activeTherapistId,
+      therapistName: activeTherapistName,
+      price: priceFor(selectedDuration) + extraPrice,
+    };
+  };
+
+  const validPick = selectedCategory && selectedDuration && activeTherapistId && selectedStartTime != null && !timeError;
+
+  const handleAddCustomer = () => {
+    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
+    setErr('');
+    setCustomers([...customers, buildCustomer()]);
+    resetPick();
+    setStep(1);
+  };
+
+  const handleAddAndCheckout = () => {
+    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
+    setErr('');
+    setCustomers([...customers, buildCustomer()]);
+    resetPick();
+    setStep(5);
+  };
+
+  const handleEditCustomer = (idx) => {
+    const c = customers[idx];
+    const isVisiting = c.therapistId && String(c.therapistId).startsWith('EXT-');
+    setTherapistType(isVisiting ? 'visiting' : 'resident');
+    setVisitingName(isVisiting ? (c.therapistName || '') : '');
+    setSelectedCategory(c.category);
+    setSelectedDuration(c.duration);
+    setSelectedTherapist(c.therapistId);
+    setSelectedStartTime(timeToMinutes(c.startTime));
+    setSelectedAddons((c.addons || []).map((a) => a.id));
+    setEditingIdx(idx);
+    setStep(2);
+  };
+
+  const handleUpdateCustomer = () => {
+    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
+    setErr('');
+    const next = [...customers];
+    next[editingIdx] = { ...buildCustomer(), id: customers[editingIdx].id };
+    setCustomers(next);
+    setEditingIdx(null);
+    resetPick();
+    setStep(5);
+  };
+
+  const cancelEdit = () => {
+    setEditingIdx(null);
+    resetPick();
+    setStep(5);
+  };
+
+  const handleRemoveCustomer = (idx) => {
+    setCustomers(customers.filter((_, i) => i !== idx));
   };
 
   const startCheckout = () => {
-    if (!getActiveTherapist()) { setErr(therapistType === 'resident' ? 'กรุณาเลือกพนักงานก่อนเปิดบิล' : 'กรุณากรอกชื่อหมอวิ่งก่อนเปิดบิล'); return; }
-    if (items.length === 0) { setErr('แตะเพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
+    if (customers.length === 0) { setErr('เพิ่มลูกค้าอย่างน้อย 1 คนก่อนเปิดบิล'); return; }
     setErr('');
     try {
       if (sessionStorage.getItem(MGR_KEY) === '1') { openBill('จำรหัสในกะนี้'); return; }
@@ -130,7 +322,17 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     const id = generateBillId();
     const now = new Date();
     const newBill = {
-      id, date: now.toISOString(), customer, memberNo, items,
+      id, date: now.toISOString(), customer, memberNo,
+      customers: customers.map((c) => ({ ...c })),
+      // mirror ให้หน้ารายงานเก่า (ประวัติ/ปิดวัน/คอม) ที่อ่าน b.items ทำงานได้
+      items: customers.map((c) => ({
+        serviceId: c.serviceId,
+        serviceName: (c.addons || []).length ? `${c.serviceName} + ${(c.addons || []).map((a) => a.name).join(', ')}` : c.serviceName,
+        category: c.category,
+        therapistId: c.therapistId, therapistName: c.therapistName,
+        qty: 1, price: c.price, discount: 0, net: c.price,
+        duration: c.totalMinutes || c.duration, startTime: c.startTime,
+      })),
       subtotal, discount: discVal, total, paymentMethod, status: 'paid', createdAt: now.toISOString(),
     };
     saveData({
@@ -138,194 +340,318 @@ export default function PagePOS({ data, saveData, onNavigate }) {
       bills: [...(data.bills || []), newBill],
       auditLog: [...(data.auditLog || []), {
         id: `A-${Date.now()}`, timestamp: now.toISOString(), user: 'ระบบ POS',
-        action: 'สร้างบิล', detail: `${id} · ฿${total.toLocaleString()} · ${paymentMethod}`,
+        action: 'สร้างบิล', detail: `${id} · ฿${total.toLocaleString()} · ${paymentMethod} · ${customers.length} ลูกค้า`,
         oldValue: '-', newValue: 'paid', approvedBy: '-',
       }],
     });
-    setSuccessBill({ id, total });
-    setItems([]); setCustomer(''); setMemberNo(''); setDiscount(''); setSelectedTherapist('');
-    setVisitingName(''); setVisitingId('');
+    setSuccessBill({ id, total, count: customers.length });
+    setCustomers([]); setCustomer(''); setMemberNo(''); setDiscount('');
+    resetPick();
+    setEditingIdx(null); setStep(1);
     setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); setRememberMgr(false);
   };
 
   const confirmAuth = () => {
     if (authPass !== '123123') { setAuthErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
-    if (!authReason.trim()) { setAuthErr('กรุณาระบุเหตุผลสั้น ๆ เช่น รับเงินครบถ้วน'); return; }
+    if (!authReason.trim()) { setAuthErr('กรุณาระบุเหตุผลสั้น ๆ'); return; }
     if (rememberMgr) { try { sessionStorage.setItem(MGR_KEY, '1'); } catch { /* ignore */ } }
     openBill(authReason);
   };
 
   return (
     <div>
-      <PageHeader
-        icon={ReceiptText}
-        eyebrow="Point of Sale"
-        title="เปิดบิลใหม่"
-        subtitle="เลือกพนักงาน → แตะบริการ → กดเปิดบิล จบในจอเดียว"
-      />
-
       {err && <div className="err-banner"><TriangleAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} /> {err}</div>}
 
-      <div className="pos-grid">
-        {/* ---- left: pick staff + services ---- */}
-        <div className="pos-main">
-          <Card>
-            <CardHead title="พนักงานผู้ให้บริการ" hint={therapist ? `✓ ${therapist.name}${therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}` : 'เลือกประเภทก่อน'} right={<User size={18} color="var(--faint)" />} />
-            <div className="seg">
-              <button onClick={() => { setTherapistType('resident'); setErr(''); }} className={therapistType === 'resident' ? 'on' : ''}>หมอประจำ</button>
-              <button onClick={() => { setTherapistType('visiting'); setErr(''); }} className={therapistType === 'visiting' ? 'on' : ''}>หมอวิ่ง</button>
+      <div className="steps">
+        {[
+          { n: 1, label: 'รายการ' },
+          { n: 2, label: 'ระยะเวลา' },
+          { n: 3, label: 'หมอนวด' },
+          { n: 4, label: 'เวลา' },
+          { n: 5, label: `ตรวจสอบ${customers.length > 0 ? ` (${customers.length})` : ''}` },
+        ].map((s, i) => (
+          <div key={s.n} className={`step${step === s.n ? ' cur' : ''}${step > s.n ? ' done' : ''}`}>
+            <span className="step-dot">{step > s.n ? '✓' : s.n}</span>
+            <span className="st"><b>{s.label}</b><small>ขั้น {s.n}/5</small></span>
+            {i < 4 && <span className={`step-link${step > s.n ? ' done' : ''}`} />}
+          </div>
+        ))}
+      </div>
+
+      {/* STEP 1: รายการล้วน */}
+      {step === 1 && (
+        <Card>
+          <CardHead title="เลือกรายการ" hint={`${visibleCats.length} รายการ`} />
+          <div className="cat-grid">
+            {visibleCats.map((c) => {
+              const durs = durationsForCat(c);
+              if (durs.length === 0) return null;
+              const prices = durs.map((d) => d.price);
+              const min = Math.min(...prices);
+              const max = Math.max(...prices);
+              return (
+                <button key={c} className={`cat-card${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
+                  <span className="cat-card-main">
+                    <b>{c}</b>
+                    <small>{durs.map((d) => formatDuration(d.duration)).join(' · ')} · ฿{min.toLocaleString()}{max !== min ? `–${max.toLocaleString()}` : ''}</small>
+                  </span>
+                  <span className="cat-card-arrow">{selectedCategory === c ? '✓' : '›'}</span>
+                </button>
+              );
+            })}
+          </div>
+          {visibleCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
+          <div className="stepnav">
+            <button className="btn btn-primary btn-block" onClick={() => setStep(2)} disabled={!selectedCategory}>ถัดไป →</button>
+          </div>
+        </Card>
+      )}
+
+      {/* STEP 2: ระยะเวลา */}
+      {step === 2 && selectedCategory && (
+        <Card>
+          <CardHead
+            title={editingIdx != null ? 'แก้ไขรายการ' : selectedCategory}
+            hint="เลือกระยะเวลา"
+            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
+          />
+
+          <div className="dur-grid">
+              {availableDurations.map(({ duration, price }) => (
+                <button key={duration} className={`dur-card${selectedDuration === duration ? ' on' : ''}`} onClick={() => pickDuration(duration)}>
+                  <span className="dur-label">{formatDuration(duration)}</span>
+                  <span className="dur-price">฿{price.toLocaleString()}</span>
+                </button>
+              ))}
+            </div>
+          {addonsActive.length > 0 && (
+            <div className="field" style={{ marginTop: 12 }}>
+              <label>บริการเสริม (หลายอย่างได้ · +เงิน +เวลา)</label>
+              <div className="addon-list">
+                {addonsActive.map((a) => {
+                  const on = selectedAddons.includes(a.id);
+                  return (
+                    <button key={a.id} type="button" className={`addon-row${on ? ' on' : ''}`} onClick={() => toggleAddon(a.id)}>
+                      <span className="addon-check">{on ? '✓' : ''}</span>
+                      <span className="addon-main"><b>{a.name}</b><small>+{a.minutes} นาที</small></span>
+                      <span className="addon-price">+฿{a.price.toLocaleString()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <div className="stepnav">
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { editingIdx != null ? cancelEdit() : (resetPick(), setStep(1)); }}>← กลับ</button>
+            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(3)} disabled={!selectedDuration}>ถัดไป →</button>
+          </div>
+        </Card>
+      )}
+
+      {/* STEP 3: หมอนวด */}
+      {step === 3 && selectedCategory && (
+        <Card>
+          <CardHead
+            title="เลือกหมอนวด"
+            hint={`${selectedCategory} · ${selectedDuration ? formatDuration(selectedDuration) : ''}`}
+            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
+          />
+          <div className="seg">
+              <button onClick={() => switchTherapistType('resident')} className={therapistType === 'resident' ? 'on' : ''}>หมอประจำ</button>
+              <button onClick={() => switchTherapistType('visiting')} className={therapistType === 'visiting' ? 'on' : ''}>หมอวิ่ง</button>
             </div>
             {therapistType === 'resident' ? (
               <div className="thera-scroll">
                 {therapistsList.map((th) => {
                   const active = selectedTherapist === th.id;
                   return (
-                    <button key={th.id} onClick={() => { setSelectedTherapist(active ? '' : th.id); setErr(''); }} className={`thera${active ? ' on' : ''}`}>
-                      <span className="thera-ava">{th.nickname.charAt(0)}</span>
+                    <button key={th.id} onClick={() => pickTherapist(th.id)} className={`thera${active ? ' on' : ''}`}>
+                      <span className="thera-ava">{(th.nickname || th.name || '?').charAt(0)}</span>
                       <span><b>{th.name}</b><small>{th.nickname} · {th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
-                      <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเพื่อเลือก'}</span>
+                      <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเลือก'}</span>
                     </button>
                   );
                 })}
               </div>
             ) : (
-              <div>
-                <div className="field" style={{ marginBottom: 8 }}>
-                  <label>ชื่อหมอวิ่ง</label>
-                  <input value={visitingName} onChange={(e) => { setVisitingName(e.target.value); setErr(''); }} placeholder="เช่น หมอนิด" className="input" />
+              <div className="field" style={{ marginBottom: 0 }}>
+                <div className="search-wrap">
+                  <Search size={16} />
+                  <input
+                    value={visitingName}
+                    onChange={(e) => { setVisitingName(e.target.value); setErr(''); }}
+                    placeholder="พิมพ์ชื่อหมอวิ่ง… เช่น หมอนิด"
+                    className="input"
+                  />
                 </div>
-            
+                <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พิมพ์ชื่อแล้วกดถัดไปได้เลย ไม่ต้องเพิ่มเข้าทะเบียน</p>
               </div>
             )}
-          </Card>
-
-          <Card>
-            <CardHead title="บริการ" hint={items.length > 0 ? `ในบิล ×${items.reduce((s, i) => s + i.qty, 0)}` : 'แตะ + เพื่อเพิ่ม'} />
-            <div className="svc-toolbar" style={{ position: 'static' }}>
-              <div className="search-wrap">
-                <Search size={16} />
-                <input value={svcQuery} onChange={(e) => setSvcQuery(e.target.value)} placeholder="ค้นหาบริการ… เช่น นวดไทย 1.5 ชม" className="input" />
-              </div>
-              <div className="chip-row">
-                {categories.map((c) => (
-                  <button key={c} onClick={() => setCategoryFilter(c)} className={`chip sage${categoryFilter === c ? ' on' : ''}`}>{c}</button>
-                ))}
-              </div>
-            </div>
-
-            {/* โหมดทั้งหมด + ไม่ได้ค้นหา: แสดงเป็น section ต่อหมวดแบบรูปอ้างอิง */}
-            {categoryFilter === 'ทั้งหมด' && !svcQuery.trim() ? (
-              <div className="cat-list">
-                {categories.filter((c) => c !== 'ทั้งหมด').map((c) => {
-                  const list = visibleServices.filter((s) => s.category === c);
-                  if (list.length === 0) return null;
-                  return (
-                    <section key={c} className="cat-sec">
-                      <div className="cat-sec-head">
-                        <h3>{c} <span className="muted">· {list.length}</span></h3>
-                        <button className="cat-arrow" onClick={() => setCategoryFilter(c)} aria-label={`ดูทั้งหมด ${c}`}>
-                          <ArrowRight size={22} />
-                        </button>
-                      </div>
-                      <div className="hscroll">
-                        {list.map((svc) => {
-                          const count = items.filter((i) => i.serviceId === svc.id).reduce((s, i) => s + i.qty, 0);
-                          return <SvcTile key={svc.id} svc={svc} count={count} onAdd={() => quickAdd(svc)} />;
-                        })}
-                      </div>
-                    </section>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="prod-grid">
-                {visibleServices.map((svc) => {
-                  const count = items.filter((i) => i.serviceId === svc.id).reduce((s, i) => s + i.qty, 0);
-                  return <SvcTile key={svc.id} svc={svc} count={count} onAdd={() => quickAdd(svc)} />;
-                })}
-              </div>
-            )}
-            {visibleServices.length === 0 && <EmptyState title="ไม่พบบริการ" subtitle="ลองเปลี่ยนคำค้นหรือหมวดหมู่" />}
-          </Card>
-        </div>
-
-        {/* ---- right: live ticket ---- */}
-        <div className="pos-side" id="bill-ticket">
-          <div className="ticket">
-            <div className="ticket-head">
-              <div className="t-no">Live Bill · {therapist ? (therapistType === 'visiting' ? `${therapist.name} · หมอวิ่ง` : `${therapist.name} (${therapist.nickname})`) : 'ยังไม่เลือกพนักงาน'}</div>
-              <div className="t-total">฿{total.toLocaleString()}</div>
-              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>{items.reduce((s, i) => s + i.qty, 0)} รายการ · {paymentMethod}</div>
-            </div>
-            <div className="ticket-body">
-              {items.length === 0 && <EmptyState title="บิลยังว่าง" subtitle="แตะการ์ดบริการเพื่อเพิ่มลงบิล" />}
-              {items.map((it, idx) => (
-                <div key={idx} className="tline">
-                  <span className="q">{idx + 1}</span>
-                  <span className="tt"><b>{it.serviceName}</b><small>{it.therapistName}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''} · ฿{it.price.toLocaleString()}</small></span>
-                  <span className="qty">
-                    <button onClick={() => changeQty(idx, -1)} aria-label="ลด">{it.qty === 1 ? <Trash2 size={13} /> : <Minus size={13} />}</button>
-                    <b>{it.qty}</b>
-                    <button onClick={() => changeQty(idx, 1)} aria-label="เพิ่ม"><Plus size={13} /></button>
-                  </span>
-                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿{it.net.toLocaleString()}</b>
-                </div>
-              ))}
-
-              {items.length > 0 && (
-                <>
-                  <div className="perf" />
-                  <div className="f2">
-                    <div className="field" style={{ marginBottom: 8 }}><label>ชื่อลูกค้า</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="ไม่บังคับ" className="input" /></div>
-                    <div className="field" style={{ marginBottom: 8 }}><label>สมาชิก</label><input value={memberNo} onChange={(e) => setMemberNo(e.target.value)} placeholder="M-xxxx" className="input" /></div>
-                  </div>
-                  <div className="field" style={{ marginBottom: 8 }}>
-                    <label>ส่วนลดท้ายบิล (฿)</label>
-                    <div className="disc-row">
-                      <input type="number" min="0" max={subtotal} value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
-                      <div className="preset-row" style={{ marginTop: 0 }}>
-                        {[50, 100, 200].map((v) => (
-                          <button key={v} type="button" className="preset-btn light" onClick={() => setDiscount(String((Number(discount) || 0) + v))}>+{v}</button>
-                        ))}
-                        {discount !== '' && <button type="button" className="preset-btn light" onClick={() => setDiscount('')}>ล้าง</button>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="field"><label>ชำระโดย</label>
-                    <div className="pay-grid">
-                      {PAY_METHODS.map((m) => {
-                        const Icon = m.icon;
-                        return (
-                          <button key={m.label} onClick={() => setPaymentMethod(m.label)} className={`pay-card${paymentMethod === m.label ? ' on' : ''}`}>
-                            <Icon size={17} /><span>{m.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="summary-box">
-                    <div className="r"><span>รวมย่อย</span><b>฿{subtotal.toLocaleString()}</b></div>
-                    <div className="r"><span>ส่วนลด</span><b>−฿{discVal.toLocaleString()}</b></div>
-                    <div className="r" style={{ fontSize: 15 }}><span><b style={{ color: 'var(--ink)' }}>สุทธิ</b></span><b style={{ fontFamily: 'var(--font-display)', fontSize: 24 }}>฿{total.toLocaleString()}</b></div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setItems([]); setDiscount(''); }}>ล้าง</button>
-                    <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={startCheckout}>
-                      <ReceiptText size={18} /> เปิดบิล · ฿{total.toLocaleString()}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+          <div className="stepnav">
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { editingIdx != null ? cancelEdit() : setStep(2); }}>← กลับ</button>
+            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(4)} disabled={therapistType === 'visiting' ? !visitingName.trim() : !selectedTherapist}>ถัดไป →</button>
           </div>
-        </div>
-      </div>
+        </Card>
+      )}
 
-      {/* mobile floating checkout */}
-      {items.length > 0 && !showAuth && !successBill && (
-        <div className="cta-float" onClick={scrollToTicket}>
-          <span className="t"><b>฿{total.toLocaleString()} · {items.reduce((s, i) => s + i.qty, 0)} รายการ</b><small>{therapist ? therapist.name : 'แตะเพื่อตรวจบิล'}</small></span>
-          <button onClick={(e) => { e.stopPropagation(); startCheckout(); }}>เปิดบิล</button>
+      {/* STEP 4: เวลาเริ่ม */}
+      {step === 4 && selectedCategory && selectedDuration && activeTherapistId && (
+        <Card>
+          <CardHead
+            title="เลือกเวลาเริ่ม"
+            hint={`${selectedCategory} · ${formatDuration(selectedDuration)} · ${activeTherapistName}`}
+            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
+          />
+          <div className="field">
+            <label>เวลาเริ่ม (24 ชม.)</label>
+              <div className="timepick-row">
+                <TimeDropdown
+                  label="ชั่วโมง"
+                  value={selectedStartTime != null ? Math.floor(selectedStartTime / 60) : null}
+                  onChange={(h) => {
+                    const curMin = selectedStartTime != null ? selectedStartTime % 60 : 0;
+                    setSelectedStartTime(h * 60 + curMin);
+                    setErr('');
+                  }}
+                  options={Array.from({ length: 13 }, (_, i) => i + 10).map((h) => ({ v: h, l: String(h).padStart(2, '0') }))}
+                />
+                <span className="timepick-colon">:</span>
+                <TimeDropdown
+                  label="นาที"
+                  value={selectedStartTime != null ? selectedStartTime % 60 : 0}
+                  onChange={(m) => {
+                    const curH = selectedStartTime != null ? Math.floor(selectedStartTime / 60) : 10;
+                    setSelectedStartTime(curH * 60 + m);
+                    setErr('');
+                  }}
+                  options={(() => {
+                    const cur = selectedStartTime != null ? selectedStartTime % 60 : 0;
+                    const steps = Array.from({ length: 12 }, (_, i) => i * 5);
+                    const opts = steps.includes(cur) ? steps : [...steps, cur].sort((a, b) => a - b);
+                    return opts.map((m) => ({ v: m, l: String(m).padStart(2, '0') }));
+                  })()}
+                />
+                {selectedStartTime != null && (
+                  <span className="timepick-end">จบ {minutesToTime(selectedStartTime + totalMinutes)}</span>
+                )}
+              </div>
+              {timeError ? (
+                <div className="alert warn" style={{ marginTop: 8 }}>{timeError}
+                  {suggestedTime != null && (
+                    <button type="button" className="preset-btn" style={{ marginLeft: 8 }} onClick={() => setSelectedStartTime(suggestedTime)}>
+                      ใช้ {minutesToTime(suggestedTime)}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
+              )}
+          </div>
+
+          {validPick && (
+            <div className="summary-box">
+              <div className="r"><span>บริการ</span><b>{selectedCategory} {formatDuration(selectedDuration)}</b></div>
+              {(selectedAddons.map((id) => addonsActive.find((a) => a.id === id)).filter(Boolean)).map((a) => (
+                <div key={a.id} className="r"><span>+ {a.name} (+{a.minutes} นาที)</span><b>+฿{a.price.toLocaleString()}</b></div>
+              ))}
+              <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
+              <div className="r"><span>เวลา</span><b>{minutesToTime(selectedStartTime)} – {minutesToTime(selectedStartTime + totalMinutes)} · รวม {formatDuration(totalMinutes)}</b></div>
+              <div className="r"><span>ราคา</span><b>฿{(priceFor(selectedDuration) + addonPrice).toLocaleString()}</b></div>
+            </div>
+          )}
+
+          <div className="stepnav stepnav-3">
+            <button className="btn btn-ghost" style={{ flex: 0.9 }} onClick={() => { editingIdx != null ? cancelEdit() : setStep(3); }}>← กลับ</button>
+            {editingIdx != null ? (
+              <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={handleUpdateCustomer}>อัปเดตรายการ</button>
+            ) : (
+              <>
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={handleAddCustomer} disabled={!validPick}>
+                  <Plus size={16} /> เพิ่ม
+                </button>
+                <button className="btn btn-primary" style={{ flex: 1.1 }} onClick={handleAddAndCheckout} disabled={!validPick}>
+                  เปิดบิล →
+                </button>
+              </>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {/* STEP 5: ตรวจสอบ + ชำระเงิน */}
+      {step === 5 && (
+        <>
+          <Card>
+            <CardHead
+              title="รายการในบิล"
+              hint={`${customers.length} ลูกค้า`}
+              right={<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={() => setStep(1)}>+ เพิ่มลูกค้า</button>}
+            />
+            {customers.length === 0 && <EmptyState title="ยังไม่มีลูกค้า" subtitle="กด '+ เพิ่มลูกค้า' เพื่อเริ่ม" />}
+            {customers.map((c, idx) => (
+              <div key={c.id} className="tline">
+                <span className="q">{idx + 1}</span>
+                <span className="tt">
+                  <b>{c.serviceName}</b>
+                  <small>{c.therapistName} · {c.startTime}–{c.endTime}{(c.addons || []).length ? ` · +${c.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
+                </span>
+                <span className="qty">
+                  <button onClick={() => handleEditCustomer(idx)} aria-label="แก้ไข"><Pencil size={13} /></button>
+                  <button onClick={() => handleRemoveCustomer(idx)} aria-label="ลบ"><Trash2 size={13} /></button>
+                </span>
+                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿{c.price.toLocaleString()}</b>
+              </div>
+            ))}
+          </Card>
+
+          {customers.length > 0 && (
+            <Card>
+              <div className="f2">
+                <div className="field" style={{ marginBottom: 8 }}><label>ชื่อลูกค้า</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="ไม่บังคับ" className="input" /></div>
+                <div className="field" style={{ marginBottom: 8 }}><label>สมาชิก</label><input value={memberNo} onChange={(e) => setMemberNo(e.target.value)} placeholder="M-xxxx" className="input" /></div>
+              </div>
+              <div className="field" style={{ marginBottom: 8 }}>
+                <label>ส่วนลดท้ายบิล (฿)</label>
+                <div className="disc-row">
+                  <input type="number" min="0" max={subtotal} value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+                  <div className="preset-row" style={{ marginTop: 0 }}>
+                    {[50, 100, 200].map((v) => (
+                      <button key={v} type="button" className="preset-btn" onClick={() => setDiscount(String((Number(discount) || 0) + v))}>+{v}</button>
+                    ))}
+                    {discount !== '' && <button type="button" className="preset-btn" onClick={() => setDiscount('')}>ล้าง</button>}
+                  </div>
+                </div>
+              </div>
+              <div className="field"><label>ชำระโดย</label>
+                <div className="pay-grid">
+                  {PAY_METHODS.map((m) => {
+                    const Icon = m.icon;
+                    return (
+                      <button key={m.label} onClick={() => setPaymentMethod(m.label)} className={`pay-card${paymentMethod === m.label ? ' on' : ''}`}>
+                        <Icon size={17} /><span>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="summary-box">
+                <div className="r"><span>รวมย่อย</span><b>฿{subtotal.toLocaleString()}</b></div>
+                <div className="r"><span>ส่วนลด</span><b>−฿{discVal.toLocaleString()}</b></div>
+                <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿{total.toLocaleString()}</b></div>
+              </div>
+              <button className="btn btn-primary btn-block" onClick={startCheckout}>
+                <ReceiptText size={18} /> ยืนยันเปิดบิล · ฿{total.toLocaleString()}
+              </button>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* แถบบิลลัดไปตรวจสอบ — โผล่เมื่อมีลูกค้าในบิลแล้ว (ยกเว้นอยู่หน้าตรวจสอบ) */}
+      {customers.length > 0 && step !== 5 && !showAuth && !successBill && (
+        <div className="cta-float" onClick={() => setStep(5)}>
+          <span className="t"><b>฿{total.toLocaleString()} · {customers.length} ลูกค้า</b><small>แตะเพื่อตรวจสอบ + ชำระเงิน</small></span>
+          <button onClick={(e) => { e.stopPropagation(); setStep(5); }}>ตรวจสอบ →</button>
         </div>
       )}
 
@@ -333,12 +659,12 @@ export default function PagePOS({ data, saveData, onNavigate }) {
         <Modal onClose={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }}>
           <div className="pagehead-main" style={{ marginBottom: 8 }}>
             <div className="pagehead-icon"><ShieldAlert size={22} /></div>
-            <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿{total.toLocaleString()} · {paymentMethod} · {items.reduce((s, i) => s + i.qty, 0)} รายการ</p></div>
+            <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿{total.toLocaleString()} · {paymentMethod} · {customers.length} ลูกค้า</p></div>
           </div>
           {authErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {authErr}</div>}
           <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setAuthErr(''); }} placeholder="123123" className="input" /></div>
           <div className="field"><label>หมายเหตุ (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setAuthErr(''); }} placeholder="เช่น รับเงินสดครบถ้วน" className="input" rows={2} /></div>
-          <label className="mgr-remember"><input type="checkbox" checked={rememberMgr} onChange={(e) => setRememberMgr(e.target.checked)} /> จำรหัสในกะนี้ (ไม่ต้องกรอกอีก)</label>
+          <label className="mgr-remember"><input type="checkbox" checked={rememberMgr} onChange={(e) => setRememberMgr(e.target.checked)} /> จำรหัสในกะนี้</label>
           <div className="modal-row">
             <button onClick={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
             <button onClick={confirmAuth} disabled={!authReason.trim() || !authPass} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเปิดบิล</button>
@@ -350,9 +676,10 @@ export default function PagePOS({ data, saveData, onNavigate }) {
         <Modal onClose={() => setSuccessBill(null)}>
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
             <div className="empty-ic" style={{ background: '#f5efe6', color: '#8b5e3c', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
-            <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 27 }}>เปิดบิลสำเร็จ</h3>
+            <h3 style={{ fontSize: 27 }}>เปิดบิลสำเร็จ</h3>
             <div className="mono" style={{ marginTop: 4 }}>{successBill.id}</div>
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
+            <div style={{ fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
+            <div className="muted" style={{ marginTop: 4 }}>{successBill.count} ลูกค้า</div>
             <div className="modal-row">
               <button onClick={() => setSuccessBill(null)} className="btn btn-ghost" style={{ width: '100%' }}>เปิดบิลต่อ</button>
               <button onClick={() => { setSuccessBill(null); onNavigate && onNavigate('bills'); }} className="btn btn-primary" style={{ width: '100%' }}>ดูประวัติบิล</button>

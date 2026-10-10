@@ -52,7 +52,8 @@
   --green: #8b5e3c;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
@@ -622,34 +623,35 @@ td.c, th.c { text-align: center; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 719px) {
-  .page { padding: 14px 16px 140px; }
+  .page { padding: 12px 16px 140px; }
   .container { padding: 0 2px; }
-  .card { padding: 14px; border-radius: 14px; }
-  .h1 { font-size: 22px; }
+  .card { padding: 12px; border-radius: 12px; }
+  .h1 { font-size: 20px; }
   .lede { font-size: 12.5px; }
   .kpi-value { font-size: 24px; }
   .kpi-value.sm { font-size: 20px; }
   .big-price { font-size: 20px; }
-  .btn { padding: 13px 16px; font-size: 14px; }
-  .input { padding: 12px 14px; font-size: 15px; }
-  .chip { padding: 9px 14px; font-size: 13px; }
+  .btn { padding: 10px 12px; font-size: 13px; }
+  .input { padding: 10px 12px; font-size: 14px; }
+  .chip { padding: 7px 12px; font-size: 12.5px; }
   .mcard { padding: 14px; }
   .bill-card-main { padding: 14px 14px 10px; }
   .bill-customer { font-size: 15px; }
   .bill-amount { font-size: 16px; }
   .filter-bar { gap: 8px; }
-  .dropdown-btn { padding: 12px 14px; font-size: 14px; }
-  .dropdown-item { padding: 11px 13px; font-size: 14px; }
+  .dropdown-btn { padding: 10px 12px; font-size: 13px; }
+  .dropdown-item { padding: 9px 11px; font-size: 13px; }
   .search-wrap .input { padding-left: 38px; }
   .topbar-in { padding: 10px 16px; }
   .brand-name { font-size: 18px; }
-  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); }
+  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 4px 2px; }
+  .bottomnav-in button { padding: 6px 0 5px; }
   .modal { padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); }
   .gate-card { padding: 26px 20px 20px; }
   .gate-title { font-size: 28px; }
   .gate-role { padding: 14px; }
-  .seg button { padding: 12px 8px; font-size: 14px; }
-  .step-dot { width: 36px; height: 36px; font-size: 13px; }
+  .seg button { padding: 10px 8px; font-size: 13px; }
+  .step-dot { width: 30px; height: 30px; font-size: 12px; }
   .step .st b { font-size: 12.5px; }
   .step .st small { font-size: 10.5px; }
   .svc-card { padding: 13px 14px; }
@@ -666,8 +668,8 @@ td.c, th.c { text-align: center; }
   .tline .tt small { font-size: 11px; }
   .big-input { font-size: 26px; padding: 13px 15px; }
   .denom-lab { font-size: 13.5px; }
-  .denom-ctl button { width: 32px; height: 32px; }
-  .preset-btn { padding: 8px 14px; font-size: 13px; }
+  .denom-ctl button { width: 30px; height: 30px; }
+  .preset-btn { padding: 7px 12px; font-size: 12px; }
   .cash-row { padding: 11px; }
   .cash-ic { width: 38px; height: 38px; }
   .cash-row .tt b { font-size: 13px; }
@@ -695,7 +697,7 @@ td.c, th.c { text-align: center; }
   .modal-row { gap: 10px; }
   .f2 { gap: 10px; }
   .f3 { gap: 8px; }
-  .catbtn { padding: 11px 6px; font-size: 12.5px; }
+  .catbtn { padding: 9px 6px; font-size: 12px; }
   .filebtn { padding: 13px 14px; font-size: 13px; }
   .loading-card h2 { font-size: 26px; }
   .loading-mark { width: 58px; height: 58px; }
@@ -705,7 +707,7 @@ td.c, th.c { text-align: center; }
   .recent-bill { padding: 10px 2px; }
   .mrow { padding: 11px 2px; }
   .toggle { padding: 8px 14px; font-size: 12.5px; }
-  .icon-btn { width: 36px; height: 36px; }
+  .icon-btn { width: 30px; height: 30px; }
   .role-chip { padding: 8px 13px; font-size: 12.5px; }
   .date-chip { font-size: 11.5px; }
   .status-pill { padding: 8px 14px; font-size: 11.5px; }
@@ -722,7 +724,7 @@ td.c, th.c { text-align: center; }
   .hscroll { gap: 12px; }
   .prod-grid { gap: 12px; }
   .prod-img { border-radius: 18px; }
-  .prod-plus { width: 42px; height: 42px; }
+  .prod-plus { width: 32px; height: 32px; }
   .disc-row input { width: 100px; padding: 10px 12px; font-size: 14px; }
   .mgr-remember { font-size: 12.5px; margin-top: 11px; }
   .svc-toolbar { padding: 4px 0 10px; }
@@ -942,6 +944,19 @@ td.c, th.c { text-align: center; }
 .bill-action-btn.delete { background: var(--red-bg); color: var(--red); }
 
 /* ---------- dropdown filter (finance-app style) ---------- */
+.filter-toggle {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 9px 12px; border-radius: 10px;
+  background: transparent; border: 1px dashed var(--line);
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.filter-toggle:active { transform: scale(0.99); }
+.filter-caret { margin-left: auto; transition: transform 0.2s; }
+.filter-caret.open { transform: rotate(180deg); }
+.filter-clear {
+  margin-top: 8px; padding: 0; border: 0; background: none;
+  font-size: 12px; font-weight: 600; color: var(--brown);
+}
 .filter-bar {
   display: flex; gap: 8px; flex-wrap: wrap;
   margin-bottom: 12px;
@@ -986,6 +1001,122 @@ td.c, th.c { text-align: center; }
 .kpi-expense .kpi-label { color: var(--red); }
 .kpi-expense .kpi-value { color: var(--red); }
 
+/* ---------- POS 3-step flow (mobile-first, แตะง่าย) ---------- */
+.svc-list {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; min-height: 62px; padding: 12px 14px;
+  text-align: left;
+}
+.svc-list-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.svc-list-main b { font-size: 15px; font-weight: 700; line-height: 1.35; }
+.svc-list-main small { font-size: 12px; color: var(--muted); }
+.svc-list-price { font-size: 18px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dur-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.dur-card {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-height: 64px; justify-content: center;
+  padding: 10px 8px; border-radius: 12px;
+  background: var(--surface); border: 1.5px solid var(--line);
+  transition: border-color 0.15s, background 0.15s;
+}
+.dur-card:active { transform: scale(0.97); }
+.dur-card.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
+.dur-label { font-size: 13px; font-weight: 700; color: var(--ink); }
+.dur-price { font-size: 15px; font-weight: 700; color: var(--brown-dark); font-variant-numeric: tabular-nums; }
+
+/* Time picker 24 ชม. — dropdown custom แต่งได้เต็มที่ */
+.timepick-row { display: flex; align-items: center; gap: 6px; }
+.timepick-dd { min-width: 0; }
+.timepick-btn { padding: 6px 4px; justify-content: center; }
+.timepick-btn .timepick-val { font-size: 15px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
+.timepick-btn .dd-caret { width: 12px; height: 12px; }
+.timepick-btn .dd-caret { color: var(--brown); }
+.dropdown.open .timepick-btn { border-color: var(--brown); background: var(--brown-tint-2); }
+.time-menu { display: flex; flex-direction: column; gap: 2px; overflow-x: hidden; overflow-y: auto; max-height: 240px; }
+.time-menu .dropdown-item { flex: none; width: 100%; justify-content: center; font-size: 15px; font-weight: 700; padding: 8px; font-variant-numeric: tabular-nums; }
+.timepick-colon { font-size: 15px; font-weight: 700; color: var(--brown); }
+.timepick-end { font-size: 11.5px; font-weight: 600; color: var(--brown-dark); background: var(--brown-tint-2); border: 1px solid #e0d0c0; border-radius: 8px; padding: 6px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* เพิ่มหมอด้วยการพิมพ์ชื่อ (หมอวิ่ง) */
+.thera-add { display: flex; gap: 8px; margin-top: 10px; }
+.thera-add .search-wrap { flex: 1; min-width: 0; }
+
+/* บริการเสริม (add-on) */
+.addon-list { display: grid; gap: 6px; }
+.addon-row {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 9px 12px; border-radius: 10px; text-align: left;
+  background: var(--surface); border: 1.5px solid var(--line);
+}
+.addon-row:active { transform: scale(0.99); }
+.addon-row.on { border-color: var(--brown); background: var(--brown-tint-2); }
+.addon-check {
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  border: 1.5px solid var(--faint); color: #fff; font-size: 13px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.addon-row.on .addon-check { background: var(--brown); border-color: var(--brown); }
+.addon-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.addon-main b { font-size: 13.5px; font-weight: 600; }
+.addon-main small { font-size: 11.5px; color: var(--muted); }
+.addon-price { font-size: 14px; font-weight: 700; color: var(--brown-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* รายการ — การ์ดใหญ่แตะง่าย */
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cat-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  min-height: 66px; padding: 12px 14px; border-radius: 14px; width: 100%;
+  background: var(--surface); border: 1.5px solid var(--line); text-align: left;
+}
+.cat-card:active { transform: scale(0.98); border-color: var(--brown); }
+.cat-card.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
+.cat-card.on .cat-card-arrow { color: var(--brown-dark); font-size: 18px; font-weight: 700; }
+.cat-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cat-card-main b { font-size: 15px; font-weight: 700; }
+.cat-card-main small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cat-card-arrow { font-size: 22px; font-weight: 300; color: var(--faint); line-height: 1; }
+
+/* มือถือ: การ์ดใหญ่เต็มจอ ปุ่มใหญ่ ชิดขอบพอดี */
+@media (max-width: 719px) {
+  .page { padding: 14px 20px 150px; }
+  .steps { padding: 10px; position: sticky; top: 59px; z-index: 20; }
+  .step { gap: 8px; padding: 4px; }
+  .step:not(.cur) { display: none; }
+  .step.cur { flex: 1; }
+  .step .st b { font-size: 14px; }
+  .step .st small { font-size: 11px; }
+  .step-link { display: none; }
+  .prod-grid { grid-template-columns: 1fr; gap: 10px; }
+  .cat-grid { grid-template-columns: 1fr; gap: 10px; }
+  .cat-card { min-height: 60px; padding: 10px 12px; }
+  .cat-card-main b { font-size: 14px; }
+  .svc-list { min-height: 58px; padding: 10px 12px; border-radius: 12px; }
+  .svc-list-main b { font-size: 14px; }
+  .svc-list-price { font-size: 17px; }
+  .dur-grid { grid-template-columns: 1fr; gap: 8px; }
+  .dur-card { flex-direction: row; justify-content: space-between; min-height: 46px; padding: 9px 12px; }
+  .dur-label { font-size: 13.5px; }
+  .dur-price { font-size: 15px; }
+  .thera-scroll { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: visible; padding: 2px; }
+  .thera-scroll .thera { min-width: 0; min-height: 92px; padding: 8px 6px; }
+  .timepick-btn .timepick-val { font-size: 15px; }
+  .thera-ava { width: 38px; height: 38px; font-size: 18px; }
+  .timepick-end { font-size: 15px; }
+  .stepnav {
+    position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 25;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: 10px; margin-top: 14px; box-shadow: var(--sh-pop);
+  }
+  .stepnav .btn { padding: 10px; font-size: 13px; }
+  .stepnav-3 { gap: 6px; }
+  .stepnav-3 .btn { padding: 10px 6px; font-size: 12.5px; min-width: 0; }
+  .pay-grid { grid-template-columns: 1fr; gap: 8px; }
+  .pay-card { min-height: 44px; font-size: 13.5px; justify-content: center; padding: 10px; }
+  .tline { padding: 8px 0; }
+  .tline .tt b { font-size: 13.5px; white-space: normal; }
+  .qty button { width: 30px; height: 30px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  * { animation: none !important; transition: none !important; }
+  * { animation: none !important; transition: none ! important; }
 }

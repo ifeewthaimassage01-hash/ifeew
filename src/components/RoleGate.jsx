@@ -38,10 +38,11 @@ export default function RoleGate({ onSelect }) {
         <p className="gate-sub">Thai Massage · เลือกบทบาทเพื่อเข้าใช้งาน</p>
 
         {mode === 'select' ? (
+          <>
           <div className="gate-roles">
             <button className="gate-role" onClick={() => onSelect('staff')}>
               <span className="gate-ric"><UserRound size={22} /></span>
-              <span><b>พนักงาน</b><small>เปิดบิล · ดูประวัติ · นับเงินสด</small></span>
+              <span><b>พนักงาน</b><small>เปิดบิล · ประวัติ · รายจ่าย</small></span>
             </button>
             <button className="gate-role" onClick={() => { setMode('owner'); setErr(''); setPass(''); }}>
               <span className="gate-ric"><KeyRound size={22} /></span>
@@ -51,6 +52,7 @@ export default function RoleGate({ onSelect }) {
           <div className="gate-role-hint">
             <span>เลือกบทบาทเพื่อเข้าใช้งาน</span>
           </div>
+          </>
         ) : (
           <form onSubmit={submitOwner} style={{ marginTop: 18, textAlign: 'left' }}>
             <div className="field">

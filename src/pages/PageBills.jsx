@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { FileText, Search, ShieldAlert, ReceiptText, TriangleAlert, ClipboardList, Plus, Minus, Pencil, Trash2, Calendar, ChevronDown, Check, Banknote, Smartphone, Filter, Tag } from 'lucide-react';
-import { PageHeader, Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog } from '../components/ui';
+import { FileText, Search, ShieldAlert, TriangleAlert, ClipboardList, Plus, Minus, Pencil, Trash2, Calendar, ChevronDown, Check, Banknote, Smartphone, Filter, Tag } from 'lucide-react';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog } from '../components/ui';
 
 /* Dropdown filter — ใช้ซ้ำได้สำหรับตัวกรองทั้งหมด */
 function Dropdown({ icon: Icon, label, value, options, onChange }) {
@@ -41,13 +41,16 @@ function localDay(offset = 0) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function PageBills({ data, saveData, onNavigate, role }) {
+export default function PageBills({ data, saveData, role }) {
   const canVoid = role !== 'staff';
   const [view, setView] = useState('bills');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [showFilters, setShowFilters] = useState(false); // default ปิด
+  const activeFilterCount = (dateFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + ((view === 'bills' && payFilter !== 'all') ? 1 : 0);
+  const clearFilters = () => { setDateFilter('all'); setStatusFilter('all'); setPayFilter('all'); };
   const [detailBill, setDetailBill] = useState(null);
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
@@ -64,19 +67,21 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
     const matchQ = !q || b.id.toLowerCase().includes(q) || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
     return matchQ && matchDay(b.date) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
-  const billTotal = (b) => Math.max(0, (b.items || []).reduce((s, i) => s + (i.net || 0), 0) - (b.discount || 0));
+  const billRows = (b) => b.items || b.customers || [];
+  const rowNet = (i) => i.net ?? i.price ?? 0;
+  const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
   const totalSum = filtered.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
   const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
   const serviceRows = [];
   filtered.forEach((b) => {
-    (b.items || []).forEach((it) => {
+    billRows(b).forEach((it) => {
       const q = query.trim().toLowerCase();
       if (q && !((it.serviceName || '').toLowerCase().includes(q) || (it.therapistName || '').toLowerCase().includes(q) || (b.customer || '').toLowerCase().includes(q) || b.id.toLowerCase().includes(q))) return;
       serviceRows.push({ bill: b, item: it });
     });
   });
-  const svcRevenue = serviceRows.filter((r) => r.bill.status === 'paid').reduce((s, r) => s + (r.item.net || 0), 0);
+  const svcRevenue = serviceRows.filter((r) => r.bill.status === 'paid').reduce((s, r) => s + rowNet(r.item), 0);
   const svcQty = serviceRows.reduce((s, r) => s + (r.item.qty || 1), 0);
 
   const confirmVoid = () => {
@@ -98,11 +103,6 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
 
   return (
     <div>
-      <PageHeader
-        icon={FileText} eyebrow="Bill History" title="ประวัติบิล"
-        actions={<button onClick={() => onNavigate && onNavigate('pos')} className="btn btn-primary auto"><ReceiptText size={17} /> เปิดบิลใหม่</button>}
-      />
-
       <div className="filter-bar" style={{ marginBottom: 12 }}>
         <Dropdown
           icon={FileText}
@@ -120,7 +120,13 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={view === 'services' ? 'ค้นหาบริการ / หมอ / ลูกค้า / เลขบิล…' : 'ค้นหาเลขบิล / ชื่อลูกค้า / เบอร์สมาชิก…'} className="input" />
           </div>
         </div>
-        <div className="filter-bar">
+        <button className="filter-toggle" onClick={() => setShowFilters(!showFilters)} type="button">
+          <Filter size={14} />
+          <span>ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
+          <ChevronDown size={14} className={`filter-caret${showFilters ? ' open' : ''}`} />
+        </button>
+        {showFilters && (
+        <div className="filter-bar" style={{ marginTop: 10 }}>
           <Dropdown
             icon={Calendar}
             label="เลือกวันที่"
@@ -145,6 +151,10 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             />
           )}
         </div>
+        )}
+        {showFilters && activeFilterCount > 0 && (
+          <button className="filter-clear" onClick={clearFilters} type="button">ล้างตัวกรอง</button>
+        )}
       </Card>
 
       {view === 'bills' && (
@@ -289,8 +299,8 @@ export default function PageBills({ data, saveData, onNavigate, role }) {
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
           </div>
-          <CardHead title="รายการบริการ" hint={`${(detailBill.items || []).length} รายการ`} />
-          {(detailBill.items || []).map((it, i) => (
+          <CardHead title="รายการบริการ" hint={`${billRows(detailBill).length} รายการ`} />
+          {billRows(detailBill).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
               <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>

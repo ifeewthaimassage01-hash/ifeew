@@ -1,5 +1,6 @@
-import { Calculator, Crown, TrendingUp } from 'lucide-react';
-import { PageHeader, Card, CardHead, Kpi } from '../components/ui';
+import { Crown, TrendingUp } from 'lucide-react';
+import { Card, CardHead, Kpi } from '../components/ui';
+import { svcLabel } from '../data/demoData';
 
 const TIERS = [
   { max: 30000, rate: 0.30, label: '≤ 30k → 30%' },
@@ -18,12 +19,12 @@ export default function PageCommission({ data, saveData }) {
   let freelanceTotal = 0;
   let freelanceJobs = 0;
   bills.forEach((bill) => {
-    (bill.items || []).forEach((itm) => {
+    (bill.items || bill.customers || []).forEach((itm) => {
       const s = stats[itm.therapistId];
-      if (!s) { freelanceTotal += itm.net || 0; freelanceJobs += itm.qty || 1; return; }
+      if (!s) { freelanceTotal += itm.net ?? itm.price ?? 0; freelanceJobs += itm.qty || 1; return; }
       const svc = (data.services || []).find((x) => x.id === itm.serviceId);
       if (!svc) return;
-      const net = itm.net || 0;
+      const net = itm.net ?? itm.price ?? 0;
       s.totalSales += net;
       s.jobs += itm.qty || 1;
       s.flatCommission += net * (svc.flatRate || 0);
@@ -50,8 +51,6 @@ export default function PageCommission({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={Calculator} eyebrow="Commission" title="ค่าคอมมิชชัน" subtitle="สรุปยอดขายและคอมรายบุคคล · Flat % ตามบริการ หรือ Tier ยอดสะสม" />
-
       <div className="seg">
         <button onClick={() => changeMode('flat')} className={settings.mode === 'flat' ? 'on' : ''}>Flat % ตามบริการ</button>
         <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''}>Tier ยอดสะสม</button>
@@ -127,7 +126,7 @@ export default function PageCommission({ data, saveData }) {
         <CardHead title="เรท Flat % ตามประเภทบริการ" hint="อ้างอิง" />
         <div className="refgrid">
           {(data.services || []).filter((s) => s.price > 0).map((s) => (
-            <div key={s.id} className="refbox"><b>{s.name}</b><small className="muted">฿{s.price.toLocaleString()} · <b style={{ color: 'var(--brown)' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
+            <div key={s.id} className="refbox"><b>{svcLabel(s)}</b><small className="muted">฿{s.price.toLocaleString()} · <b style={{ color: 'var(--brown)' }}>{(s.flatRate * 100).toFixed(0)}%</b></small></div>
           ))}
         </div>
         <p className="muted" style={{ marginTop: 10 }}><TrendingUp size={12} style={{ verticalAlign: -1 }} /> ยอดขายรวมทั้งหมดใช้คำนวณ Tier แบบขั้นบันได</p>

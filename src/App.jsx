@@ -6,11 +6,9 @@ import RoleGate, { saveRole, clearRole } from './components/RoleGate';
 import PageDashboard from './pages/PageDashboard';
 import PagePOS from './pages/PagePOS';
 import PageBills from './pages/PageBills';
-import PageCashDrawer from './pages/PageCashDrawer';
 import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
 import PageManage from './pages/PageManage';
-import PageEOD from './pages/PageEOD';
 import { loadData, persistData } from './data/demoData';
 
 const ROLE_KEY = 'ifeew_role';
@@ -20,11 +18,9 @@ const PAGES = {
   dashboard: PageDashboard,
   pos: PagePOS,
   bills: PageBills,
-  cash: PageCashDrawer,
   expenses: PageExpenses,
   commission: PageCommission,
   manage: PageManage,
-  eod: PageEOD,
 };
 
 function loadRole() {

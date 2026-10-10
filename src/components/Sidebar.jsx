@@ -1,15 +1,13 @@
 import {
-  LayoutDashboard, ReceiptText, FileText, Wallet, LayoutGrid, Calculator,
-  ShieldCheck, Flower2, LogOut, Store,
+  LayoutDashboard, ReceiptText, FileText, LayoutGrid, Calculator,
+  Flower2, LogOut, Store,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
   { label: 'ภาพรวม', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
   { label: 'POS', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
   { label: 'ประวัติ', short: 'ประวัติ', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
-  { label: 'เงินสด', short: 'เงินสด', sub: 'นับจริง · กระทบยอด', icon: Wallet, key: 'cash', roles: ['owner', 'staff'] },
   { label: 'รายจ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
-  { label: 'ปิดวัน', short: 'ปิดวัน', sub: 'EOD · Audit Trail', icon: ShieldCheck, key: 'eod', roles: ['owner', 'staff'] },
   { label: 'จัดการร้าน', short: 'จัดการร้าน', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
   { label: 'ค่าคอม', short: 'ค่าคอม', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
 ];
@@ -74,18 +72,18 @@ export function BottomNav({ active, items, onNavigate }) {
       <div className="bottomnav-in" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
         {items.map((item) => {
           const Icon = item.icon;
-          const isFab = item.key === 'pos';
-          if (isFab) {
+          const isActive = active === item.key;
+          if (isActive) {
             return (
-              <button key={item.key} onClick={() => onNavigate(item.key)} className={`fab${active === item.key ? ' on' : ''}`}>
+              <button key={item.key} onClick={() => onNavigate(item.key)} className="fab on" aria-current="page">
                 <span className="fab-dot"><Icon size={22} strokeWidth={2.1} /></span>
                 <span>{item.short}</span>
               </button>
             );
           }
           return (
-            <button key={item.key} onClick={() => onNavigate(item.key)} className={active === item.key ? 'on' : ''}>
-              <Icon size={21} strokeWidth={active === item.key ? 2.2 : 1.7} />
+            <button key={item.key} onClick={() => onNavigate(item.key)}>
+              <Icon size={21} strokeWidth={1.7} />
               <span>{item.short}</span>
             </button>
           );
