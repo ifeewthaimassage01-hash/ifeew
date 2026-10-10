@@ -52,7 +52,7 @@
   --green: #b0885f;
 }
 
-* { box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; }
+* { box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; -webkit-tap-highlight-color: transparent; }
 *::-webkit-scrollbar { display: none; }
 html { scroll-behavior: smooth; }
 body {
