@@ -675,7 +675,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
       {successBill && (
         <Modal onClose={() => setSuccessBill(null)}>
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
-            <div className="empty-ic" style={{ background: '#f5efe6', color: '#8b5e3c', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
+            <div className="empty-ic" style={{ background: '#f7f0e5', color: '#b0885f', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
             <h3 style={{ fontSize: 27 }}>เปิดบิลสำเร็จ</h3>
             <div className="mono" style={{ marginTop: 4 }}>{successBill.id}</div>
             <div style={{ fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
