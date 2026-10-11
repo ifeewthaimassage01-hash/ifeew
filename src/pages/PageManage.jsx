@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, commBaht } from '../data/demoData';
+import { bkkNow } from '../utils/bkk';
 
 function nextId(prefix, list) {
   let max = 0;
@@ -14,7 +15,7 @@ function nextId(prefix, list) {
 
 function pushAudit(data, action, detail, newValue) {
   return [...(data.auditLog || []), {
-    id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: 'เจ้าของร้าน',
+    id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'เจ้าของร้าน',
     action, detail, oldValue: '-', newValue, approvedBy: 'เจ้าของร้าน',
   }];
 }

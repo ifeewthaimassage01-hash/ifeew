@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X } from 'lucide-react';
-import { Card, CardHead, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock } from 'lucide-react';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
+import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht } from '../data/demoData';
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
+const BREAK_MINUTES = 15;
 
 function minutesToTime(m) {
   const h = Math.floor(m / 60);
@@ -42,9 +44,10 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
       {items.map((it, idx) => {
         const key = it._key ?? idx;
         const open = expandedKey === key;
+        const isRun = String(it.therapistId || '').startsWith('EXT-');
         return (
-          <div key={key} className="rcpt-item">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div key={key} className="rcpt-card">
+            <div className="rcpt-top">
               <button type="button" className="rcpt-line1" onClick={() => onToggle && onToggle(open ? null : key)} aria-expanded={open}>
                 <b>{it.serviceName || it.serviceId}</b>
                 <span className="amt">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</span>
@@ -56,17 +59,17 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
                     if (ok) onRemove(it);
                   }}
                   aria-label="ลบรายการ"
-                  className="icon-btn danger"
-                  style={{ width: 30, height: 30, flexShrink: 0 }}
+                  className="icon-btn danger rcpt-del"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={15} />
                 </button>
               )}
             </div>
-            <div className="rcpt-doc">
-              <span className="rcpt-doc-name">{it.therapistName || it.therapistId || '—'}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''} · <span className="rcpt-comm">ค่าแรง ฿ {commOf(it).toLocaleString()}</span></span>
-              <span className="rcpt-doc-time">{itemTimeText(it)}</span>
+            <div className="rcpt-chips">
+              <span className="rcpt-doc-chip">{it.therapistName || it.therapistId || '—'}{isRun ? ' · หมอวิ่ง' : ''}</span>
+              <span className="rcpt-comm-chip">ค่าแรง ฿ {commOf(it).toLocaleString()}</span>
             </div>
+            <div className="rcpt-time"><Clock size={12} />{itemTimeText(it)}</div>
             {open && (it.addons || []).length > 0 && (
               <div className="rcpt-sub">
                 +{(it.addons || []).map((a) => a.name).join(', ')}
@@ -75,22 +78,18 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
           </div>
         );
       })}
+      <div className="perf" />
       {disc > 0 && (
-        <div className="rcpt-item">
-          <div className="rcpt-line1" style={{ cursor: 'default' }}>
-            <b>{discLabel || 'ส่วนลด'}</b>
-            <span className="amt">−฿ {disc.toLocaleString()}</span>
-          </div>
-        </div>
+        <div className="rcpt-sumrow"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
+      )}
+      {disc > 0 && (
+        <div className="rcpt-sumrow disc"><span>{discLabel || 'ส่วนลด'}</span><b>−฿ {disc.toLocaleString()}</b></div>
       )}
       <div className="rcpt-total">
-        <span className="muted">สุทธิ</span>
+        <span className="muted">ยอดสุทธิ</span>
         <span className="grand">฿ {total.toLocaleString()}</span>
       </div>
       <div className="rcpt-sub" style={{ textAlign: 'right', marginTop: 2 }}>ค่าแรงพนักงานรวม ฿ {commTotal.toLocaleString()}</div>
-      {disc > 0 && (
-        <div className="rcpt-sub" style={{ textAlign: 'right', marginTop: 2 }}>รวมย่อย ฿ {subtotal.toLocaleString()}</div>
-      )}
     </div>
   );
 }
@@ -106,7 +105,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [editPay, setEditPay] = useState('เงินสด');
   const [expandedKey, setExpandedKey] = useState(null);
   const [showAddSvc, setShowAddSvc] = useState(false);
-  const [showPromoPicker, setShowPromoPicker] = useState(false);
   const promosActive = (data.promotions || []).filter((p) => p.active !== false);
   const [editItems, setEditItems] = useState([]);
   const [addSvcId, setAddSvcId] = useState('');
@@ -119,7 +117,14 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authReason, setAuthReason] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) return null;
+  // คง section ไว้ตลอดเพื่อให้ state ไม่หายตอนบิลใบสุดท้ายถูกเช็คบิล
+  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) {
+    return (
+      <div id="open-bills" style={{ scrollMarginTop: 16 }}>
+        <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
+      </div>
+    );
+  }
 
   const startEdit = (b) => {
     setEditTarget(b);
@@ -128,12 +133,12 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setEditPay(b.paymentMethod || 'เงินสด');
     setEditItems(billRows(b).map((it, i) => ({ ...it, _key: `${Date.now()}-${i}` })));
     setAddSvcId(''); setEditErr('');
-    setExpandedKey(null); setShowAddSvc(false); setShowPromoPicker(false);
+    setExpandedKey(null); setShowAddSvc(false);
   };
   const selectEditPromo = (p) => {
     if (editPromoId === p.id) { setEditPromoId(''); setEditDiscount(''); }
     else { setEditPromoId(p.id); setEditDiscount(String(p.amount)); }
-    setEditErr(''); setShowPromoPicker(false);
+    setEditErr('');
   };
 
   const editSubtotal = editItems.reduce((s, i) => s + (i.net ?? i.price ?? 0), 0);
@@ -149,21 +154,26 @@ export default function OpenBillsSection({ data, saveData, role }) {
     if (!addSvcId) { setEditErr('เลือกบริการที่จะเพิ่มก่อน'); return; }
     const svc = (data.services || []).find((s) => s.id === addSvcId);
     if (!svc) { setEditErr('ไม่พบบริการนี้'); return; }
-    // ใช้หมอเดิมจากตอนเปิดบิล (รายการแรกของบิล) — ไม่ต้องเลือกใหม่
-    const baseTherapist = editItems[0];
-    if (!baseTherapist?.therapistId) { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
-    const therapistId = baseTherapist.therapistId;
-    const therapistName = baseTherapist.therapistName || '';
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(Math.ceil(now.getMinutes() / 5) * 5 % 60).padStart(2, '0');
+    // โมเดลใหม่: หมอระดับบิล + ต่อท้ายคิวเดิม (จบล่าสุด + พักห้อง)
+    const therapistId = editTarget?.therapistId || editItems[0]?.therapistId;
+    const therapistName = editTarget?.therapistName || editItems[0]?.therapistName || '';
+    if (!therapistId) { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
+    const lastEnd = editItems.reduce((m, it) => {
+      const s = timeToMinutes(it.startTime);
+      const e = it.endTime ? timeToMinutes(it.endTime) : (s != null ? s + (it.totalMinutes || it.duration || 0) : null);
+      return e != null ? Math.max(m, e) : m;
+    }, null);
+    const startMin = lastEnd != null ? lastEnd + BREAK_MINUTES : null;
+    const mins = svc.duration || 0;
     const label = svc.duration != null
       ? `${svc.category} ${svc.duration < 60 ? `${svc.duration} นาที` : svc.duration % 60 === 0 ? `${svc.duration / 60} ชม` : `${Math.floor(svc.duration / 60)} ชม ${svc.duration % 60} นาที`}`
       : svc.category;
     setEditItems([...editItems, {
       _key: `${Date.now()}`, serviceId: svc.id, serviceName: label, category: svc.category,
       therapistId, therapistName, qty: 1, price: svc.price, discount: 0, net: svc.price,
-      duration: svc.duration || 0, totalMinutes: svc.duration || 0, startTime: `${hh}:${mm}`,
+      duration: mins, totalMinutes: mins,
+      startTime: startMin != null ? minutesToTime(startMin) : '',
+      endTime: startMin != null ? minutesToTime(startMin + mins) : '',
     }]);
     setAddSvcId(''); setEditErr('');
   };
@@ -207,7 +217,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -227,7 +237,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -246,15 +256,14 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const doCheckoutBill = (b, payMethod) => {
     saveData({
       ...data,
-      bills: data.bills.map((x) => (x.id === b.id ? { ...x, status: 'paid', paymentMethod: payMethod, paidAt: new Date().toISOString(), slip: payMethod === 'QR Code / โอนเงิน' ? (slipName || '') : '' } : x)),
+      bills: data.bills.map((x) => (x.id === b.id ? { ...x, status: 'paid', paymentMethod: payMethod, paidAt: bkkNow(), slip: payMethod === 'QR Code / โอนเงิน' ? (slipName || '') : '' } : x)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'เช็คบิล', detail: `${b.customer || 'ลูกค้าหน้าร้าน'} · ฿ ${billTotal(b).toLocaleString()} · ${payMethod}`,
         oldValue: 'open', newValue: 'paid', approvedBy: '-',
       }],
     });
     setCheckoutTarget(null); setSlipName('');
-    alertDialog({ title: 'เช็คบิลแล้ว', message: `${b.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ ${billTotal(b).toLocaleString()} · ${payMethod}` });
   };
 
   const confirmVoid = () => {
@@ -264,7 +273,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === voidTarget.id ? { ...b, status: 'cancelled' } : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'ผู้จัดการ',
         action: 'ยกเลิกบิล', detail: `${voidTarget.customer || 'ลูกค้าหน้าร้าน'} — ${authReason}`,
         oldValue: voidTarget.status || 'open', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
       }],
@@ -281,17 +290,30 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <div className="alert warn" style={{ marginTop: 0, marginBottom: 10 }}>
             ยอดค้างรวม ฿ {openBills.reduce((s, b) => s + billTotal(b), 0).toLocaleString()} — กด “เช็คบิล” หลังนวดเสร็จ หรือ “แก้ไข” เพื่อเพิ่มบริการระหว่างนวด
           </div>
-          {openBills.map((b) => (
+          {openBills.map((b) => {
+            const rows = billRows(b);
+            const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
+            const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
+            return (
             <div key={b.id} className="mcard" style={{ marginBottom: 8 }}>
               <div className="mcard-top">
                 <div>
-                  <b style={{ fontSize: 14 }}>{b.customer || 'ลูกค้าหน้าร้าน'}</b>
-                  <div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(b).length} รายการ</div>
-                  <div className="muted" style={{ marginTop: 2 }}>{billRows(b).map((it) => it.serviceName || it.serviceId).join(' · ')}{b.promotion ? ` · โปร: ${b.promotion}` : ''}</div>
+                  <b style={{ fontSize: 20  }}>{docName}{docExtra}</b>
+                  <div className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</div>
                 </div>
                 <StatusBadge status="open" />
               </div>
-              <div className="mcard-bot">
+              {rows.map((it, i) => (
+                <div key={i} className="mcard-bot" style={{ padding: '6px 0', borderTop: i === 0 ? 0 : '1px dashed var(--line)' }}>
+                  <span className="muted" style={{ flex: 1, minWidth: 0 }}>
+                    <b style={{ fontSize: 13, color: 'var(--ink)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.serviceName || it.serviceId}</b>
+                    {(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : ''}
+                  </span>
+                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
+                </div>
+              ))}
+              {b.promotion ? <div className="muted" style={{ marginTop: 2 }}>โปร: {b.promotion}</div> : null}
+              <div className="mcard-bot" style={{ marginTop: 6 }}>
                 <span className="big-price">฿ {billTotal(b).toLocaleString()}</span>
                 <span style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => startEdit(b)} className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5 }}>แก้ไข</button>
@@ -300,7 +322,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </Card>
       )}
 
@@ -311,7 +334,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
                 <h3 style={{ fontSize: 17 }}>แก้ไขบิล</h3>
-                <div className="muted">{new Date(editTarget.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {editItems.length} รายการ</div>  
+                <div className="muted">{fmtBkk(editTarget.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {editItems.length} รายการ</div>  
               </div>
             </div>
             <StatusBadge status="open" />
@@ -354,19 +377,26 @@ export default function OpenBillsSection({ data, saveData, role }) {
             </div>
           )}
 
-          {promosActive.length > 0 && (!showPromoPicker ? (
-            <button type="button" className="dash-add" onClick={() => { setShowPromoPicker(true); setEditErr(''); }}><Plus size={15} /> ใส่โปรโมชัน{editPromoId ? ` (${promosActive.find((p) => p.id === editPromoId)?.name})` : ''}</button>
-          ) : (
+          {promosActive.length > 0 && (
             <div className="field">
               <label>โปรโมชันส่วนลด</label>
-              <div className="preset-row" style={{ marginTop: 0 }}>
+              <select
+                value={editPromoId}
+                onChange={(e) => {
+                  const p = promosActive.find((x) => x.id === e.target.value);
+                  if (!p) { setEditPromoId(''); setEditDiscount(''); }
+                  else selectEditPromo(p);
+                  setEditErr('');
+                }}
+                className="input"
+              >
+                <option value="">— ไม่ใช้โปร —</option>
                 {promosActive.map((p) => (
-                  <button key={p.id} type="button" className="preset-btn" style={editPromoId === p.id ? { background: 'var(--brown-950)', color: '#fff', borderColor: 'var(--brown-950)' } : null} onClick={() => selectEditPromo(p)}>{p.name} −฿ {p.amount.toLocaleString()}</button>
+                  <option key={p.id} value={p.id}>{p.name} −฿ {p.amount.toLocaleString()}</option>
                 ))}
-                {editPromoId && <button type="button" className="preset-btn" onClick={() => { setEditPromoId(''); setEditDiscount(''); }}>ไม่ใช้โปร</button>}
-              </div>
+              </select>
             </div>
-          ))}
+          )}
 
           
           <div className="modal-cta">
@@ -383,7 +413,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
                 <h3 style={{ fontSize: 17 }}>เช็คบิล</h3>
-                <div className="muted">{new Date(checkoutTarget.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(checkoutTarget).length} รายการ</div>
+                <div className="muted">{fmtBkk(checkoutTarget.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(checkoutTarget).length} รายการ</div>
               </div>
             </div>
           </div>
@@ -406,7 +436,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           </div>
           {checkoutPay === 'QR Code / โอนเงิน' && (
             <div className="field"><label>สลิปโอนเงิน</label>
-              <label className="filebtn"><Upload size={16} /><span>{slipName ? `แนบแล้ว: ${slipName}` : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
+              <label className="filebtn"><Upload size={19} /><span>{slipName ? `แนบแล้ว: ${slipName}` : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
                 <input type="file" accept="image/*" hidden onChange={(e) => setSlipName(e.target.files[0]?.name || '')} />
               </label>
             </div>

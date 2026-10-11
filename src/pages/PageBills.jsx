@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Plus, Minus, Pencil, Trash2, Calendar, ChevronDown, Check, Banknote, Smartphone, Filter, Tag, X } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog } from '../components/ui';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
+import { bkkToday, fmtBkk } from '../utils/bkk';
 import OpenBillsSection from '../components/OpenBills';
 
 /* Dropdown filter — ใช้ซ้ำได้สำหรับตัวกรองทั้งหมด */
@@ -37,9 +38,7 @@ function Dropdown({ icon: Icon, label, value, options, onChange }) {
 }
 
 function localDay(offset = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return bkkToday(offset);
 }
 
 const billRows = (b) => b.items || b.customers || [];
@@ -53,10 +52,10 @@ export default function PageBills({ data, saveData, role }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dr, setDr] = useState({ from: localDay(0), to: localDay(0) });
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = (dateFilter !== 'all' ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (payFilter !== 'all' ? 1 : 0);
-  const clearFilters = () => { setDateFilter('all'); setStatusFilter('all'); setPayFilter('all'); };
+  const activeFilterCount = ((dr.from || dr.to) ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (payFilter !== 'all' ? 1 : 0);
+  const clearFilters = () => { setDr({ from: '', to: '' }); setStatusFilter('all'); setPayFilter('all'); };
   const [detailBill, setDetailBill] = useState(null);
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
@@ -65,16 +64,12 @@ export default function PageBills({ data, saveData, role }) {
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
-  const matchDay = (date) => {
-    const day = (date || '').slice(0, 10);
-    return dateFilter === 'all' || (dateFilter === 'today' && day === localDay(0)) || (dateFilter === 'yesterday' && day === localDay(-1));
-  };
   // แท็บประวัติ = เฉพาะบิลที่ปิดแล้ว (ชำระแล้ว / ยกเลิก)
   const history = bills.filter((b) => {
     if (b.status === 'open') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    return matchQ && matchDay(b.date) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && inDateRange(b.date, dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
@@ -85,7 +80,7 @@ export default function PageBills({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === voidTarget.id ? { ...b, status: 'cancelled' } : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'ผู้จัดการ',
         action: 'ยกเลิกบิล', detail: `${voidTarget.customer || 'ลูกค้าหน้าร้าน'} — ${authReason}`,
         oldValue: voidTarget.status || 'paid', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
       }],
@@ -102,34 +97,29 @@ export default function PageBills({ data, saveData, role }) {
       </div>
 
       {tab === 'open' && (
-        openCount > 0
-          ? <OpenBillsSection data={data} saveData={saveData} role={role} />
-          : <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
+        <OpenBillsSection data={data} saveData={saveData} role={role} />
       )}
 
       {tab === 'history' && (
         <>
           <Card>
-            <div className="field" style={{ marginBottom: 10 }}>
-              <div className="search-wrap">
-                <Search size={16} />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อลูกค้า / เบอร์สมาชิก…" className="input" />
-              </div>
-            </div>
             <button className="filter-toggle" onClick={() => setShowFilters(!showFilters)} type="button">
               <Filter size={14} />
               <span>ตัวกรอง{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}</span>
               <ChevronDown size={14} className={`filter-caret${showFilters ? ' open' : ''}`} />
             </button>
             {showFilters && (
+            <>
+            <div className="field" style={{ marginBottom: 10, marginTop: 10 }}>
+              <div className="search-wrap">
+                <Search size={16} />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="ค้นหาชื่อลูกค้า / เบอร์สมาชิก…" className="input" />
+              </div>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+            </div>
             <div className="filter-bar" style={{ marginTop: 10 }}>
-              <Dropdown
-                icon={Calendar}
-                label="เลือกวันที่"
-                value={dateFilter}
-                onChange={setDateFilter}
-                options={[{ v: 'all', l: 'ทุกวัน' }, { v: 'today', l: 'วันนี้' }, { v: 'yesterday', l: 'เมื่อวาน' }]}
-              />
               <Dropdown
                 icon={Tag}
                 label="เลือกสถานะ"
@@ -145,9 +135,10 @@ export default function PageBills({ data, saveData, role }) {
                 options={[{ v: 'all', l: 'ทุกช่องทาง' }, ...payMethods.map((m) => ({ v: m, l: m }))]}
               />
             </div>
-            )}
-            {showFilters && activeFilterCount > 0 && (
+            {activeFilterCount > 0 && (
               <button className="filter-clear" onClick={clearFilters} type="button">ล้างตัวกรอง</button>
+            )}
+            </>
             )}
           </Card>
 
@@ -168,7 +159,7 @@ export default function PageBills({ data, saveData, role }) {
                 <tbody>
                   {history.map((b) => (
                     <tr key={b.id}>
-                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                      <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                       <td><b style={{ fontWeight: 600 }}>{b.customer || '—'}</b>{b.memberNo && <div className="muted">{b.memberNo}</div>}</td>
                       <td className="muted">{b.paymentMethod}</td>
                       <td className="r"><b>฿ {billTotal(b).toLocaleString()}</b></td>
@@ -200,7 +191,7 @@ export default function PageBills({ data, saveData, role }) {
                       <div className="bill-customer">{b.customer || 'ลูกค้าหน้าร้าน'}</div>
                       <div className="bill-meta">
                         <Calendar size={11} style={{ verticalAlign: -1 }} />
-                        {new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                         <span className="bill-dot">·</span>
                         {b.paymentMethod}
                       </div>
@@ -232,10 +223,11 @@ export default function PageBills({ data, saveData, role }) {
         <Modal onClose={() => setDetailBill(null)}>
           <button className="modal-x" onClick={() => setDetailBill(null)} aria-label="ปิด"><X size={16} /></button>
           <div className="mcard-top" style={{ paddingRight: 34 }}>
-            <div><div className="modal-eyebrow">BILL DETAIL</div><div style={{ fontSize: 15, fontWeight: 700 }}>{detailBill.customer || 'ลูกค้าหน้าร้าน'}{detailBill.memberNo ? ` · ${detailBill.memberNo}` : ''}</div><div className="muted">{new Date(detailBill.date).toLocaleString('th-TH')}</div></div>
+            <div><div className="modal-eyebrow">BILL DETAIL</div><div style={{ fontSize: 15, fontWeight: 700 }}>{detailBill.customer || 'ลูกค้าหน้าร้าน'}{detailBill.memberNo ? ` · ${detailBill.memberNo}` : ''}</div><div className="muted">{fmtBkk(detailBill.date)}</div></div>
             <StatusBadge status={detailBill.status} />
           </div>
           <div className="summary-box" style={{ marginTop: 12 }}>
+            <div className="r"><span>หมอ</span><b>{detailBill.therapistName || billRows(detailBill)[0]?.therapistName || '—'}</b></div>
             <div className="r"><span>ลูกค้า</span><b>{detailBill.customer || '—'}</b></div>
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
@@ -246,7 +238,7 @@ export default function PageBills({ data, saveData, role }) {
           {billRows(detailBill).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
-              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
+              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId}{String(it.therapistId || detailBill.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
               <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿ {(it.net || 0).toLocaleString()}</b>
             </div>
           ))}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, TriangleAlert, X } from 'lucide-react';
+import { bkkToday } from '../utils/bkk';
 
 export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
   return (
@@ -81,6 +82,50 @@ export function formatDurationLong(min) {
   if (r === 0) return h === 1 ? '1 ชม (60 นาที)' : `${h} ชม (${m} นาที)`;
   if (r === 30) return `${h}.5 ชม (${m} นาที)`;
   return `${h} ชม ${r} นาที (${m} นาที)`;
+}
+
+/* ตัวกรองช่วงวันที่ — date picker ล้วน ไม่มี preset (ว่าง = ทั้งหมด, ปุ่มล้าง = กลับไปวันนี้) */
+function todayLocal() {
+  return bkkToday();
+}
+export function DateRange({ from, to, onChange }) {
+  const set = (key, val) => {
+    let f = key === 'from' ? val : (from || '');
+    let t = key === 'to' ? val : (to || '');
+    if (f && t && f > t) { const tmp = f; f = t; t = tmp; }
+    onChange({ from: f, to: t });
+  };
+  return (
+    <div className="daterange">
+      <div className="dr-field"><label>ตั้งแต่</label><input type="date" value={from || ''} onChange={(e) => set('from', e.target.value)} className="input" /></div>
+      <div className="dr-sep">–</div>
+      <div className="dr-field"><label>ถึง</label><input type="date" value={to || ''} onChange={(e) => set('to', e.target.value)} className="input" /></div>
+      {(from || to) && <button type="button" className="mini-link dr-clear" onClick={() => { const t = todayLocal(); onChange({ from: t, to: t }); }}>ล้าง</button>}
+    </div>
+  );
+}
+
+export function inDateRange(dateStr, from, to) {
+  if (!from && !to) return true;
+  const d = (dateStr || '').slice(0, 10);
+  if (!d) return false;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
+const TH_M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+export function fmtDay(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+  if (!m) return '';
+  return `${Number(m[3])} ${TH_M[Number(m[2]) - 1]} ${String(Number(m[1]) + 543).slice(2)}`;
+}
+
+export function fmtRange(from, to) {
+  if (from && to) return from === to ? fmtDay(from) : `${fmtDay(from)} – ${fmtDay(to)}`;
+  if (from) return `ตั้งแต่ ${fmtDay(from)}`;
+  if (to) return `ถึง ${fmtDay(to)}`;
+  return 'ทั้งหมด';
 }
 
 export function Modal({ children, onClose }) {
