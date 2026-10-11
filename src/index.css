@@ -1058,15 +1058,14 @@ label.filebtn {
 .hist-amt span { font-size: 10px; opacity: 0.65; display: block; }
 .hist-amt b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .mini-link { background: none; border: 0; padding: 0; color: var(--brown); font-size: 12.5px; font-weight: 600; }
-/* ตัวกรองช่วงวันที่ — เดือนบน วันล่าง (date picker ล้วน) */
-.dr-wrap { margin-bottom: 12px; }
+/* ตัวกรองช่วงวันที่ — date picker คู่ */
 .daterange { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 12px; }
 .dr-field { flex: 1; min-width: 0; }
 .dr-field label { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
 .dr-sep { padding-bottom: 13px; color: var(--faint); font-weight: 700; flex-shrink: 0; }
 .dr-clear { flex-shrink: 0; padding-bottom: 14px; }
-.daterange input[type="date"], .dr-wrap input[type="month"] { color-scheme: light; }
-.daterange input::-webkit-calendar-picker-indicator, .dr-wrap input::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+.daterange input[type="date"] { color-scheme: light; }
+.daterange input::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
 .modal-cta {
   position: sticky; bottom: -6px; display: flex; gap: 8px;
   background: linear-gradient(transparent, var(--surface) 35%);

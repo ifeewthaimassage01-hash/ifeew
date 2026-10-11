@@ -95,23 +95,12 @@ export function DateRange({ from, to, onChange }) {
     if (f && t && f > t) { const tmp = f; f = t; t = tmp; }
     onChange({ from: f, to: t });
   };
-  const monthVal = (from || to || '').slice(0, 7);
-  const setMonth = (ym) => {
-    if (!ym) return;
-    const [y, m] = ym.split('-').map(Number);
-    if (!y || !m) return;
-    const last = new Date(y, m, 0).getDate();
-    onChange({ from: `${ym}-01`, to: `${ym}-${String(last).padStart(2, '0')}` });
-  };
   return (
-    <div className="dr-wrap">
-      <div className="dr-field" style={{ marginBottom: 8 }}><label>เดือน</label><input type="month" value={monthVal} onChange={(e) => setMonth(e.target.value)} className="input" /></div>
-      <div className="daterange" style={{ marginBottom: 0 }}>
-        <div className="dr-field"><label>ตั้งแต่</label><input type="date" value={from || ''} onChange={(e) => set('from', e.target.value)} className="input" /></div>
-        <div className="dr-sep">–</div>
-        <div className="dr-field"><label>ถึง</label><input type="date" value={to || ''} onChange={(e) => set('to', e.target.value)} className="input" /></div>
-        {(from || to) && <button type="button" className="mini-link dr-clear" onClick={() => { const t = todayLocal(); onChange({ from: t, to: t }); }}>ล้าง</button>}
-      </div>
+    <div className="daterange">
+      <div className="dr-field"><label>ตั้งแต่</label><input type="date" value={from || ''} onChange={(e) => set('from', e.target.value)} className="input" /></div>
+      <div className="dr-sep">–</div>
+      <div className="dr-field"><label>ถึง</label><input type="date" value={to || ''} onChange={(e) => set('to', e.target.value)} className="input" /></div>
+      {(from || to) && <button type="button" className="mini-link dr-clear" onClick={() => { const t = todayLocal(); onChange({ from: t, to: t }); }}>ล้าง</button>}
     </div>
   );
 }
