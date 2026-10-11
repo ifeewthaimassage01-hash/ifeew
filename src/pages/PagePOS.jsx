@@ -631,13 +631,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
         </div>
       )}
 
-      {/* แถบบิลลัดไปตรวจสอบ — โผล่เมื่อมีบริการในบิลแล้ว (ยกเว้นอยู่หน้าตรวจสอบ) */}
-      {pickedServices.length > 0 && step !== 5 && (
-        <div className="cta-float" onClick={() => setStep(5)}>
-          <span className="t"><b>฿ {total.toLocaleString()} · {pickedServices.length} บริการ</b><small>แตะเพื่อตรวจสอบก่อนเปิดบิล</small></span>
-          <button onClick={(e) => { e.stopPropagation(); setStep(5); }}>ตรวจสอบ →</button>
-        </div>
-      )}
     </div>
   );
 }
