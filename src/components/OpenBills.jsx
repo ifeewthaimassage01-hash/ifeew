@@ -115,14 +115,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [checkoutPay, setCheckoutPay] = useState('เงินสด');
   const [slipName, setSlipName] = useState('');
-  const [checkoutDone, setCheckoutDone] = useState(null);
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  // คง section ไว้ตลอด (ไม่ return null) เพื่อให้ dialog สำเร็จไม่โดนถอดพร้อมบิลใบสุดท้าย
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !checkoutDone) {
+  // คง section ไว้ตลอดเพื่อให้ state ไม่หายตอนบิลใบสุดท้ายถูกเช็คบิล
+  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) {
     return (
       <div id="open-bills" style={{ scrollMarginTop: 16 }}>
         <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
@@ -268,8 +267,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
       }],
     });
     setCheckoutTarget(null); setSlipName('');
-    setCheckoutDone({ total: billTotal(b), pay: payMethod });
-    setTimeout(() => setCheckoutDone(null), 1500);
   };
 
   const confirmVoid = () => {
@@ -445,20 +442,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <button onClick={() => doCheckoutBill(checkoutTarget, checkoutPay)} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเช็คบิล</button>
           </div>
         </Modal>
-      )}
-
-      {checkoutDone && (
-        <div className="done-ov" onClick={() => setCheckoutDone(null)}>
-          <div className="done-card">
-            <svg className="check-anim" viewBox="0 0 52 52" width="72" height="72">
-              <circle cx="26" cy="26" r="24" fill="none" stroke="#6d9a72" strokeWidth="3" />
-              <path d="M15 27l7 7 15-16" fill="none" stroke="#6d9a72" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <h3>เช็คบิลแล้ว</h3>
-            <div className="done-total">฿ {Math.round(checkoutDone.total).toLocaleString()}</div>
-            <div className="muted">{checkoutDone.pay}</div>
-          </div>
-        </div>
       )}
 
       {voidTarget && (
