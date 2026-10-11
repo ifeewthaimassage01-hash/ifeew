@@ -121,7 +121,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authReason, setAuthReason] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) return null;
+  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !checkoutDone) return null;
 
   const startEdit = (b) => {
     setEditTarget(b);
