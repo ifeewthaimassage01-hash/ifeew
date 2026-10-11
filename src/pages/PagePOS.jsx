@@ -364,11 +364,10 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
       {/* STEP 1: รายการล้วน */}
       {step === 1 && (
-        <Card>
-          <CardHead title="เลือกรายการ" hint={`${visibleCats.length} รายการ`} />
+        <>
           {pickedServices.length > 0 && (
-            <div className="field">
-              <label>บริการที่เลือก ({pickedServices.length}) — ต่อกันอัตโนมัติ</label>
+            <Card>
+              <CardHead title="บริการที่เลือก" hint={`${pickedServices.length} รายการ · ต่อกันอัตโนมัติ`} />
               {pickedServices.map((p, idx) => (
                 <div key={p.key} className="tline">
                   <span className="q">{idx + 1}</span>
@@ -382,8 +381,10 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
                 </div>
               ))}
-            </div>
+            </Card>
           )}
+          <Card>
+          <CardHead title="เลือกรายการ" hint={`${visibleCats.length} รายการ`} />
           <div className="cat-grid">
             {visibleCats.map((c) => {
               const durs = durationsForCat(c);
@@ -407,6 +408,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             <button className="btn btn-primary btn-block" onClick={() => setStep(2)} disabled={!selectedCategory}>ถัดไป →</button>
           </div>
         </Card>
+        </>
       )}
 
       {/* STEP 2: ระยะเวลา */}
