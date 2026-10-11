@@ -77,6 +77,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedDuration, setSelectedDuration] = useState(null);
   const [pickedServices, setPickedServices] = useState([]);
+  // โหมดวน: กด "+ เพิ่มรายการ" จากขั้น 4 → วน 1→2 แล้วข้ามขั้น 3 (ใช้หมอเดิม)
+  const [looping, setLooping] = useState(false);
 
   // Step 3: หมอคนเดียวทั้งบิล
   const [selectedTherapist, setSelectedTherapist] = useState(null);
@@ -235,6 +237,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setSelectedStartTime(null);
     setVisitingName('');
     setTherapistType('resident');
+    setLooping(false);
   };
 
   const handleSelectCategory = (cat) => {
@@ -260,7 +263,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
-  // หยิบบริการที่เลือกเข้าบิล (หมอ/เวลาเลือกทีหลังครั้งเดียวทั้งบิล)
+  // หยิบบริการที่เลือกเข้าตะกร้า แล้วเดินหน้า (รอบปกติ→ขั้น 3, รอบวน→ข้ามไปขั้น 4)
   const addPickedService = () => {
     if (!selectedCategory || !selectedDuration) { setErr('เลือกรายการและระยะเวลาให้ครบ'); return; }
     const matched = svcFor(selectedDuration);
@@ -282,7 +285,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       price: priceFor(selectedDuration) + extraPrice,
     }]);
     resetServicePick();
-    setStep(1);
+    setStep(looping ? 4 : 3);
   };
 
   const removePickedService = (key) => {
@@ -379,7 +382,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
                 </div>
               ))}
-              <button className="btn btn-ghost btn-block" style={{ marginTop: 4 }} onClick={() => { setErr(''); setStep(3); }}>เลือกหมอ →</button>
+              <button className="btn btn-ghost btn-block" style={{ marginTop: 4 }} onClick={() => { setErr(''); setLooping(false); setStep(3); }}>เลือกหมอ →</button>
             </div>
           )}
           <div className="cat-grid">
@@ -442,7 +445,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           )}
           <div className="stepnav">
             <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { resetServicePick(); setStep(1); }}>← กลับ</button>
-            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={addPickedService} disabled={!selectedDuration}><Plus size={16} /> เพิ่มบริการ{pickedServices.length > 0 ? ` (${pickedServices.length + 1})` : ''}</button>
+            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={addPickedService} disabled={!selectedDuration}>ถัดไป →</button>
           </div>
         </Card>
       )}
@@ -561,9 +564,14 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             </div>
           )}
 
-          <div className="stepnav">
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(3)}>← กลับ</button>
-            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(5)} disabled={!validPick}>ตรวจสอบ →</button>
+          <div className="stepnav stepnav-3">
+            <button className="btn btn-ghost" style={{ flex: 0.9 }} onClick={() => setStep(looping ? 2 : 3)}>← กลับ</button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setErr(''); setLooping(true); resetServicePick(); setStep(1); }}>
+              <Plus size={16} /> เพิ่มรายการ
+            </button>
+            <button className="btn btn-primary" style={{ flex: 1.1 }} onClick={() => setStep(5)} disabled={!validPick}>
+              เช็คบิล →
+            </button>
           </div>
         </Card>
       )}
