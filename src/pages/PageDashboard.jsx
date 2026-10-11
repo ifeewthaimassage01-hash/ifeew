@@ -1,9 +1,11 @@
-import { Card, CardHead } from '../components/ui';
+import { useState } from 'react';
+import { LayoutDashboard } from 'lucide-react';
+import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange } from '../components/ui';
+import { commBaht } from '../data/demoData';
+import { bkkToday } from '../utils/bkk';
 
 function localDay(offset = 0) {
-  const d = new Date();
-  d.setDate(d.getDate() + offset);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return bkkToday(offset);
 }
 
 const billRows = (b) => b.items || b.customers || [];
@@ -14,44 +16,74 @@ const PAY_LABELS = ['เงินสด', 'QR Code / โอนเงิน'];
 
 export default function PageDashboard({ data }) {
   const today = localDay(0);
+  const [dr, setDr] = useState({ from: today, to: today });
   const paidBills = (data.bills || []).filter((b) => b.status === 'paid');
   const totalSales = paidBills.reduce((s, b) => s + billTotal(b), 0);
   const totalExpenses = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
 
-  const todayBills = paidBills.filter((b) => (b.date || '').slice(0, 10) === today);
-  const dayTotal = todayBills.reduce((s, b) => s + billTotal(b), 0);
-  const expenseToday = (data.expenses || []).filter((e) => e.date === today).reduce((s, e) => s + e.amount, 0);
+  // แยกยอดหมอประจำ / หมอวิ่ง (เฉพาะบิลชำระแล้ว) — หมอวิ่ง = ไม่อยู่ในรายชื่อพนักงาน
+  const staffIds = new Set((data.therapists || []).map((t) => t.id));
+  const calcSplit = (bills) => {
+    let regSales = 0, regComm = 0, extSales = 0, extComm = 0;
+    bills.forEach((b) => billRows(b).forEach((itm) => {
+      const tid = itm.therapistId || b.therapistId;
+      const net = itm.net ?? itm.price ?? 0;
+      const qty = itm.qty || 1;
+      const svc = (data.services || []).find((x) => x.id === itm.serviceId);
+      const comm = svc ? commBaht(svc) * qty : 0;
+      if (tid && staffIds.has(String(tid))) { regSales += net; regComm += comm; }
+      else { extSales += net; extComm += comm; }
+    }));
+    return { regSales, regComm, extSales, extComm };
+  };
+  const all = calcSplit(paidBills);
+  const freelanceTotal = all.extComm;
+
+  const rangeBills = paidBills.filter((b) => inDateRange(b.date, dr.from, dr.to));
+  const rangeSplit = calcSplit(rangeBills);
+  const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
+  const expenseToday = (data.expenses || []).filter((e) => inDateRange(e.date, dr.from, dr.to)).reduce((s, e) => s + e.amount, 0);
+  const freelanceToday = rangeSplit.extComm;
 
   const paySum = {};
   PAY_LABELS.forEach((m) => { paySum[m] = 0; });
-  todayBills.forEach((b) => { if (paySum[b.paymentMethod] !== undefined) paySum[b.paymentMethod] += billTotal(b); });
+  rangeBills.forEach((b) => { if (paySum[b.paymentMethod] !== undefined) paySum[b.paymentMethod] += billTotal(b); });
 
   return (
     <div>
+      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={`สรุป ${fmtRange(dr.from, dr.to)}`} />
+
       <div className="kpi-grid">
         <div className="kpi kpi-income">
-          <div className="kpi-label">รายได้</div>
+          <div className="kpi-label">รายได้รวม</div>
           <div className="kpi-value">฿ {Math.round(totalSales).toLocaleString()}</div>
         </div>
         <div className="kpi kpi-expense">
-          <div className="kpi-label">รายจ่าย</div>
-          <div className="kpi-value">฿ {Math.round(totalExpenses).toLocaleString()}</div>
+          <div className="kpi-label">รายจ่ายรวม</div>
+          <div className="kpi-value">฿ {Math.round(totalExpenses + freelanceTotal).toLocaleString()}</div>
+          {freelanceTotal > 0 && <div className="kpi-sub">รวมค่าหมอวิ่ง ฿ {Math.round(freelanceTotal).toLocaleString()}</div>}
         </div>
         <div className="kpi dark span2">
-          <div className="kpi-label">ยอดสุทธิ </div>
-          <div className="kpi-value">฿ {Math.round(totalSales - totalExpenses).toLocaleString()}</div>
+          <div className="kpi-label">ยอดสุทธิรวม</div>
+          <div className="kpi-value">฿ {Math.round(totalSales - totalExpenses - freelanceTotal).toLocaleString()}</div>
+        </div>
+      </div>
+
+      <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+
+      <div className="hero-dark">
+        <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
+        <div className="hero-net">฿ {Math.round(dayTotal - expenseToday - freelanceToday).toLocaleString()}</div>
+        <div className="hero-sub">ยอดสุทธิ{freelanceToday > 0 && ` · รวมค่าหมอวิ่ง ฿ ${Math.round(freelanceToday).toLocaleString()}`}</div>
+        <div className="hero-grid">
+          <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseToday + freelanceToday).toLocaleString()}</div></div>
         </div>
       </div>
 
       <Card>
-        <CardHead title="สรุปวันนี้" hint={`${todayBills.length} บิล`} />
-        <div className="mini3" style={{ marginBottom: 12 }}>
-          <div className="mini-box"><div className="l">รายได้</div><div className="v">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
-          <div className="mini-box"><div className="l">รายจ่าย</div><div className="v">฿ {Math.round(expenseToday).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">สุทธิ</div><div className="v">฿ {Math.round(dayTotal - expenseToday).toLocaleString()}</div></div>
-        </div>
-        {/* <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: '-0.03em', fontVariantNumeric: 'tabular-nums' }}>฿ {dayTotal.toLocaleString()}</div> */}
-        <div style={{ marginTop: 10 }}>
+        <CardHead title="ช่องทางชำระ" hint={`${rangeBills.length} บิล`} />
+        <div>
           {PAY_LABELS.map((m) => {
             const v = paySum[m] || 0;
             const pct = dayTotal ? Math.max((v / dayTotal) * 100, v > 0 ? 3 : 0) : 0;
@@ -66,6 +98,23 @@ export default function PageDashboard({ data }) {
           })}
         </div>
       </Card>
+
+      <div className="cols-2">
+        <Card>
+          <CardHead title="หมอประจำ" hint="ยอดขาย · ค่าแรง" />
+          <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+            <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
+            <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.regComm).toLocaleString()}</div></div>
+          </div>
+        </Card>
+        <Card>
+          <CardHead title="หมอวิ่ง" hint="ยอดขาย · ค่าแรง" />
+          <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+            <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
+            <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm).toLocaleString()}</div></div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

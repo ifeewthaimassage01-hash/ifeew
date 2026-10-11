@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Flower2, UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
+import { bkkYear } from '../utils/bkk';
 
 export const OWNER_PASS = '123123';
 const ROLE_KEY = 'ifeew_role';
@@ -42,7 +43,7 @@ export default function RoleGate({ onSelect }) {
           <div className="gate-roles">
             <button className="gate-role" onClick={() => onSelect('staff')}>
               <span className="gate-ric"><UserRound size={22} /></span>
-              <span><b>พนักงาน</b><small>เปิดบิล · ประวัติ · รายจ่าย</small></span>
+              <span><b>พนักงาน</b><small>เปิดบิล · ประวัติ · ค่าแรง</small></span>
             </button>
             <button className="gate-role" onClick={() => { setMode('owner'); setErr(''); setPass(''); }}>
               <span className="gate-ric"><KeyRound size={22} /></span>
@@ -74,7 +75,7 @@ export default function RoleGate({ onSelect }) {
           </form>
         )}
 
-        <p className="gate-foot">Clean & Warm Spa · {new Date().getFullYear()}</p>
+        <p className="gate-foot">Clean & Warm Spa · {bkkYear()}</p>
       </div>
     </div>
   );

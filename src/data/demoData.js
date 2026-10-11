@@ -1,4 +1,5 @@
 // Demo data for I'FEEW THAIMASSAGE POS System
+import { bkkToday } from '../utils/bkk';
 export const therapists = [
   { id: 'T01', name: 'คุณน้ำ', nickname: 'น้ำฝน', role: 'senior', active: true },
   { id: 'T02', name: 'คุณแป้ง', nickname: 'แป้ง', role: 'senior', active: true },
@@ -50,6 +51,12 @@ export function chainTimes(startMin, durations, breakMin) {
   return out;
 }
 
+// ชื่อหมอวิ่งสำหรับแสดงผล — ตัด prefix เทคนิค (EXT-VIS-/EXT-) เหลือแค่ชื่อ
+export function freelanceDisplayName(tid) {
+  const s = String(tid || '').replace(/^EXT-VIS-/, '').replace(/^EXT-/, '').trim();
+  return s || 'ไม่ระบุ';
+}
+
 // ค่าแรงคงที่ (บาท) ของแถวบริการ — ใช้ flatAmount ถ้ามี ไม่งั้นคำนวณจาก flatRate เดิม
 export function commBaht(s) {
   if (!s) return 0;
@@ -89,8 +96,7 @@ export const tierRates = [
 ];
 
 export function generateBillId() {
-  const now = new Date();
-  const ymd = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const ymd = bkkToday().replace(/-/g, '');
   const count = Math.floor(Math.random() * 900 + 1).toString().padStart(3, '0');
   return `INV-${ymd}-${count}`;
 }

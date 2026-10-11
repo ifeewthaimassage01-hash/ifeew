@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Plus, Upload, CheckCircle2, Receipt } from 'lucide-react';
 import { Card, CardHead, EmptyState, alertDialog } from '../components/ui';
+import { bkkToday, bkkNow } from '../utils/bkk';
 
 export default function PageExpenses({ data, saveData, role }) {
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0, 10), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
+  const [form, setForm] = useState({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState('');
   const expenses = [...(data.expenses || [])].reverse();
@@ -20,7 +21,7 @@ export default function PageExpenses({ data, saveData, role }) {
       ...data,
       expenses: [...(data.expenses || []), newExpense],
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: form.approvedBy || (role === 'staff' ? 'พนักงาน' : 'ระบบ'),
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: form.approvedBy || (role === 'staff' ? 'พนักงาน' : 'ระบบ'),
         action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿ ${newExpense.amount}`, approvedBy: form.approvedBy || '-',
       }],
     });
@@ -59,7 +60,7 @@ export default function PageExpenses({ data, saveData, role }) {
               <div className="field"><label>ผู้อนุมัติ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้อนุมัติ" className="input" /></div>
             </div>
             <div className="field"><label>ใบเสร็จ / หลักฐาน</label>
-              <label className="filebtn"><Upload size={16} /><span>{form.receiptUrl ? `แนบแล้ว: ${form.receiptUrl}` : 'แตะเพื่อแนบรูปใบเสร็จ (จำลอง)'}</span>
+              <label className="filebtn"><Upload size={19} /><span>{form.receiptUrl ? `แนบแล้ว: ${form.receiptUrl}` : 'แตะเพื่อแนบรูปใบเสร็จ (จำลอง)'}</span>
                 <input type="file" hidden onChange={(e) => setForm({ ...form, receiptUrl: e.target.files[0]?.name || '' })} />
               </label>
             </div>

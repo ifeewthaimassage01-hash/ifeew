@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration } from '../components/ui';
 import { generateBillId, chainTimes } from '../data/demoData';
+import { bkkNow, bkkMinutes } from '../utils/bkk';
 
 const BREAK_MINUTES = 15;
 
@@ -18,10 +19,9 @@ function timeToMinutes(t) {
   return h * 60 + m;
 }
 
-/* เวลาปัจจุบัน (นาที) ปัดขึ้นเป็น 15 นาที — ตรงกับ grid เลือกเวลา */
+/* เวลาปัจจุบันไทย (นาที) ปัดขึ้นเป็น 15 นาที — ตรงกับ grid เลือกเวลา */
 function nowMinutes() {
-  const now = new Date();
-  const m = now.getHours() * 60 + now.getMinutes();
+  const m = bkkMinutes();
   return Math.ceil(m / 15) * 15;
 }
 
@@ -305,11 +305,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   const openBill = () => {
     const id = generateBillId();
-    const now = new Date();
+    const stamp = bkkNow();
     const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
     const endMin = times.length ? times[times.length - 1].end : selectedStartTime;
     const newBill = {
-      id, date: now.toISOString(), customer: '', memberNo: '',
+      id, date: stamp, customer: '', memberNo: '',
       // โมเดลใหม่: หมอ + เวลาเริ่ม/จบ ระดับบิล
       therapistId: activeTherapistId, therapistName: activeTherapistName,
       startTime: minutesToTime(selectedStartTime),
@@ -324,14 +324,14 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
         startTime: minutesToTime(times[i].start),
         endTime: minutesToTime(times[i].end),
       })),
-      subtotal, discount: discVal, total, paymentMethod, status: 'open', createdAt: now.toISOString(),
+      subtotal, discount: discVal, total, paymentMethod, status: 'open', createdAt: stamp,
       promotion: promoName || '',
     };
     saveData({
       ...data,
       bills: [...(data.bills || []), newBill],
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: now.toISOString(), user: 'ระบบ POS',
+        id: `A-${Date.now()}`, timestamp: stamp, user: 'ระบบ POS',
         action: 'เปิดบิล (รอเช็คบิล)', detail: `฿ ${total.toLocaleString()} · ${activeTherapistName} · ${pickedServices.length} บริการ`,
         oldValue: '-', newValue: 'open', approvedBy: '-',
       }],

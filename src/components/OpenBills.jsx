@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText } from 'lucide-react';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
+import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht } from '../data/demoData';
 
 const billRows = (b) => b.items || b.customers || [];
@@ -43,9 +44,10 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
       {items.map((it, idx) => {
         const key = it._key ?? idx;
         const open = expandedKey === key;
+        const isRun = String(it.therapistId || '').startsWith('EXT-');
         return (
-          <div key={key} className="rcpt-item">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div key={key} className="rcpt-card">
+            <div className="rcpt-top">
               <button type="button" className="rcpt-line1" onClick={() => onToggle && onToggle(open ? null : key)} aria-expanded={open}>
                 <b>{it.serviceName || it.serviceId}</b>
                 <span className="amt">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</span>
@@ -57,17 +59,17 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
                     if (ok) onRemove(it);
                   }}
                   aria-label="ลบรายการ"
-                  className="icon-btn danger"
-                  style={{ width: 30, height: 30, flexShrink: 0 }}
+                  className="icon-btn danger rcpt-del"
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={15} />
                 </button>
               )}
             </div>
-            <div className="rcpt-doc">
-              <span className="rcpt-doc-name">{it.therapistName || it.therapistId || '—'}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''} · <span className="rcpt-comm">ค่าแรง ฿ {commOf(it).toLocaleString()}</span></span>
-              <span className="rcpt-doc-time">{itemTimeText(it)}</span>
+            <div className="rcpt-chips">
+              <span className="rcpt-doc-chip">{it.therapistName || it.therapistId || '—'}{isRun ? ' · หมอวิ่ง' : ''}</span>
+              <span className="rcpt-comm-chip">ค่าแรง ฿ {commOf(it).toLocaleString()}</span>
             </div>
+            <div className="rcpt-time"><Clock size={12} />{itemTimeText(it)}</div>
             {open && (it.addons || []).length > 0 && (
               <div className="rcpt-sub">
                 +{(it.addons || []).map((a) => a.name).join(', ')}
@@ -76,22 +78,18 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
           </div>
         );
       })}
+      <div className="perf" />
       {disc > 0 && (
-        <div className="rcpt-item">
-          <div className="rcpt-line1" style={{ cursor: 'default' }}>
-            <b>{discLabel || 'ส่วนลด'}</b>
-            <span className="amt">−฿ {disc.toLocaleString()}</span>
-          </div>
-        </div>
+        <div className="rcpt-sumrow"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
+      )}
+      {disc > 0 && (
+        <div className="rcpt-sumrow disc"><span>{discLabel || 'ส่วนลด'}</span><b>−฿ {disc.toLocaleString()}</b></div>
       )}
       <div className="rcpt-total">
-        <span className="muted">สุทธิ</span>
+        <span className="muted">ยอดสุทธิ</span>
         <span className="grand">฿ {total.toLocaleString()}</span>
       </div>
       <div className="rcpt-sub" style={{ textAlign: 'right', marginTop: 2 }}>ค่าแรงพนักงานรวม ฿ {commTotal.toLocaleString()}</div>
-      {disc > 0 && (
-        <div className="rcpt-sub" style={{ textAlign: 'right', marginTop: 2 }}>รวมย่อย ฿ {subtotal.toLocaleString()}</div>
-      )}
     </div>
   );
 }
@@ -107,7 +105,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [editPay, setEditPay] = useState('เงินสด');
   const [expandedKey, setExpandedKey] = useState(null);
   const [showAddSvc, setShowAddSvc] = useState(false);
-  const [showPromoPicker, setShowPromoPicker] = useState(false);
   const promosActive = (data.promotions || []).filter((p) => p.active !== false);
   const [editItems, setEditItems] = useState([]);
   const [addSvcId, setAddSvcId] = useState('');
@@ -136,12 +133,12 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setEditPay(b.paymentMethod || 'เงินสด');
     setEditItems(billRows(b).map((it, i) => ({ ...it, _key: `${Date.now()}-${i}` })));
     setAddSvcId(''); setEditErr('');
-    setExpandedKey(null); setShowAddSvc(false); setShowPromoPicker(false);
+    setExpandedKey(null); setShowAddSvc(false);
   };
   const selectEditPromo = (p) => {
     if (editPromoId === p.id) { setEditPromoId(''); setEditDiscount(''); }
     else { setEditPromoId(p.id); setEditDiscount(String(p.amount)); }
-    setEditErr(''); setShowPromoPicker(false);
+    setEditErr('');
   };
 
   const editSubtotal = editItems.reduce((s, i) => s + (i.net ?? i.price ?? 0), 0);
@@ -220,7 +217,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -240,7 +237,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -259,9 +256,9 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const doCheckoutBill = (b, payMethod) => {
     saveData({
       ...data,
-      bills: data.bills.map((x) => (x.id === b.id ? { ...x, status: 'paid', paymentMethod: payMethod, paidAt: new Date().toISOString(), slip: payMethod === 'QR Code / โอนเงิน' ? (slipName || '') : '' } : x)),
+      bills: data.bills.map((x) => (x.id === b.id ? { ...x, status: 'paid', paymentMethod: payMethod, paidAt: bkkNow(), slip: payMethod === 'QR Code / โอนเงิน' ? (slipName || '') : '' } : x)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
         action: 'เช็คบิล', detail: `${b.customer || 'ลูกค้าหน้าร้าน'} · ฿ ${billTotal(b).toLocaleString()} · ${payMethod}`,
         oldValue: 'open', newValue: 'paid', approvedBy: '-',
       }],
@@ -276,7 +273,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === voidTarget.id ? { ...b, status: 'cancelled' } : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'ผู้จัดการ',
         action: 'ยกเลิกบิล', detail: `${voidTarget.customer || 'ลูกค้าหน้าร้าน'} — ${authReason}`,
         oldValue: voidTarget.status || 'open', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
       }],
@@ -301,8 +298,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div key={b.id} className="mcard" style={{ marginBottom: 8 }}>
               <div className="mcard-top">
                 <div>
-                  <b style={{ fontSize: 14 }}>{docName}{docExtra}</b>
-                  <div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</div>
+                  <b style={{ fontSize: 20  }}>{docName}{docExtra}</b>
+                  <div className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</div>
                 </div>
                 <StatusBadge status="open" />
               </div>
@@ -337,7 +334,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
                 <h3 style={{ fontSize: 17 }}>แก้ไขบิล</h3>
-                <div className="muted">{new Date(editTarget.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {editItems.length} รายการ</div>  
+                <div className="muted">{fmtBkk(editTarget.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {editItems.length} รายการ</div>  
               </div>
             </div>
             <StatusBadge status="open" />
@@ -380,19 +377,26 @@ export default function OpenBillsSection({ data, saveData, role }) {
             </div>
           )}
 
-          {promosActive.length > 0 && (!showPromoPicker ? (
-            <button type="button" className="dash-add" onClick={() => { setShowPromoPicker(true); setEditErr(''); }}><Plus size={15} /> ใส่โปรโมชัน{editPromoId ? ` (${promosActive.find((p) => p.id === editPromoId)?.name})` : ''}</button>
-          ) : (
+          {promosActive.length > 0 && (
             <div className="field">
               <label>โปรโมชันส่วนลด</label>
-              <div className="preset-row" style={{ marginTop: 0 }}>
+              <select
+                value={editPromoId}
+                onChange={(e) => {
+                  const p = promosActive.find((x) => x.id === e.target.value);
+                  if (!p) { setEditPromoId(''); setEditDiscount(''); }
+                  else selectEditPromo(p);
+                  setEditErr('');
+                }}
+                className="input"
+              >
+                <option value="">— ไม่ใช้โปร —</option>
                 {promosActive.map((p) => (
-                  <button key={p.id} type="button" className="preset-btn" style={editPromoId === p.id ? { background: 'var(--brown-950)', color: '#fff', borderColor: 'var(--brown-950)' } : null} onClick={() => selectEditPromo(p)}>{p.name} −฿ {p.amount.toLocaleString()}</button>
+                  <option key={p.id} value={p.id}>{p.name} −฿ {p.amount.toLocaleString()}</option>
                 ))}
-                {editPromoId && <button type="button" className="preset-btn" onClick={() => { setEditPromoId(''); setEditDiscount(''); }}>ไม่ใช้โปร</button>}
-              </div>
+              </select>
             </div>
-          ))}
+          )}
 
           
           <div className="modal-cta">
@@ -409,7 +413,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
                 <h3 style={{ fontSize: 17 }}>เช็คบิล</h3>
-                <div className="muted">{new Date(checkoutTarget.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(checkoutTarget).length} รายการ</div>
+                <div className="muted">{fmtBkk(checkoutTarget.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(checkoutTarget).length} รายการ</div>
               </div>
             </div>
           </div>
@@ -432,7 +436,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           </div>
           {checkoutPay === 'QR Code / โอนเงิน' && (
             <div className="field"><label>สลิปโอนเงิน</label>
-              <label className="filebtn"><Upload size={16} /><span>{slipName ? `แนบแล้ว: ${slipName}` : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
+              <label className="filebtn"><Upload size={19} /><span>{slipName ? `แนบแล้ว: ${slipName}` : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
                 <input type="file" accept="image/*" hidden onChange={(e) => setSlipName(e.target.files[0]?.name || '')} />
               </label>
             </div>

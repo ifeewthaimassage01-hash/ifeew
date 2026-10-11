@@ -10,6 +10,7 @@ import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
 import PageManage from './pages/PageManage';
 import { loadData, persistData } from './data/demoData';
+import { bkkYear } from './utils/bkk';
 
 const ROLE_KEY = 'ifeew_role';
 const DEFAULT_PAGE = { owner: 'dashboard', staff: 'pos' };
@@ -121,7 +122,7 @@ export default function App() {
           <footer className="foot">
             <div className="container">
               <span>I'FEEW Thai Massage — POS & Back-Office</span>
-              <span>Clean & Warm Spa · {new Date().getFullYear()}</span>
+              <span>Clean & Warm Spa · {bkkYear()}</span>
             </div>
           </footer>
         </div>
