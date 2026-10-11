@@ -382,7 +382,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
                 </div>
               ))}
-              <button className="btn btn-ghost btn-block" style={{ marginTop: 4 }} onClick={() => { setErr(''); setLooping(false); setStep(3); }}>เลือกหมอ →</button>
             </div>
           )}
           <div className="cat-grid">
