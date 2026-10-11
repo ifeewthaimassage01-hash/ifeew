@@ -236,6 +236,7 @@ export default function PageBills({ data, saveData, role }) {
             <StatusBadge status={detailBill.status} />
           </div>
           <div className="summary-box" style={{ marginTop: 12 }}>
+            <div className="r"><span>หมอ</span><b>{detailBill.therapistName || billRows(detailBill)[0]?.therapistName || '—'}</b></div>
             <div className="r"><span>ลูกค้า</span><b>{detailBill.customer || '—'}</b></div>
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
@@ -246,7 +247,7 @@ export default function PageBills({ data, saveData, role }) {
           {billRows(detailBill).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
-              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId}{String(it.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
+              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId}{String(it.therapistId || detailBill.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
               <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿ {(it.net || 0).toLocaleString()}</b>
             </div>
           ))}

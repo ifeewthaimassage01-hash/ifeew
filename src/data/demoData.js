@@ -38,6 +38,18 @@ export function svcLabel(s) {
   return `${s.category} ${h} ชม ${r} นาที`;
 }
 
+// ผูกเวลาเริ่ม–จบให้หลายบริการต่อกัน (พักห้องคั่นระหว่างรายการ)
+export function chainTimes(startMin, durations, breakMin) {
+  const out = [];
+  let t = startMin;
+  durations.forEach((d, i) => {
+    out.push({ start: t, end: t + d });
+    if (i < durations.length - 1) t = t + d + (breakMin || 0);
+    else t = t + d;
+  });
+  return out;
+}
+
 // ค่าแรงคงที่ (บาท) ของแถวบริการ — ใช้ flatAmount ถ้ามี ไม่งั้นคำนวณจาก flatRate เดิม
 export function commBaht(s) {
   if (!s) return 0;

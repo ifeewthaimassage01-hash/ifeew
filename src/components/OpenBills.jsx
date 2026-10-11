@@ -7,6 +7,7 @@ const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
+const BREAK_MINUTES = 15;
 
 function minutesToTime(m) {
   const h = Math.floor(m / 60);
@@ -149,21 +150,26 @@ export default function OpenBillsSection({ data, saveData, role }) {
     if (!addSvcId) { setEditErr('เลือกบริการที่จะเพิ่มก่อน'); return; }
     const svc = (data.services || []).find((s) => s.id === addSvcId);
     if (!svc) { setEditErr('ไม่พบบริการนี้'); return; }
-    // ใช้หมอเดิมจากตอนเปิดบิล (รายการแรกของบิล) — ไม่ต้องเลือกใหม่
-    const baseTherapist = editItems[0];
-    if (!baseTherapist?.therapistId) { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
-    const therapistId = baseTherapist.therapistId;
-    const therapistName = baseTherapist.therapistName || '';
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(Math.ceil(now.getMinutes() / 5) * 5 % 60).padStart(2, '0');
+    // โมเดลใหม่: หมอระดับบิล + ต่อท้ายคิวเดิม (จบล่าสุด + พักห้อง)
+    const therapistId = editTarget?.therapistId || editItems[0]?.therapistId;
+    const therapistName = editTarget?.therapistName || editItems[0]?.therapistName || '';
+    if (!therapistId) { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
+    const lastEnd = editItems.reduce((m, it) => {
+      const s = timeToMinutes(it.startTime);
+      const e = it.endTime ? timeToMinutes(it.endTime) : (s != null ? s + (it.totalMinutes || it.duration || 0) : null);
+      return e != null ? Math.max(m, e) : m;
+    }, null);
+    const startMin = lastEnd != null ? lastEnd + BREAK_MINUTES : null;
+    const mins = svc.duration || 0;
     const label = svc.duration != null
       ? `${svc.category} ${svc.duration < 60 ? `${svc.duration} นาที` : svc.duration % 60 === 0 ? `${svc.duration / 60} ชม` : `${Math.floor(svc.duration / 60)} ชม ${svc.duration % 60} นาที`}`
       : svc.category;
     setEditItems([...editItems, {
       _key: `${Date.now()}`, serviceId: svc.id, serviceName: label, category: svc.category,
       therapistId, therapistName, qty: 1, price: svc.price, discount: 0, net: svc.price,
-      duration: svc.duration || 0, totalMinutes: svc.duration || 0, startTime: `${hh}:${mm}`,
+      duration: mins, totalMinutes: mins,
+      startTime: startMin != null ? minutesToTime(startMin) : '',
+      endTime: startMin != null ? minutesToTime(startMin + mins) : '',
     }]);
     setAddSvcId(''); setEditErr('');
   };
@@ -281,17 +287,30 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <div className="alert warn" style={{ marginTop: 0, marginBottom: 10 }}>
             ยอดค้างรวม ฿ {openBills.reduce((s, b) => s + billTotal(b), 0).toLocaleString()} — กด “เช็คบิล” หลังนวดเสร็จ หรือ “แก้ไข” เพื่อเพิ่มบริการระหว่างนวด
           </div>
-          {openBills.map((b) => (
+          {openBills.map((b) => {
+            const rows = billRows(b);
+            const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
+            const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
+            return (
             <div key={b.id} className="mcard" style={{ marginBottom: 8 }}>
               <div className="mcard-top">
                 <div>
-                  <b style={{ fontSize: 14 }}>{b.customer || 'ลูกค้าหน้าร้าน'}</b>
-                  <div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {billRows(b).length} รายการ</div>
-                  <div className="muted" style={{ marginTop: 2 }}>{billRows(b).map((it) => it.serviceName || it.serviceId).join(' · ')}{b.promotion ? ` · โปร: ${b.promotion}` : ''}</div>
+                  <b style={{ fontSize: 14 }}>{docName}{docExtra}</b>
+                  <div className="muted">{new Date(b.date).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</div>
                 </div>
                 <StatusBadge status="open" />
               </div>
-              <div className="mcard-bot">
+              {rows.map((it, i) => (
+                <div key={i} className="mcard-bot" style={{ padding: '6px 0', borderTop: i === 0 ? 0 : '1px dashed var(--line)' }}>
+                  <span className="muted" style={{ flex: 1, minWidth: 0 }}>
+                    <b style={{ fontSize: 13, color: 'var(--ink)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.serviceName || it.serviceId}</b>
+                    {(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : ''}
+                  </span>
+                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
+                </div>
+              ))}
+              {b.promotion ? <div className="muted" style={{ marginTop: 2 }}>โปร: {b.promotion}</div> : null}
+              <div className="mcard-bot" style={{ marginTop: 6 }}>
                 <span className="big-price">฿ {billTotal(b).toLocaleString()}</span>
                 <span style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => startEdit(b)} className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5 }}>แก้ไข</button>
@@ -300,7 +319,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </Card>
       )}
 

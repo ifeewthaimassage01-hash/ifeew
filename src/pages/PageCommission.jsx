@@ -20,7 +20,8 @@ export default function PageCommission({ data, saveData }) {
   let freelanceJobs = 0;
   bills.forEach((bill) => {
     (bill.items || bill.customers || []).forEach((itm) => {
-      const s = stats[itm.therapistId];
+      const tid = itm.therapistId || bill.therapistId;
+      const s = stats[tid];
       if (!s) { freelanceTotal += itm.net ?? itm.price ?? 0; freelanceJobs += itm.qty || 1; return; }
       const svc = (data.services || []).find((x) => x.id === itm.serviceId);
       if (!svc) return;
@@ -59,7 +60,7 @@ export default function PageCommission({ data, saveData }) {
       (bill.items || bill.customers || []).forEach((itm) => {
         const net = itm.net ?? itm.price ?? 0;
         pending.sales += net;
-        if (!String(itm.therapistId || '').startsWith('EXT-')) {
+        if (!String(itm.therapistId || bill.therapistId || '').startsWith('EXT-')) {
           const svc = (data.services || []).find((x) => x.id === itm.serviceId);
           if (svc) pending.comm += commBaht(svc) * (itm.qty || 1);
         }

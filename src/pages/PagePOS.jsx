@@ -1,14 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ReceiptText, Plus, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, Pencil, Trash2, ChevronDown, Check, X } from 'lucide-react';
-import { Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
-import { generateBillId } from '../data/demoData';
+import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check } from 'lucide-react';
+import { Card, CardHead, EmptyState, formatDuration } from '../components/ui';
+import { generateBillId, chainTimes } from '../data/demoData';
 
-const PAY_METHODS = [
-  { label: 'เงินสด', icon: Banknote },
-  { label: 'QR Code / โอนเงิน', icon: QrCode },
-];
-
-const MGR_KEY = 'ifeew_mgr_ok';
 const BREAK_MINUTES = 15;
 
 function minutesToTime(m) {
@@ -18,7 +12,9 @@ function minutesToTime(m) {
 }
 
 function timeToMinutes(t) {
-  const [h, m] = t.split(':').map(Number);
+  if (!t || !String(t).includes(':')) return null;
+  const [h, m] = String(t).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
   return h * 60 + m;
 }
 
@@ -74,15 +70,17 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const therapistsList = (data.therapists || []).filter((t) => t.active !== false);
   const services = data.services || [];
 
-  // Step: 1=รายการ, 2=เวลา+หมอ, 3=ยืนยัน
+  // Step: 1=รายการ, 2=ระยะเวลา, 3=หมอ, 4=เวลา, 5=ตรวจสอบ
   const [step, setStep] = useState(1);
 
-  // Step 1: รายการ (ไม่มีรายการย่อยแล้ว)
+  // Step 1-2: บริการที่หยิบไว้ (หลายบริการได้ หมอคนเดียวทั้งบิล)
   const [selectedCategory, setSelectedCategory] = useState(null);
-
-  // Step 2: ระยะเวลา + หมอ + เวลา
   const [selectedDuration, setSelectedDuration] = useState(null);
+  const [pickedServices, setPickedServices] = useState([]);
+
+  // Step 3: หมอคนเดียวทั้งบิล
   const [selectedTherapist, setSelectedTherapist] = useState(null);
+  // Step 4: เวลาเริ่มเดียวทั้งบิล (รายการถัดไปต่อคิวอัตโนมัติ)
   const [selectedStartTime, setSelectedStartTime] = useState(null);
   const [therapistType, setTherapistType] = useState('resident'); // resident | visiting
   // หมอวิ่ง = พิมพ์ชื่อใช้เลย ไม่ต้องเพิ่มเข้าทะเบียน
@@ -100,12 +98,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
-  // Step 3
-  const [customers, setCustomers] = useState([]);
-  const [editingIdx, setEditingIdx] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('เงินสด');
-  const [customer, setCustomer] = useState('');
-  const [memberNo, setMemberNo] = useState('');
+  // Step 5
+  const [paymentMethod] = useState('เงินสด');
   const [discount, setDiscount] = useState('');
   const [promoId, setPromoId] = useState('');
   const promosActive = (data.promotions || []).filter((p) => p.active !== false);
@@ -116,13 +110,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
-  const [showAuth, setShowAuth] = useState(false);
-  const [authPass, setAuthPass] = useState('');
-  const [authReason, setAuthReason] = useState('');
-  const [rememberMgr, setRememberMgr] = useState(false);
-  const [authErr, setAuthErr] = useState('');
   const [err, setErr] = useState('');
-  const [successBill, setSuccessBill] = useState(null);
 
   // รายการที่จองได้ = มีบริการแบบมีระยะเวลา
   const bookableCats = useMemo(() => {
@@ -150,15 +138,30 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setSelectedAddons((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     setErr('');
   };
-  const addonMinutes = selectedAddons.reduce((s, id) => s + (addonsActive.find((a) => a.id === id)?.minutes || 0), 0);
-  const addonPrice = selectedAddons.reduce((s, id) => s + (addonsActive.find((a) => a.id === id)?.price || 0), 0);
-  const totalMinutes = (selectedDuration || 0) + addonMinutes;
+  // นาทีรวมทั้งบิล + รายการที่ผูกเวลาเริ่ม–จบต่อกัน (พักห้องคั่น)
+  const billMinutes = pickedServices.reduce((s, p) => s + (p.minutes || 0), 0);
+  const chained = useMemo(() => {
+    if (pickedServices.length === 0 || selectedStartTime == null) return [];
+    const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
+    return pickedServices.map((p, i) => ({ ...p, start: times[i].start, end: times[i].end }));
+  }, [pickedServices, selectedStartTime]);
+  const billEnd = chained.length ? chained[chained.length - 1].end : null;
 
   const bookedSlots = useMemo(() => {
     if (!activeTherapistId) return [];
     const slots = [];
     (data.bills || []).forEach((b) => {
       if (b.status === 'cancelled') return;
+      // โมเดลใหม่: หมอระดับบิล ก้อนเดียวทั้งบิล
+      if (b.therapistId && b.startTime) {
+        if (b.therapistId === activeTherapistId) {
+          const start = timeToMinutes(b.startTime);
+          const end = b.endTime ? timeToMinutes(b.endTime) : start + 60;
+          if (start != null && end != null) slots.push({ start, end: end + BREAK_MINUTES });
+        }
+        return;
+      }
+      // โมเดลเก่า: ทีละแถว
       const rows = b.customers || b.items || [];
       rows.forEach((it) => {
         if (it.therapistId === activeTherapistId && it.startTime) {
@@ -173,40 +176,40 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 
-  // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก)
+  // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก) — ทั้งบิลก้อนเดียว
   const timeError = useMemo(() => {
-    if (selectedStartTime == null || !selectedDuration) return '';
+    if (selectedStartTime == null || pickedServices.length === 0) return '';
     if (selectedStartTime < OPEN_MIN) return `ร้านเปิด ${minutesToTime(OPEN_MIN)} — เลือกเวลาหลังจากนั้น`;
-    if (selectedStartTime + totalMinutes > CLOSE_MIN) return `เวลานี้จบเกิน ${minutesToTime(CLOSE_MIN)} — ร้านปิดแล้ว`;
-    const clash = bookedSlots.some((s) => selectedStartTime < s.end && selectedStartTime + totalMinutes > s.start);
+    if (billEnd != null && billEnd > CLOSE_MIN) return `เวลานี้จบเกิน ${minutesToTime(CLOSE_MIN)} — ร้านปิดแล้ว`;
+    const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
     if (clash) return 'เวลานี้ชนกับคิวที่จองแล้ว ลองขยับเวลา';
     return '';
-  }, [selectedStartTime, selectedDuration, totalMinutes, bookedSlots]);
+  }, [selectedStartTime, pickedServices.length, billEnd, bookedSlots]);
 
   // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / เกินเวลาร้าน
   const slotState = (t) => {
-    if (!selectedDuration) return 'oob';
-    if (t < OPEN_MIN || t + totalMinutes > CLOSE_MIN) return 'oob';
-    const clash = bookedSlots.some((s) => t < s.end && t + totalMinutes > s.start);
+    if (pickedServices.length === 0) return 'oob';
+    if (t < OPEN_MIN || t + billMinutes > CLOSE_MIN) return 'oob';
+    const clash = bookedSlots.some((s) => t < s.end && t + billMinutes > s.start);
     return clash ? 'clash' : 'free';
   };
 
   // ช่วงว่างถัดไป (ละเอียด 15 นาที) นับจากเวลาฐาน — ใช้กับปุ่มแนะนำ + auto-snap
   const nextFreeFrom = (base) => {
-    if (!selectedDuration) return null;
+    if (pickedServices.length === 0) return null;
     const start = Math.max(snap15(base ?? nowMinutes()), OPEN_MIN);
-    for (let t = start; t + totalMinutes <= CLOSE_MIN; t += GRID_STEP) {
+    for (let t = start; t + billMinutes <= CLOSE_MIN; t += GRID_STEP) {
       if (slotState(t) === 'free') return t;
     }
     return null;
   };
 
-  // เข้าขั้น 4 โหมดเพิ่มใหม่แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย (โหมดแก้ไขไม่แตะค่าเดิม)
+  // เข้าขั้น 4 แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย
   const snapGuard = useMemo(() => ({ doneFor: null }), []);
   useEffect(() => {
-    if (step !== 4 || editingIdx != null || !selectedDuration || selectedStartTime == null) return;
+    if (step !== 4 || pickedServices.length === 0 || selectedStartTime == null) return;
     if (!timeError) return;
-    const key = `${activeTherapistId}-${selectedStartTime}-${totalMinutes}`;
+    const key = `${activeTherapistId}-${selectedStartTime}-${billMinutes}`;
     if (snapGuard.doneFor === key) return;
     snapGuard.doneFor = key;
     const next = nextFreeFrom(selectedStartTime);
@@ -215,16 +218,21 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  const subtotal = customers.reduce((s, c) => s + c.price, 0);
+  const subtotal = pickedServices.reduce((s, p) => s + p.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
   const total = subtotal - discVal;
 
-  const resetPick = () => {
+  const resetServicePick = () => {
     setSelectedCategory(null);
     setSelectedDuration(null);
+    setSelectedAddons([]);
+  };
+
+  const resetAll = () => {
+    resetServicePick();
+    setPickedServices([]);
     setSelectedTherapist(null);
     setSelectedStartTime(null);
-    setSelectedAddons([]);
     setVisitingName('');
     setTherapistType('resident');
   };
@@ -233,10 +241,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     if (selectedCategory !== cat) {
       setSelectedCategory(cat);
       setSelectedDuration(null);
-      setSelectedTherapist(null);
       setSelectedAddons([]);
-      // default = เวลาปัจจุบัน (clamp ในเวลาเปิดร้าน)
-      setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), CLOSE_MIN - 30));
+      // default เวลาเริ่ม = เวลาปัจจุบัน (ตั้งครั้งแรกครั้งเดียว ไม่ทับที่เลือกไว้)
+      if (selectedStartTime == null) {
+        setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), CLOSE_MIN - 30));
+      }
     }
     setErr('');
   };
@@ -251,7 +260,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
-  const buildCustomer = () => {
+  // หยิบบริการที่เลือกเข้าบิล (หมอ/เวลาเลือกทีหลังครั้งเดียวทั้งบิล)
+  const addPickedService = () => {
+    if (!selectedCategory || !selectedDuration) { setErr('เลือกรายการและระยะเวลาให้ครบ'); return; }
     const matched = svcFor(selectedDuration);
     const pickedAddons = selectedAddons
       .map((id) => addonsActive.find((a) => a.id === id))
@@ -259,111 +270,58 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       .map((a) => ({ id: a.id, name: a.name, minutes: a.minutes, price: a.price }));
     const extraMin = pickedAddons.reduce((s, a) => s + (a.minutes || 0), 0);
     const extraPrice = pickedAddons.reduce((s, a) => s + (a.price || 0), 0);
-    const mins = (selectedDuration || 0) + extraMin;
-    return {
-      id: Date.now(),
+    setErr('');
+    setPickedServices((prev) => [...prev, {
+      key: `${Date.now()}-${prev.length}`,
       serviceId: matched?.id || `${selectedCategory}-${selectedDuration}`,
       serviceName: `${selectedCategory} ${formatDuration(selectedDuration)}`,
       category: selectedCategory,
       duration: selectedDuration,
       addons: pickedAddons,
-      addonMinutes: extraMin,
-      totalMinutes: mins,
-      startTime: minutesToTime(selectedStartTime),
-      endTime: minutesToTime(selectedStartTime + mins),
-      therapistId: activeTherapistId,
-      therapistName: activeTherapistName,
+      minutes: (selectedDuration || 0) + extraMin,
       price: priceFor(selectedDuration) + extraPrice,
-    };
-  };
-
-  const validPick = selectedCategory && selectedDuration && activeTherapistId && selectedStartTime != null && !timeError;
-
-  const handleAddCustomer = () => {
-    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
-    setErr('');
-    setCustomers([...customers, buildCustomer()]);
-    resetPick();
+    }]);
+    resetServicePick();
     setStep(1);
   };
 
-  const handleAddAndCheckout = () => {
-    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
-    setErr('');
-    setCustomers([...customers, buildCustomer()]);
-    resetPick();
-    setStep(5);
+  const removePickedService = (key) => {
+    setPickedServices((prev) => prev.filter((p) => p.key !== key));
   };
 
-  const handleEditCustomer = (idx) => {
-    const c = customers[idx];
-    const isVisiting = c.therapistId && String(c.therapistId).startsWith('EXT-');
-    setTherapistType(isVisiting ? 'visiting' : 'resident');
-    setVisitingName(isVisiting ? (c.therapistName || '') : '');
-    setSelectedCategory(c.category);
-    setSelectedDuration(c.duration);
-    setSelectedTherapist(c.therapistId);
-    setSelectedStartTime(timeToMinutes(c.startTime));
-    setSelectedAddons((c.addons || []).map((a) => a.id));
-    setEditingIdx(idx);
-    setStep(2);
-  };
-
-  const handleUpdateCustomer = () => {
-    if (!validPick) { setErr('เลือกรายการ ระยะเวลา หมอ และเวลาให้ครบ'); return; }
-    setErr('');
-    const next = [...customers];
-    next[editingIdx] = { ...buildCustomer(), id: customers[editingIdx].id };
-    setCustomers(next);
-    setEditingIdx(null);
-    resetPick();
-    setStep(5);
-  };
-
-  const cancelEdit = () => {
-    setEditingIdx(null);
-    resetPick();
-    setStep(5);
-  };
-
-  const handleRemoveCustomer = (idx) => {
-    setCustomers(customers.filter((_, i) => i !== idx));
-  };
-
-  const startCheckout = () => {
-    if (customers.length === 0) { setErr('เพิ่มลูกค้าอย่างน้อย 1 คนก่อนเปิดบิล'); return; }
-    setErr('');
-    try {
-      if (sessionStorage.getItem(MGR_KEY) === '1') { openBill('จำรหัสในกะนี้', 'paid'); return; }
-    } catch { /* ignore */ }
-    setAuthErr('');
-    setShowAuth(true);
-  };
+  const validPick = pickedServices.length > 0 && activeTherapistId && selectedStartTime != null && !timeError;
 
   // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติผู้จัดการ, สถานะ open
   const openDraftBill = () => {
-    if (customers.length === 0) { setErr('เพิ่มลูกค้าอย่างน้อย 1 คนก่อนเปิดบิล'); return; }
+    if (pickedServices.length === 0) { setErr('เพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
+    if (!activeTherapistId) { setErr('เลือกหมอนวดก่อนเปิดบิล'); return; }
+    if (selectedStartTime == null || timeError) { setErr('เลือกเวลาเริ่มให้ถูกต้องก่อนเปิดบิล'); return; }
     setErr('');
-    openBill('เปิดบิลรอเช็คบิล', 'open');
+    openBill();
   };
 
-  const openBill = (reason, status = 'paid') => {
+  const openBill = () => {
     const id = generateBillId();
     const now = new Date();
-    const isOpen = status === 'open';
+    const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
+    const endMin = times.length ? times[times.length - 1].end : selectedStartTime;
     const newBill = {
-      id, date: now.toISOString(), customer, memberNo,
-      customers: customers.map((c) => ({ ...c })),
-      // mirror ให้หน้ารายงานเก่า (ประวัติ/ปิดวัน/ค่าแรง) ที่อ่าน b.items ทำงานได้
-      items: customers.map((c) => ({
-        serviceId: c.serviceId,
-        serviceName: (c.addons || []).length ? `${c.serviceName} + ${(c.addons || []).map((a) => a.name).join(', ')}` : c.serviceName,
-        category: c.category,
-        therapistId: c.therapistId, therapistName: c.therapistName,
-        qty: 1, price: c.price, discount: 0, net: c.price,
-        duration: c.totalMinutes || c.duration, startTime: c.startTime,
+      id, date: now.toISOString(), customer: '', memberNo: '',
+      // โมเดลใหม่: หมอ + เวลาเริ่ม/จบ ระดับบิล
+      therapistId: activeTherapistId, therapistName: activeTherapistName,
+      startTime: minutesToTime(selectedStartTime),
+      endTime: minutesToTime(endMin),
+      items: pickedServices.map((p, i) => ({
+        serviceId: p.serviceId,
+        serviceName: (p.addons || []).length ? `${p.serviceName} + ${(p.addons || []).map((a) => a.name).join(', ')}` : p.serviceName,
+        category: p.category,
+        therapistId: activeTherapistId, therapistName: activeTherapistName,
+        qty: 1, price: p.price, discount: 0, net: p.price,
+        duration: p.minutes, totalMinutes: p.minutes,
+        startTime: minutesToTime(times[i].start),
+        endTime: minutesToTime(times[i].end),
       })),
-      subtotal, discount: discVal, total, paymentMethod, status, createdAt: now.toISOString(),
+      subtotal, discount: discVal, total, paymentMethod, status: 'open', createdAt: now.toISOString(),
       promotion: promoName || '',
     };
     saveData({
@@ -371,22 +329,14 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       bills: [...(data.bills || []), newBill],
       auditLog: [...(data.auditLog || []), {
         id: `A-${Date.now()}`, timestamp: now.toISOString(), user: 'ระบบ POS',
-        action: isOpen ? 'เปิดบิล (รอเช็คบิล)' : 'สร้างบิล', detail: `${customer || 'ลูกค้าหน้าร้าน'} · ฿ ${total.toLocaleString()} · ${isOpen ? 'ยังไม่ชำระ' : paymentMethod} · ${customers.length} ลูกค้า`,
-        oldValue: '-', newValue: status, approvedBy: isOpen ? '-' : (reason || '-'),
+        action: 'เปิดบิล (รอเช็คบิล)', detail: `฿ ${total.toLocaleString()} · ${activeTherapistName} · ${pickedServices.length} บริการ`,
+        oldValue: '-', newValue: 'open', approvedBy: '-',
       }],
     });
-    setSuccessBill({ total, count: customers.length, status, customer });
-    setCustomers([]); setCustomer(''); setMemberNo(''); setDiscount(''); setPromoId('');
-    resetPick();
-    setEditingIdx(null); setStep(1);
-    setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); setRememberMgr(false);
-  };
-
-  const confirmAuth = () => {
-    if (authPass !== '123123') { setAuthErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
-    if (!authReason.trim()) { setAuthErr('กรุณาระบุเหตุผลสั้น ๆ'); return; }
-    if (rememberMgr) { try { sessionStorage.setItem(MGR_KEY, '1'); } catch { /* ignore */ } }
-    openBill(authReason, 'paid');
+    setPickedServices([]); setDiscount(''); setPromoId('');
+    resetAll();
+    setStep(1);
+    if (onNavigate) onNavigate('bills');
   };
 
   return (
@@ -399,7 +349,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           { n: 2, label: 'ระยะเวลา' },
           { n: 3, label: 'หมอนวด' },
           { n: 4, label: 'เวลา' },
-          { n: 5, label: `ตรวจสอบ${customers.length > 0 ? ` (${customers.length})` : ''}` },
+          { n: 5, label: `ตรวจสอบ${pickedServices.length > 0 ? ` (${pickedServices.length})` : ''}` },
         ].map((s, i) => (
           <div key={s.n} className={`step${step === s.n ? ' cur' : ''}${step > s.n ? ' done' : ''}`}>
             <span className="step-dot">{step > s.n ? '✓' : s.n}</span>
@@ -413,6 +363,25 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       {step === 1 && (
         <Card>
           <CardHead title="เลือกรายการ" hint={`${visibleCats.length} รายการ`} />
+          {pickedServices.length > 0 && (
+            <div className="field">
+              <label>บริการที่เลือก ({pickedServices.length}) — ต่อกันอัตโนมัติ</label>
+              {pickedServices.map((p, idx) => (
+                <div key={p.key} className="tline">
+                  <span className="q">{idx + 1}</span>
+                  <span className="tt">
+                    <b>{p.serviceName}</b>
+                    <small>{formatDuration(p.minutes)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
+                  </span>
+                  <span className="qty">
+                    <button onClick={() => removePickedService(p.key)} aria-label="ลบ"><Trash2 size={13} /></button>
+                  </span>
+                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
+                </div>
+              ))}
+              <button className="btn btn-ghost btn-block" style={{ marginTop: 4 }} onClick={() => { setErr(''); setStep(3); }}>เลือกหมอ →</button>
+            </div>
+          )}
           <div className="cat-grid">
             {visibleCats.map((c) => {
               const durs = durationsForCat(c);
@@ -442,9 +411,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       {step === 2 && selectedCategory && (
         <Card>
           <CardHead
-            title={editingIdx != null ? 'แก้ไขรายการ' : selectedCategory}
+            title={selectedCategory}
             hint="เลือกระยะเวลา"
-            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
           />
 
           <div className="dur-grid">
@@ -473,19 +441,18 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             </div>
           )}
           <div className="stepnav">
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { editingIdx != null ? cancelEdit() : (resetPick(), setStep(1)); }}>← กลับ</button>
-            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(3)} disabled={!selectedDuration}>ถัดไป →</button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { resetServicePick(); setStep(1); }}>← กลับ</button>
+            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={addPickedService} disabled={!selectedDuration}><Plus size={16} /> เพิ่มบริการ{pickedServices.length > 0 ? ` (${pickedServices.length + 1})` : ''}</button>
           </div>
         </Card>
       )}
 
-      {/* STEP 3: หมอนวด */}
-      {step === 3 && selectedCategory && (
+      {/* STEP 3: หมอนวด (คนเดียวทั้งบิล) */}
+      {step === 3 && pickedServices.length > 0 && (
         <Card>
           <CardHead
             title="เลือกหมอนวด"
-            hint={`${selectedCategory} · ${selectedDuration ? formatDuration(selectedDuration) : ''}`}
-            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
+            hint={`${pickedServices.length} บริการ · รวม ${formatDuration(billMinutes)}`}
           />
           <div className="seg">
               <button onClick={() => switchTherapistType('resident')} className={therapistType === 'resident' ? 'on' : ''}>หมอประจำ</button>
@@ -519,19 +486,18 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               </div>
             )}
           <div className="stepnav">
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { editingIdx != null ? cancelEdit() : setStep(2); }}>← กลับ</button>
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(1)}>← กลับ</button>
             <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(4)} disabled={therapistType === 'visiting' ? !visitingName.trim() : !selectedTherapist}>ถัดไป →</button>
           </div>
         </Card>
       )}
 
-      {/* STEP 4: เวลาเริ่ม */}
-      {step === 4 && selectedCategory && selectedDuration && activeTherapistId && (
+      {/* STEP 4: เวลาเริ่มเดียวทั้งบิล */}
+      {step === 4 && pickedServices.length > 0 && activeTherapistId && (
         <Card>
           <CardHead
-            title={editingIdx != null ? 'แก้ไขรายการ' : 'เลือกเวลาเริ่ม'}
-            hint={`${selectedCategory} · ${formatDuration(selectedDuration)} · ${activeTherapistName}`}
-            right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
+            title="เลือกเวลาเริ่ม"
+            hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
           />
           <div className="field">
             <label>เวลาเริ่ม</label>
@@ -566,7 +532,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               />
             </div>
             {selectedStartTime != null && (
-              <div className="tend-box full">จบ {minutesToTime(selectedStartTime + totalMinutes)} · รวม {formatDuration(totalMinutes)}</div>
+              <div className="tend-box full">จบ {billEnd != null ? minutesToTime(billEnd) : '—'} · รวม {formatDuration(billMinutes)}</div>
             )}
             {timeError ? (
               <div className="alert warn" style={{ marginTop: 8 }}>{timeError}
@@ -586,66 +552,49 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
           {validPick && (
             <div className="summary-box">
-              <div className="r"><span>บริการ</span><b>{selectedCategory} {formatDuration(selectedDuration)}</b></div>
-              {(selectedAddons.map((id) => addonsActive.find((a) => a.id === id)).filter(Boolean)).map((a) => (
-                <div key={a.id} className="r"><span>+ {a.name} (+{a.minutes} นาที)</span><b>+฿ {a.price.toLocaleString()}</b></div>
-              ))}
               <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
-              <div className="r"><span>เวลา</span><b>{minutesToTime(selectedStartTime)} – {minutesToTime(selectedStartTime + totalMinutes)} · รวม {formatDuration(totalMinutes)}</b></div>
-              <div className="r"><span>ราคา</span><b>฿ {(priceFor(selectedDuration) + addonPrice).toLocaleString()}</b></div>
+              {chained.map((p, i) => (
+                <div key={p.key} className="r"><span>{i + 1}. {p.serviceName}</span><b>{minutesToTime(p.start)} – {minutesToTime(p.end)}</b></div>
+              ))}
+              <div className="r"><span>เวลารวม</span><b>{minutesToTime(selectedStartTime)} – {billEnd != null ? minutesToTime(billEnd) : '—'} · {formatDuration(billMinutes)}</b></div>
+              <div className="r"><span>ราคา</span><b>฿ {subtotal.toLocaleString()}</b></div>
             </div>
           )}
 
-          <div className="stepnav stepnav-3">
-            <button className="btn btn-ghost" style={{ flex: 0.9 }} onClick={() => { editingIdx != null ? cancelEdit() : setStep(3); }}>← กลับ</button>
-            {editingIdx != null ? (
-              <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={handleUpdateCustomer}>อัปเดตรายการ</button>
-            ) : (
-              <>
-                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={handleAddCustomer} disabled={!validPick}>
-                  <Plus size={16} /> เพิ่ม
-                </button>
-                <button className="btn btn-primary" style={{ flex: 1.1 }} onClick={handleAddAndCheckout} disabled={!validPick}>
-                  เปิดบิล →
-                </button>
-              </>
-            )}
+          <div className="stepnav">
+            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(3)}>← กลับ</button>
+            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(5)} disabled={!validPick}>ตรวจสอบ →</button>
           </div>
         </Card>
       )}
 
-      {/* STEP 5: ตรวจสอบ + ชำระเงิน */}
+      {/* STEP 5: ตรวจสอบ */}
       {step === 5 && (
         <div className="pos-grid">
           <Card>
             <CardHead
               title="รายการในบิล"
-              hint={`${customers.length} ลูกค้า`}
-              right={<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={() => setStep(1)}>+ เพิ่มลูกค้า</button>}
+              hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
+              right={<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={() => setStep(1)}>+ เพิ่มบริการ</button>}
             />
-            {customers.length === 0 && <EmptyState title="ยังไม่มีลูกค้า" subtitle="กด '+ เพิ่มลูกค้า' เพื่อเริ่ม" />}
-            {customers.map((c, idx) => (
-              <div key={c.id} className="tline">
+            {pickedServices.length === 0 && <EmptyState title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
+            {chained.map((p, idx) => (
+              <div key={p.key} className="tline">
                 <span className="q">{idx + 1}</span>
                 <span className="tt">
-                  <b>{c.serviceName}</b>
-                  <small>{c.therapistName} · {c.startTime}–{c.endTime}{(c.addons || []).length ? ` · +${c.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
+                  <b>{p.serviceName}</b>
+                  <small>{minutesToTime(p.start)}–{minutesToTime(p.end)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
                 </span>
                 <span className="qty">
-                  <button onClick={() => handleEditCustomer(idx)} aria-label="แก้ไข"><Pencil size={13} /></button>
-                  <button onClick={() => handleRemoveCustomer(idx)} aria-label="ลบ"><Trash2 size={13} /></button>
+                  <button onClick={() => removePickedService(p.key)} aria-label="ลบ"><Trash2 size={13} /></button>
                 </span>
-                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {c.price.toLocaleString()}</b>
+                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
               </div>
             ))}
           </Card>
 
-          {customers.length > 0 && (
+          {pickedServices.length > 0 && (
             <Card className="pos-side">
-              <div className="f2">
-                <div className="field" style={{ marginBottom: 8 }}><label>ชื่อลูกค้า</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="ไม่บังคับ" className="input" /></div>
-                <div className="field" style={{ marginBottom: 8 }}><label>สมาชิก</label><input value={memberNo} onChange={(e) => setMemberNo(e.target.value)} placeholder="M-xxxx" className="input" /></div>
-              </div>
               <div className="field" style={{ marginBottom: 8 }}>
                 <label>โปรโมชันส่วนลด</label>
                 {promosActive.length > 0 ? (
@@ -659,77 +608,27 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   <p className="muted">ยังไม่มีโปรโมชัน — เพิ่มได้ในหน้าจัดการร้าน</p>
                 )}
               </div>
-              <div className="field"><label>ชำระโดย <span className="muted">(ใช้ตอนเช็คบิล — ถ้าเปิดบิลไว้ก่อนยังไม่ต้องเลือกก็ได้)</span></label>
-                <div className="pay-grid">
-                  {PAY_METHODS.map((m) => {
-                    const Icon = m.icon;
-                    return (
-                      <button key={m.label} onClick={() => setPaymentMethod(m.label)} className={`pay-card${paymentMethod === m.label ? ' on' : ''}`}>
-                        <Icon size={17} /><span>{m.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
               <div className="summary-box">
+                <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
                 <div className="r"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
                 <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
                 <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿ {total.toLocaleString()}</b></div>
               </div>
-              <div className="modal-row" style={{ marginTop: 4 }}>
-                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={openDraftBill}>
-                  <ReceiptText size={18} /> เปิดบิลไว้ก่อน
-                </button>
-                <button className="btn btn-primary" style={{ width: '100%' }} onClick={startCheckout}>
-                  เช็คบิลเลย · ฿ {total.toLocaleString()}
-                </button>
-              </div>
-              <p className="muted" style={{ marginTop: 8, fontSize: 11.5, textAlign: 'center' }}>เปิดบิลไว้ก่อน = ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลัง เพิ่มบริการระหว่างนวดได้ที่หน้าประวัติบิล</p>
+              <button className="btn btn-primary btn-block" style={{ marginTop: 4 }} onClick={openDraftBill}>
+                <ReceiptText size={18} /> เปิดบิลไว้ก่อน · ฿ {total.toLocaleString()}
+              </button>
+              <p className="muted" style={{ marginTop: 8, fontSize: 11.5, textAlign: 'center' }}>ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลังที่หน้าบิล เพิ่มบริการระหว่างนวดได้ที่นั่น</p>
             </Card>
           )}
         </div>
       )}
 
-      {/* แถบบิลลัดไปตรวจสอบ — โผล่เมื่อมีลูกค้าในบิลแล้ว (ยกเว้นอยู่หน้าตรวจสอบ) */}
-      {customers.length > 0 && step !== 5 && !showAuth && !successBill && (
+      {/* แถบบิลลัดไปตรวจสอบ — โผล่เมื่อมีบริการในบิลแล้ว (ยกเว้นอยู่หน้าตรวจสอบ) */}
+      {pickedServices.length > 0 && step !== 5 && (
         <div className="cta-float" onClick={() => setStep(5)}>
-          <span className="t"><b>฿ {total.toLocaleString()} · {customers.length} ลูกค้า</b><small>แตะเพื่อตรวจสอบ + ชำระเงิน</small></span>
+          <span className="t"><b>฿ {total.toLocaleString()} · {pickedServices.length} บริการ</b><small>แตะเพื่อตรวจสอบก่อนเปิดบิล</small></span>
           <button onClick={(e) => { e.stopPropagation(); setStep(5); }}>ตรวจสอบ →</button>
         </div>
-      )}
-
-      {showAuth && (
-        <Modal onClose={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }}>
-          <button className="modal-x" onClick={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }} aria-label="ปิด"><X size={16} /></button>
-          <div className="pagehead-main" style={{ marginBottom: 8 }}>
-            <div className="pagehead-icon"><ShieldAlert size={22} /></div>
-            <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿ {total.toLocaleString()} · {paymentMethod} · {customers.length} ลูกค้า</p></div>
-          </div>
-          {authErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {authErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setAuthErr(''); }} placeholder="123123" className="input" /></div>
-          <div className="field"><label>หมายเหตุ (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setAuthErr(''); }} placeholder="เช่น รับเงินสดครบถ้วน" className="input" rows={2} /></div>
-          <label className="mgr-remember"><input type="checkbox" checked={rememberMgr} onChange={(e) => setRememberMgr(e.target.checked)} /> จำรหัสในกะนี้</label>
-          <div className="modal-row">
-            <button onClick={confirmAuth} disabled={!authReason.trim() || !authPass} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเปิดบิล</button>
-          </div>
-        </Modal>
-      )}
-
-      {successBill && (
-        <Modal onClose={() => setSuccessBill(null)}>
-          <button className="modal-x" onClick={() => setSuccessBill(null)} aria-label="ปิด"><X size={16} /></button>
-          <div style={{ textAlign: 'center', padding: '8px 0' }}>
-            <div className="empty-ic" style={{ background: '#f7f0e5', color: '#b0885f', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
-            <h3 style={{ fontSize: 27 }}>{successBill.status === 'open' ? 'เปิดบิลไว้แล้ว' : 'เช็คบิลสำเร็จ'}</h3>
-            <div className="muted" style={{ marginTop: 4 }}>{successBill.customer || 'ลูกค้าหน้าร้าน'}</div>
-            <div style={{ fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿ {successBill.total.toLocaleString()}</div>
-            <div className="muted" style={{ marginTop: 4 }}>{successBill.count} ลูกค้า{successBill.status === 'open' ? ' · รอเช็คบิลหลังนวดเสร็จ' : ''}</div>
-            <div className="modal-row">
-              <button onClick={() => setSuccessBill(null)} className="btn btn-ghost" style={{ width: '100%' }}>เปิดบิลต่อ</button>
-              <button onClick={() => { setSuccessBill(null); onNavigate && onNavigate('bills'); }} className="btn btn-primary" style={{ width: '100%' }}>{successBill.status === 'open' ? 'ดูบิลที่เปิดอยู่' : 'ดูบิล'}</button>
-            </div>
-          </div>
-        </Modal>
       )}
     </div>
   );
