@@ -36,6 +36,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [cloudMode, setCloudMode] = useState('local');
+  const [cloudError, setCloudError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +45,7 @@ export default function App() {
         const local = loadData();
         if (!local) throw new Error('empty');
         if (!isSupabaseConfigured) {
-          if (!cancelled) { setData(local); setCloudMode('local'); }
+          if (!cancelled) { setData(local); setCloudMode('local'); setCloudError('ไม่เจอ VITE_SUPABASE_URL/KEY — ต้อง restart dev server หลังสร้าง .env'); }
           return;
         }
         // Show local instantly, then try cloud
@@ -53,9 +54,11 @@ export default function App() {
         if (!cancelled && cloud) {
           setData(cloud);
           setCloudMode(cloudStatus.mode);
+          setCloudError('');
           try { persistData(cloud); } catch { /* cache only */ }
         } else if (!cancelled) {
           setCloudMode(cloudStatus.mode);
+          setCloudError(cloudStatus.lastError || 'ต่อ cloud ไม่ได้ — ใช้ local สำรอง');
         }
       } catch (err) {
         console.error(err);
@@ -143,8 +146,8 @@ export default function App() {
           <footer className="foot">
             <div className="container">
               <span>I'FEEW Thai Massage — POS & Back-Office</span>
-              <span>
-                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : '○ Local mode'} · Clean & Warm Spa · {bkkYear()}
+              <span title={cloudError || ''}>
+                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : `○ Local mode${cloudError ? ` — ${cloudError}` : ''}`} · Clean & Warm Spa · {bkkYear()}
               </span>
             </div>
           </footer>
