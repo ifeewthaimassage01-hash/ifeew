@@ -115,6 +115,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [checkoutPay, setCheckoutPay] = useState('เงินสด');
   const [slipName, setSlipName] = useState('');
+  const [checkoutDone, setCheckoutDone] = useState(null);
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
@@ -260,7 +261,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
       }],
     });
     setCheckoutTarget(null); setSlipName('');
-    alertDialog({ title: 'เช็คบิลแล้ว', message: `${b.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ ${billTotal(b).toLocaleString()} · ${payMethod}` });
+    setCheckoutDone({ total: billTotal(b), pay: payMethod });
+    setTimeout(() => setCheckoutDone(null), 1500);
   };
 
   const confirmVoid = () => {
@@ -436,6 +438,20 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <button onClick={() => doCheckoutBill(checkoutTarget, checkoutPay)} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเช็คบิล</button>
           </div>
         </Modal>
+      )}
+
+      {checkoutDone && (
+        <div className="done-ov" onClick={() => setCheckoutDone(null)}>
+          <div className="done-card">
+            <svg className="check-anim" viewBox="0 0 52 52">
+              <circle cx="26" cy="26" r="24" />
+              <path d="M15 27l7 7 15-16" />
+            </svg>
+            <h3>เช็คบิลแล้ว</h3>
+            <div className="done-total">฿ {Math.round(checkoutDone.total).toLocaleString()}</div>
+            <div className="muted">{checkoutDone.pay}</div>
+          </div>
+        </div>
       )}
 
       {voidTarget && (

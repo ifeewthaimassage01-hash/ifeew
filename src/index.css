@@ -963,6 +963,25 @@ td.c, th.c { text-align: center; }
 .modal-cta > * { flex: 1; min-width: 0; }
 .modal-cta-3 .btn { padding-left: 6px; padding-right: 6px; font-size: 13px; }
 
+/* ---------- dialog สำเร็จ (ติ๊กถูกวาดเส้น + ปิดเอง) ---------- */
+.done-ov {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(100, 81, 62, 0.3); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fade 0.18s both;
+}
+.done-card {
+  background: #fff; border-radius: 22px; padding: 28px 40px; text-align: center;
+  box-shadow: var(--sh-pop); animation: pop 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.done-card h3 { font-size: 22px; margin-top: 10px; }
+.done-total { font-size: 34px; font-weight: 700; color: var(--brown); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.check-anim { width: 72px; height: 72px; margin: 0 auto; display: block; }
+.check-anim circle { fill: none; stroke: var(--green-ok); stroke-width: 3; stroke-dasharray: 151; stroke-dashoffset: 151; animation: draw 0.5s ease-out forwards; }
+.check-anim path { fill: none; stroke: var(--green-ok); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 40; stroke-dashoffset: 40; animation: draw 0.35s 0.4s ease-out forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+
 /* ---------- dialog ---------- */
 .modal-eyebrow { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 .dialog-modal { text-align: center; }
