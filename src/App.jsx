@@ -10,6 +10,8 @@ import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
 import PageManage from './pages/PageManage';
 import { loadData, persistData } from './data/demoData';
+import { loadCloudData, scheduleSync, cloudStatus } from './data/cloudSync';
+import { isSupabaseConfigured } from './lib/supabase';
 import { bkkYear } from './utils/bkk';
 
 const ROLE_KEY = 'ifeew_role';
@@ -33,21 +35,40 @@ export default function App() {
   const [activePage, setActivePage] = useState(() => DEFAULT_PAGE[loadRole()] || 'pos');
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
+  const [cloudMode, setCloudMode] = useState('local');
 
   useEffect(() => {
-    try {
-      const d = loadData();
-      if (!d) throw new Error('empty');
-      setData(d);
-    } catch (err) {
-      console.error(err);
-      setLoadError('โหลดข้อมูลเริ่มต้นไม่สำเร็จ');
-    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const local = loadData();
+        if (!local) throw new Error('empty');
+        if (!isSupabaseConfigured) {
+          if (!cancelled) { setData(local); setCloudMode('local'); }
+          return;
+        }
+        // Show local instantly, then try cloud
+        if (!cancelled) { setData(local); setCloudMode('local'); }
+        const cloud = await loadCloudData(local);
+        if (!cancelled && cloud) {
+          setData(cloud);
+          setCloudMode(cloudStatus.mode);
+          try { persistData(cloud); } catch { /* cache only */ }
+        } else if (!cancelled) {
+          setCloudMode(cloudStatus.mode);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setLoadError('โหลดข้อมูลเริ่มต้นไม่สำเร็จ');
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   const saveData = (newData) => {
     try { persistData(newData); } catch (err) { console.error(err); }
     setData({ ...newData });
+    if (isSupabaseConfigured) scheduleSync(newData);
   };
 
   const navigate = (key) => {
@@ -122,7 +143,9 @@ export default function App() {
           <footer className="foot">
             <div className="container">
               <span>I'FEEW Thai Massage — POS & Back-Office</span>
-              <span>Clean & Warm Spa · {bkkYear()}</span>
+              <span>
+                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : '○ Local mode'} · Clean & Warm Spa · {bkkYear()}
+              </span>
             </div>
           </footer>
         </div>
