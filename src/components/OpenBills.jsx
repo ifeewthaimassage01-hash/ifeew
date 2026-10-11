@@ -450,9 +450,9 @@ export default function OpenBillsSection({ data, saveData, role }) {
       {checkoutDone && (
         <div className="done-ov" onClick={() => setCheckoutDone(null)}>
           <div className="done-card">
-            <svg className="check-anim" viewBox="0 0 52 52">
-              <circle cx="26" cy="26" r="24" />
-              <path d="M15 27l7 7 15-16" />
+            <svg className="check-anim" viewBox="0 0 52 52" width="72" height="72">
+              <circle cx="26" cy="26" r="24" fill="none" stroke="#6d9a72" strokeWidth="3" />
+              <path d="M15 27l7 7 15-16" fill="none" stroke="#6d9a72" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <h3>เช็คบิลแล้ว</h3>
             <div className="done-total">฿ {Math.round(checkoutDone.total).toLocaleString()}</div>
