@@ -27,8 +27,8 @@
   --r-sm: 10px;
   --sh-card: 0 1px 2px rgba(100, 81, 62, 0.04);
   --sh-pop: 0 16px 40px -16px rgba(100, 81, 62, 0.15);
-  --font-body: 'IBM Plex Sans Thai', system-ui, sans-serif;
-  --font-display: 'IBM Plex Sans Thai', system-ui, sans-serif;
+  --font-body: 'Kanit', system-ui, sans-serif;
+  --font-display: 'Kanit', system-ui, sans-serif;
   /* legacy aliases (inline styles in pages) */
   --paper: #faf8f3;
   --card: #ffffff;
@@ -130,6 +130,18 @@ input, select, textarea { font-family: inherit; }
 }
 .bottomnav-in button span { font-size: 9px; font-weight: 600; }
 .bottomnav-in button.on { background: var(--brown-tint); color: var(--brown-dark); }
+.bnav-ic { position: relative; display: inline-flex; }
+.bottomnav-in button.fab .fab-dot { position: relative; }
+.bnav-badge {
+  position: absolute; top: -6px; right: -10px;
+  min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px;
+  background: var(--red); color: #fff; font-size: 10.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid #fff; font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.bottomnav-in button .bnav-badge,
+.bottomnav-in button.fab .bnav-badge { color: #fff; font-size: 10.5px; }
 .bottomnav-in button.fab { position: relative; }
 .bottomnav-in button.fab .fab-dot {
   width: 44px; height: 44px; border-radius: 14px; margin-top: -20px;
@@ -246,6 +258,7 @@ textarea.input { resize: vertical; min-height: 68px; }
 /* ---------- badges / tables ---------- */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
 .badge.paid { background: var(--brown-tint); color: var(--brown-dark); border-color: #e7d6c3; }
+.badge.open { background: #fff7e6; color: #9a6b1f; border-color: #f0d9a8; }
 .badge.void { background: var(--red-bg); color: var(--red); border-color: #ecbcb4; }
 .badge.info { background: var(--brown-tint); color: var(--brown-dark); border-color: #e7d6c3; }
 .badge.neutral { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
@@ -378,6 +391,8 @@ td.c, th.c { text-align: center; }
 .qty b { font-size: 14px; min-width: 18px; text-align: center; font-variant-numeric: tabular-nums; }
 
 .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pay-grid.cols2 { grid-template-columns: 1fr 1fr; }
+.pay-grid.cols2 .pay-card { justify-content: center; text-align: center; min-height: 54px; }
 .pay-card {
   display: flex; align-items: center; gap: 9px; padding: 12px;
   border-radius: 11px; font-size: 13px; font-weight: 600;
@@ -594,13 +609,21 @@ td.c, th.c { text-align: center; }
   max-height: 92vh; overflow-y: auto;
   animation: sheet 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   box-shadow: var(--sh-pop);
+  position: relative;
 }
+.modal-x {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  width: 32px; height: 32px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.modal-x:active { transform: scale(0.94); }
 .modal h3 { font-size: 19px; color: var(--ink); font-weight: 700; }
 .modal-row { display: flex; gap: 8px; margin-top: 14px; }
 .modal-row > * { flex: 1; }
 @keyframes sheet { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: none; } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
-.rise { animation: fade 0.35s both; }
+.rise { animation: fade 0.35s backwards; }
 
 .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .f3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -693,6 +716,7 @@ td.c, th.c { text-align: center; }
   .empty b { font-size: 16px; }
   .empty span { font-size: 12px; }
   .toast { font-size: 13px; padding: 12px 20px; }
+  .modal-eyebrow { font-size: 8px; letter-spacing: 1.2px; }
   .modal h3 { font-size: 18px; }
   .modal-row { gap: 10px; }
   .f2 { gap: 10px; }
@@ -815,18 +839,38 @@ td.c, th.c { text-align: center; }
   .rail-status { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 13px; font-size: 12.5px; }
   .main-col { flex: 1; min-width: 0; }
   .topbar { display: none; }
-  .page { padding: 26px 28px 48px; }
-  .h1 { font-size: 30px; }
+  .page { padding: 28px 28px 56px; }
+  .h1 { font-size: 24px; }
   .show-desktop { display: block; }
   .show-mobile { display: none !important; }
   .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
   .cols-32 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 12px; align-items: start; }
   .pos-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; align-items: start; }
-  .pos-side { position: sticky; top: 72px; }
+  .pos-side { position: sticky; top: 24px; }
   .foot { display: block; border-top: 1px solid var(--line); padding: 14px 28px; font-size: 11.5px; color: var(--muted); background: transparent; }
   .foot .container { display: flex; justify-content: space-between; gap: 10px; }
   .cta-float { display: none; }
   .toast-wrap { bottom: 28px; }
+
+  /* ---------- Windows comfort: ตัวอักษรเล็กลง + การ์ดโปร่ง + ไม่ยืดเต็มจอ ---------- */
+  body { font-size: 14px; }
+  .container { max-width: 1140px; }
+  .card { padding: 22px 24px; margin-bottom: 16px; }
+  .card-h { margin-bottom: 14px; }
+  .card-h h2 { font-size: 14.5px; }
+  .kpi-grid { gap: 14px; margin-bottom: 16px; }
+  .kpi { padding: 18px; }
+  .kpi-value { font-size: 23px; }
+  .kpi-value.sm { font-size: 20px; }
+  .btn { font-size: 13.5px; padding: 10px 16px; }
+  .modal { max-width: 540px; }
+  table.tbl { font-size: 13px; }
+  table.tbl td { padding: 13px 14px; }
+
+  /* ---------- POS หลายคอลัมน์บนจอใหญ่ (กฎจริงอยู่ท้ายไฟล์) ---------- */
+  .step { padding: 8px; }
+  .step-dot { width: 34px; height: 34px; font-size: 13px; }
+  .step .st b { font-size: 12.5px; }
 }
 @media (max-width: 1079px) {
   .show-desktop { display: none !important; }
@@ -887,7 +931,40 @@ td.c, th.c { text-align: center; }
 }
 .recent-bill:last-child { border-bottom: 0; }
 
+/* ---------- modal ใบเสร็จ (แก้ไข/เช็คบิล) ---------- */
+.rcpt { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 14px; padding: 4px 14px; margin-bottom: 12px; }
+.rcpt-item { padding: 10px 0; border-bottom: 1px dashed var(--line); }
+.rcpt-item:last-child { border-bottom: 0; }
+.rcpt-line1 { display: flex; align-items: center; gap: 8px; flex: 1; width: 100%; background: none; border: 0; padding: 0; text-align: left; color: var(--ink); cursor: pointer; }
+.rcpt-line1 b { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; }
+.rcpt-line1 .amt { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rcpt-sub { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
+.rcpt-doc { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: 3px; }
+.rcpt-doc-name { font-size: 13px; font-weight: 700; color: var(--brown-dark); }
+.rcpt-comm { color: var(--green-ok); }
+.rcpt-doc-time { font-size: 11.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rcpt-total { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 0 6px; }
+.rcpt-total .grand { font-size: 25px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.dash-add {
+  display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%;
+  border: 1.5px dashed var(--line); background: transparent; border-radius: 12px;
+  padding: 11px; color: var(--brown-dark); font-weight: 700; font-size: 13.5px; margin-bottom: 8px;
+}
+.dash-add:active { transform: scale(0.99); background: var(--brown-tint-2); }
+.pay-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 14px; padding: 4px; }
+.pay-seg button { border: 0; background: transparent; border-radius: 10px; padding: 10px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.pay-seg button.on { background: var(--brown-950); color: #fff; }
+.mini-link { background: none; border: 0; padding: 0; color: var(--brown); font-size: 12.5px; font-weight: 600; }
+.modal-cta {
+  position: sticky; bottom: -6px; display: flex; gap: 8px;
+  background: linear-gradient(transparent, var(--surface) 35%);
+  padding: 14px 0 6px; margin-top: 4px;
+}
+.modal-cta > * { flex: 1; min-width: 0; }
+.modal-cta-3 .btn { padding-left: 6px; padding-right: 6px; font-size: 13px; }
+
 /* ---------- dialog ---------- */
+.modal-eyebrow { font-size: 10px; letter-spacing: 2px; color: var(--muted); }
 .dialog-modal { text-align: center; }
 .dialog-ic {
   width: 56px; height: 56px; margin: 2px auto 12px; border-radius: 18px;
@@ -907,6 +984,29 @@ td.c, th.c { text-align: center; }
   padding: 7px 13px; font-size: 12px; font-weight: 700; color: var(--muted); flex-shrink: 0;
 }
 .toggle.on { background: var(--brown-tint); border-color: #e7d6c3; color: var(--brown-dark); }
+
+/* แถวแก้ไขช่วงเวลาใน modal รายการ — ชื่อแถวบน ราคา+ค่าแรงล่าง */
+.dur-edit { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+.dur-edit.off { background: var(--surface-2); }
+.dur-edit-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dur-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+
+/* สวิตช์เปิด/ปิด — ใช้ในหน้าจัดการร้าน */
+.switch {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  border: 1px solid var(--line); background: #fff; border-radius: 999px;
+  padding: 4px 11px 4px 4px; font-size: 12px; font-weight: 700; color: var(--muted);
+}
+.switch i { width: 33px; height: 20px; border-radius: 999px; background: var(--line); position: relative; transition: background 0.15s; }
+.switch i::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: left 0.15s;
+  box-shadow: 0 1px 3px rgba(100, 81, 62, 0.25);
+}
+.switch.on { color: var(--brown-dark); border-color: #e7d6c3; background: var(--brown-tint-2); }
+.switch.on i { background: var(--brown); }
+.switch.on i::after { left: 15px; }
+.switch:active { transform: scale(0.96); }
 
 /* ---------- bill cards (finance-app style) ---------- */
 .bill-card { padding: 0; overflow: hidden; }
@@ -1024,18 +1124,19 @@ td.c, th.c { text-align: center; }
 .dur-label { font-size: 13px; font-weight: 700; color: var(--ink); }
 .dur-price { font-size: 15px; font-weight: 700; color: var(--brown-dark); font-variant-numeric: tabular-nums; }
 
-/* Time picker 24 ชม. — dropdown custom แต่งได้เต็มที่ */
-.timepick-row { display: flex; align-items: center; gap: 6px; }
-.timepick-dd { min-width: 0; }
-.timepick-btn { padding: 6px 4px; justify-content: center; }
-.timepick-btn .timepick-val { font-size: 15px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; }
-.timepick-btn .dd-caret { width: 12px; height: 12px; }
-.timepick-btn .dd-caret { color: var(--brown); }
+/* Time picker — การ์ด ชม./นาที ใบใหญ่ + แถบคิวดูอย่างเดียว */
+.timepick-row { display: flex; align-items: stretch; gap: 8px; }
+.timepick-dd { flex: 1; min-width: 0; position: relative; }
+.timepick-btn { padding: 12px 10px; justify-content: center; flex-direction: column; gap: 1px; min-height: 76px; }
+.timepick-btn .timepick-val { font-size: 24px; font-weight: 700; text-align: center; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.timepick-btn .timepick-sub { font-size: 11px; font-weight: 600; color: var(--muted); }
+.timepick-btn .dd-caret { color: var(--brown); position: absolute; right: 10px; top: 10px; }
 .dropdown.open .timepick-btn { border-color: var(--brown); background: var(--brown-tint-2); }
 .time-menu { display: flex; flex-direction: column; gap: 2px; overflow-x: hidden; overflow-y: auto; max-height: 240px; }
-.time-menu .dropdown-item { flex: none; width: 100%; justify-content: center; font-size: 15px; font-weight: 700; padding: 8px; font-variant-numeric: tabular-nums; }
-.timepick-colon { font-size: 15px; font-weight: 700; color: var(--brown); }
-.timepick-end { font-size: 11.5px; font-weight: 600; color: var(--brown-dark); background: var(--brown-tint-2); border: 1px solid #e7d6c3; border-radius: 8px; padding: 6px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.time-menu .dropdown-item { flex: none; width: 100%; justify-content: center; font-size: 16px; font-weight: 700; padding: 10px; font-variant-numeric: tabular-nums; }
+.timepick-colon { font-size: 22px; font-weight: 700; color: var(--brown); align-self: center; }
+.tend-box { font-size: 11.5px; font-weight: 700; color: var(--brown-dark); background: var(--brown-tint-2); border: 1px solid #e7d6c3; border-radius: 8px; padding: 6px 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tend-box.full { display: block; text-align: center; font-size: 13.5px; padding: 10px; border-radius: 12px; margin-top: 8px; }
 
 /* เพิ่มหมอด้วยการพิมพ์ชื่อ (หมอวิ่ง) */
 .thera-add { display: flex; gap: 8px; margin-top: 10px; }
@@ -1099,9 +1200,10 @@ td.c, th.c { text-align: center; }
   .dur-price { font-size: 15px; }
   .thera-scroll { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: visible; padding: 2px; }
   .thera-scroll .thera { min-width: 0; min-height: 92px; padding: 8px 6px; }
-  .timepick-btn .timepick-val { font-size: 15px; }
   .thera-ava { width: 38px; height: 38px; font-size: 18px; }
-  .timepick-end { font-size: 15px; }
+  .timepick-btn { min-height: 84px; }
+  .timepick-btn .timepick-val { font-size: 27px; }
+  .tend-box.full { font-size: 14px; }
   .stepnav {
     position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 25;
     background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
@@ -1119,4 +1221,28 @@ td.c, th.c { text-align: center; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none ! important; }
+}
+
+/* ---------- Windows desktop overrides (ต้องอยู่ท้ายไฟล์ ชนะกฎ base mobile-first) ---------- */
+@media (min-width: 1080px) {
+  .cat-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+  .dur-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .thera-scroll { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); overflow: visible; gap: 10px; padding: 2px; }
+  .thera-scroll .thera { min-width: 0; }
+  .addon-list { grid-template-columns: 1fr; gap: 8px; }
+  .stepnav { max-width: 520px; margin-left: auto; margin-top: 18px; }
+
+  /* ---------- KPI 6 คอลัมน์บนจอใหญ่ ---------- */
+  .kpi-grid { grid-template-columns: repeat(6, 1fr); }
+  .kpi-grid > .kpi { grid-column: span 3; }
+  .kpi-grid > .kpi.span2 { grid-column: span 6; }
+
+  /* ---------- ตัวเลขบิลค้างบนเมนู ---------- */
+  .rail-badge {
+    margin-left: auto; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px;
+    background: var(--red); color: #fff; font-size: 12px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-variant-numeric: tabular-nums; flex-shrink: 0;
+  }
+  .rail-btn.on .rail-badge { background: #fff; color: var(--brown-950); }
 }

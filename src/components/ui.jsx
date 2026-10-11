@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, TriangleAlert, X } from 'lucide-react';
 
 export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
   return (
@@ -53,6 +53,7 @@ export function EmptyState({ icon: Icon, title, subtitle }) {
 
 export function StatusBadge({ status }) {
   if (status === 'paid') return <span className="badge paid">● ชำระแล้ว</span>;
+  if (status === 'open') return <span className="badge open">◷ เปิดบิลอยู่</span>;
   if (status === 'cancelled') return <span className="badge void">✕ ยกเลิกแล้ว</span>;
   return <span className="badge info">◷ {status}</span>;
 }
@@ -126,13 +127,13 @@ export function DialogHost() {
   return (
     <div className="modal-ov" onClick={() => { if (d.cancel) close(d, false); }}>
       <div className="modal dialog-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+        {d.cancel && <button className="modal-x" onClick={() => close(d, false)} aria-label="ปิด"><X size={16} /></button>}
         <div className={`dialog-ic${d.danger ? ' danger' : ''}`}>
           {d.danger ? <TriangleAlert size={26} /> : <CheckCircle2 size={26} />}
         </div>
         <h3>{d.title}</h3>
         {d.message && <p>{d.message}</p>}
         <div className="modal-row">
-          {d.cancel && <button className="btn btn-ghost" style={{ width: '100%' }} onClick={() => close(d, false)}>ยกเลิก</button>}
           <button className={`btn ${d.danger ? 'btn-danger' : 'btn-primary'}`} style={{ width: '100%' }} onClick={() => close(d, true)}>{d.confirmLabel || 'ตกลง'}</button>
         </div>
       </div>

@@ -21,21 +21,21 @@ export default function PageExpenses({ data, saveData, role }) {
       expenses: [...(data.expenses || []), newExpense],
       auditLog: [...(data.auditLog || []), {
         id: `A-${Date.now()}`, timestamp: new Date().toISOString(), user: form.approvedBy || (role === 'staff' ? 'พนักงาน' : 'ระบบ'),
-        action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿${newExpense.amount}`, approvedBy: form.approvedBy || '-',
+        action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿ ${newExpense.amount}`, approvedBy: form.approvedBy || '-',
       }],
     });
     setForm({ ...form, amount: '', notes: '' });
     setSaved(true);
-    alertDialog({ title: 'บันทึกค่าใช้จ่ายแล้ว', message: `${label} · ฿${newExpense.amount.toLocaleString()}` });
+    alertDialog({ title: 'บันทึกค่าใช้จ่ายแล้ว', message: `${label} · ฿ ${newExpense.amount.toLocaleString()}` });
     setTimeout(() => setSaved(false), 2500);
   };
 
   return (
     <div>
       <div className="kpi-grid">
-        <div className="kpi dark span2" style={{ gridColumn: 'span 2' }}>
+        <div className="kpi dark span2">
           <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
-          <div className="kpi-value">฿{monthTotal.toLocaleString()}</div>
+          <div className="kpi-value">฿ {monthTotal.toLocaleString()}</div>
           <div className="kpi-sub">{(data.expenses || []).length} รายการ</div>
         </div>
       </div>
@@ -63,7 +63,7 @@ export default function PageExpenses({ data, saveData, role }) {
                 <input type="file" hidden onChange={(e) => setForm({ ...form, receiptUrl: e.target.files[0]?.name || '' })} />
               </label>
             </div>
-            <button type="submit" className="btn btn-primary btn-block"><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿${Number(form.amount).toLocaleString()}` : ''}</button>
+            <button type="submit" className="btn btn-primary btn-block"><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
             {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
           </form>
         </Card>
@@ -78,7 +78,7 @@ export default function PageExpenses({ data, saveData, role }) {
                   <b style={{ fontSize: 13.5, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exp.item}</b>
                   <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}</span>
                 </span>
-                <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿{exp.amount.toLocaleString()}</b><div className="muted">{exp.id}</div></span>
+                <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {exp.amount.toLocaleString()}</b><div className="muted">{exp.id}</div></span>
               </div>
             ))}
             {expenses.length === 0 && <EmptyState icon={Receipt} title="ยังไม่มีรายจ่าย" subtitle="บันทึกผ่านฟอร์มด้านข้าง" />}

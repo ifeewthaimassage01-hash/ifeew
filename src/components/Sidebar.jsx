@@ -6,13 +6,13 @@ import {
 export const NAV_ITEMS = [
   { label: 'ภาพรวม', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
   { label: 'POS', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
-  { label: 'ประวัติ', short: 'ประวัติ', sub: 'ค้นหา · ตรวจสอบ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
+  { label: 'บิล', short: 'บิล', sub: 'เปิดอยู่ · ประวัติ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
   { label: 'รายจ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
   { label: 'จัดการร้าน', short: 'จัดการร้าน', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
-  { label: 'ค่าคอม', short: 'ค่าคอม', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
+  { label: 'ค่าแรง', short: 'ค่าแรง', sub: 'สรุป Flat / Tier', icon: Calculator, key: 'commission', roles: ['owner'] },
 ];
 
-export function RailDesktop({ active, items, onNavigate, onExit }) {
+export function RailDesktop({ active, items, onNavigate, onExit, badges }) {
   return (
     <aside className="rail">
       <div className="rail-in">
@@ -24,10 +24,12 @@ export function RailDesktop({ active, items, onNavigate, onExit }) {
         <nav className="rail-nav">
           {items.map((item) => {
             const Icon = item.icon;
+            const count = badges?.[item.key] || 0;
             return (
               <button key={item.key} onClick={() => onNavigate(item.key)} className={`rail-btn${active === item.key ? ' on' : ''}`}>
                 <span className="ri"><Icon size={18} strokeWidth={1.9} /></span>
                 <span><b>{item.label}</b></span>
+                {count > 0 && <span className="rail-badge">{count > 99 ? '99+' : count}</span>}
               </button>
             );
           })}
@@ -66,24 +68,26 @@ export function TopBar({ active, items, role, onExit }) {
   );
 }
 
-export function BottomNav({ active, items, onNavigate }) {
+export function BottomNav({ active, items, onNavigate, badges }) {
   return (
     <nav className="bottomnav" aria-label="เมนูหลัก">
       <div className="bottomnav-in" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = active === item.key;
+          const count = badges?.[item.key] || 0;
+          const badge = count > 0 ? <span className="bnav-badge">{count > 99 ? '99+' : count}</span> : null;
           if (isActive) {
             return (
               <button key={item.key} onClick={() => onNavigate(item.key)} className="fab on" aria-current="page">
-                <span className="fab-dot"><Icon size={22} strokeWidth={2.1} /></span>
+                <span className="fab-dot"><Icon size={22} strokeWidth={2.1} />{badge}</span>
                 <span>{item.short}</span>
               </button>
             );
           }
           return (
             <button key={item.key} onClick={() => onNavigate(item.key)}>
-              <Icon size={21} strokeWidth={1.7} />
+              <span className="bnav-ic"><Icon size={21} strokeWidth={1.7} />{badge}</span>
               <span>{item.short}</span>
             </button>
           );

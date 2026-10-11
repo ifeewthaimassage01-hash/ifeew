@@ -102,11 +102,13 @@ export default function App() {
 
   const navItems = NAV_ITEMS.filter((i) => i.roles.includes(role));
   const PageComponent = PAGES[navItems.some((i) => i.key === activePage) ? activePage : navItems[0].key] || PagePOS;
+  const openCount = (data.bills || []).filter((b) => b.status === 'open').length;
+  const badges = openCount > 0 ? { bills: openCount } : null;
 
   return (
     <div className="app">
       <div className="shell">
-        <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} />
+        <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} badges={badges} />
         <div className="main-col">
           <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} />
           <main className="page">
@@ -124,7 +126,7 @@ export default function App() {
           </footer>
         </div>
       </div>
-      <BottomNav active={activePage} items={navItems} onNavigate={navigate} />
+      <BottomNav active={activePage} items={navItems} onNavigate={navigate} badges={badges} />
       <DialogHost />
     </div>
   );

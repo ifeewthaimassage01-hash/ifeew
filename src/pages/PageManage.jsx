@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
-import { DEFAULT_SERVICES, DEFAULT_CATEGORIES } from '../data/demoData';
+import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, commBaht } from '../data/demoData';
 
 function nextId(prefix, list) {
   let max = 0;
@@ -40,10 +40,11 @@ export default function PageManage({ data, saveData }) {
   const [editingT, setEditingT] = useState(null);
   const [tForm, setTForm] = useState(EMPTY_THERAPIST);
 
-  // ฟอร์มรายการ (รวมราคา): ชื่อ + ราคาต่อชม + ราคาแต่ละช่วงเวลา + คอม
+  // ฟอร์มรายการ (รวมราคา): ชื่อ + ราคาต่อชม + ราคาและค่าแรง(บาท)แต่ละช่วงเวลา
   const [showC, setShowC] = useState(false);
   const [editingCat, setEditingCat] = useState(null); // null = เพิ่มใหม่
-  const [cForm, setCForm] = useState({ name: '', hourly: '', prices: {}, flatRatePct: '35' });
+  const [cForm, setCForm] = useState({ name: '', hourly: '', prices: {}, comms: {} });
+  const [customDur, setCustomDur] = useState('');
 
   const therapists = data.therapists || [];
   const services = data.services || [];
@@ -54,6 +55,13 @@ export default function PageManage({ data, saveData }) {
   const [showA, setShowA] = useState(false);
   const [editingA, setEditingA] = useState(null);
   const [aForm, setAForm] = useState({ name: '', minutes: '30', price: '', active: true });
+
+  const promos = data.promotions || [];
+
+  // ฟอร์มโปรโมชัน: ชื่อ + ยอดส่วนลด
+  const [showP, setShowP] = useState(false);
+  const [editingP, setEditingP] = useState(null);
+  const [pForm, setPForm] = useState({ name: '', amount: '', active: true });
 
   const catRows = useMemo(() => {
     return cats.map((c) => {
@@ -111,7 +119,8 @@ export default function PageManage({ data, saveData }) {
   /* ---------- รายการ + ราคาต่อชม ---------- */
   const openAddC = () => {
     setEditingCat(null);
-    setCForm({ name: '', hourly: '', prices: { 60: '' }, flatRatePct: '35' });
+    setCForm({ name: '', hourly: '', prices: { 60: '' }, comms: {} });
+    setCustomDur('');
     setErr(''); setShowC(true);
   };
 
@@ -119,15 +128,16 @@ export default function PageManage({ data, saveData }) {
     const rows = services.filter((s) => s.category === catName);
     const timed = rows.filter((s) => s.duration != null);
     const prices = {};
-    timed.forEach((s) => { prices[s.duration] = String(s.price); });
-    const flat = timed[0]?.flatRate ?? rows[0]?.flatRate ?? 0.35;
+    const comms = {};
+    timed.forEach((s) => { prices[s.duration] = String(s.price); comms[s.duration] = String(commBaht(s)); });
     setEditingCat(catName);
     setCForm({
       name: catName,
       hourly: String(hourlyOf(rows) || ''),
       prices: Object.keys(prices).length ? prices : { 60: '' },
-      flatRatePct: String(Math.round(flat * 100)),
+      comms,
     });
+    setCustomDur('');
     setErr(''); setShowC(true);
   };
 
@@ -149,15 +159,33 @@ export default function PageManage({ data, saveData }) {
   const toggleDur = (d) => {
     setCForm((f) => {
       const next = { ...f.prices };
+      const nextComm = { ...f.comms };
       if (next[d] != null && next[d] !== '') {
         delete next[d];
+        delete nextComm[d];
       } else {
         const h = Number(f.hourly) || 0;
         const fallback = { 45: h * 0.75, 60: h, 90: h * 1.5, 120: h * 2 - 50 };
-        next[d] = String(Math.round((fallback[d] || h || 0) / 10) * 10);
+        next[d] = String(Math.round((fallback[d] || (h * d) / 60 || 0) / 10) * 10);
+        if (nextComm[d] == null) nextComm[d] = '';
       }
-      return { ...f, prices: next };
+      return { ...f, prices: next, comms: nextComm };
     });
+  };
+
+  // เพิ่มช่วงเวลาเอง (เช่น 180 นาที = 3 ชม) นอกเหนือจากปุ่มมาตรฐาน
+  const addCustomDur = () => {
+    const d = Math.round(Number(customDur));
+    if (!Number.isFinite(d) || d <= 0) { setErr('กรอกจำนวนนาทีที่จะเพิ่ม (เช่น 180)'); return; }
+    if (cForm.prices[d] != null && cForm.prices[d] !== '') { setErr('มีช่วงเวลานี้แล้ว'); return; }
+    setErr('');
+    const h = Number(cForm.hourly) || 0;
+    setCForm((f) => ({
+      ...f,
+      prices: { ...f.prices, [d]: String(Math.round(((h * d) / 60 || 0) / 10) * 10) },
+      comms: { ...f.comms, [d]: '' },
+    }));
+    setCustomDur('');
   };
 
   const saveC = () => {
@@ -171,7 +199,8 @@ export default function PageManage({ data, saveData }) {
       if (cForm.prices[d] === '' || Number(cForm.prices[d]) < 0) { setErr('กรอกราคาแต่ละช่วงให้ถูกต้อง'); return; }
     }
     setErr('');
-    const flatRate = Math.max(0, Math.min(100, Number(cForm.flatRatePct) || 0)) / 100;
+    // ค่าแรงเป็นบาทต่อช่วงเวลา (ค่าว่าง = 0)
+    const commOf = (d) => Math.max(0, Math.round(Number(cForm.comms[d]) || 0));
 
     let nextServices = [...services];
     let nextCats = [...cats];
@@ -191,11 +220,13 @@ export default function PageManage({ data, saveData }) {
     }
     durs.forEach((d) => {
       const price = Number(cForm.prices[d]);
+      const flatAmount = commOf(d);
+      const flatRate = price > 0 ? Math.round((flatAmount / price) * 1000) / 1000 : 0;
       const found = nextServices.find((s) => s.category === name && s.duration === d);
       if (found) {
-        nextServices = nextServices.map((s) => (s.id === found.id ? { ...s, price, flatRate } : s));
+        nextServices = nextServices.map((s) => (s.id === found.id ? { ...s, price, flatRate, flatAmount } : s));
       } else {
-        nextServices.push({ id: nextId('S', nextServices), category: name, price, duration: d, flatRate, tierCategory: found?.tierCategory || 'other' });
+        nextServices.push({ id: nextId('S', nextServices), category: name, price, duration: d, flatRate, flatAmount, tierCategory: found?.tierCategory || 'other' });
       }
     });
 
@@ -203,10 +234,10 @@ export default function PageManage({ data, saveData }) {
       ...data,
       services: nextServices,
       serviceCategories: nextCats,
-      auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, `฿${Number(cForm.hourly || 0).toLocaleString()}/ชม`),
+      auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, `฿ ${Number(cForm.hourly || 0).toLocaleString()}/ชม · ค่าแรง ${durs.map((d) => `฿ ${commOf(d).toLocaleString()}`).join(' / ')}`),
     });
     setShowC(false);
-    alertDialog({ title: `${editingCat ? 'แก้ไข' : 'เพิ่ม'}รายการ ${name} แล้ว`, message: durs.map((d) => `${formatDuration(d)} ฿${Number(cForm.prices[d]).toLocaleString()}`).join(' · ') });
+    alertDialog({ title: `${editingCat ? 'แก้ไข' : 'เพิ่ม'}รายการ ${name} แล้ว`, message: durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ') });
   };
 
   const deleteC = async (cat) => {
@@ -247,7 +278,7 @@ export default function PageManage({ data, saveData }) {
       saveData({
         ...data,
         addons: addons.map((a) => (a.id === editingA.id ? { ...a, ...payload } : a)),
-        auditLog: pushAudit(data, 'แก้ไขบริการเสริม', `${editingA.id} · ${payload.name}`, `+${payload.minutes}น ฿${payload.price.toLocaleString()}`),
+        auditLog: pushAudit(data, 'แก้ไขบริการเสริม', `${editingA.id} · ${payload.name}`, `+${payload.minutes}น ฿ ${payload.price.toLocaleString()}`),
       });
       alertDialog({ title: `แก้ไข ${payload.name} แล้ว` });
     } else {
@@ -255,7 +286,7 @@ export default function PageManage({ data, saveData }) {
       saveData({
         ...data,
         addons: [...addons, { id, ...payload }],
-        auditLog: pushAudit(data, 'เพิ่มบริการเสริม', `${id} · ${payload.name}`, `+${payload.minutes}น ฿${payload.price.toLocaleString()}`),
+        auditLog: pushAudit(data, 'เพิ่มบริการเสริม', `${id} · ${payload.name}`, `+${payload.minutes}น ฿ ${payload.price.toLocaleString()}`),
       });
       alertDialog({ title: `เพิ่ม ${payload.name} แล้ว` });
     }
@@ -281,12 +312,64 @@ export default function PageManage({ data, saveData }) {
     alertDialog({ title: `ลบ ${a.name} แล้ว` });
   };
 
+  /* ---------- promotions ---------- */
+  const openAddP = () => { setEditingP(null); setPForm({ name: '', amount: '', active: true }); setErr(''); setShowP(true); };
+  const openEditP = (p) => { setEditingP(p); setPForm({ name: p.name, amount: String(p.amount ?? ''), active: p.active !== false }); setErr(''); setShowP(true); };
+
+  const saveP = () => {
+    if (!pForm.name.trim()) { setErr('กรอกชื่อโปรโมชัน'); return; }
+    if (pForm.amount === '' || Number(pForm.amount) <= 0) { setErr('กรอกยอดส่วนลดให้ถูกต้อง'); return; }
+    setErr('');
+    const payload = { name: pForm.name.trim(), amount: Number(pForm.amount), active: pForm.active };
+    if (editingP) {
+      saveData({
+        ...data,
+        promotions: promos.map((p) => (p.id === editingP.id ? { ...p, ...payload } : p)),
+        auditLog: pushAudit(data, 'แก้ไขโปรโมชัน', `${editingP.id} · ${payload.name}`, `−฿ ${payload.amount.toLocaleString()}`),
+      });
+      alertDialog({ title: `แก้ไข ${payload.name} แล้ว` });
+    } else {
+      const id = nextId('P', promos);
+      saveData({
+        ...data,
+        promotions: [...promos, { id, ...payload }],
+        auditLog: pushAudit(data, 'เพิ่มโปรโมชัน', `${id} · ${payload.name}`, `−฿ ${payload.amount.toLocaleString()}`),
+      });
+      alertDialog({ title: `เพิ่ม ${payload.name} แล้ว` });
+    }
+    setShowP(false);
+  };
+
+  const toggleP = (p) => {
+    saveData({
+      ...data,
+      promotions: promos.map((x) => (x.id === p.id ? { ...x, active: x.active === false } : x)),
+      auditLog: pushAudit(data, p.active === false ? 'เปิดใช้โปรโมชัน' : 'พักโปรโมชัน', `${p.id} · ${p.name}`, p.active === false ? 'ใช้งาน' : 'พัก'),
+    });
+  };
+
+  const deleteP = async (p) => {
+    const ok = await confirmDialog({ title: `ลบ ${p.name}?`, message: 'บิลเก่าไม่หาย', confirmLabel: 'ลบเลย', danger: true });
+    if (!ok) return;
+    saveData({
+      ...data,
+      promotions: promos.filter((x) => x.id !== p.id),
+      auditLog: pushAudit(data, 'ลบโปรโมชัน', `${p.id} · ${p.name}`, 'ลบออก'),
+    });
+    alertDialog({ title: `ลบ ${p.name} แล้ว` });
+  };
+
+  // ช่วงเวลาทั้งหมดในฟอร์ม = ปุ่มมาตรฐาน + เวลาที่เพิ่มเอง เรียงน้อยไปมาก
+  const allDurs = [...new Set([...DUR_OPTIONS, ...Object.keys(cForm.prices).map(Number)])]
+    .filter((d) => Number.isFinite(d) && d > 0)
+    .sort((a, b) => a - b);
+
   return (
     <div>
       <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
         <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''}>พนักงาน ({therapists.length})</button>
         <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''}>รายการ ({cats.length})</button>
-        <button onClick={() => setTab('addons')} className={tab === 'addons' ? 'on' : ''}>เสริม ({addons.length})</button>
+        <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''}>โปร ({promos.length})</button>
       </div>
 
       {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
@@ -330,11 +413,10 @@ export default function PageManage({ data, saveData }) {
               <span className="grow">
                 <b style={{ fontSize: 14 }}>{name}</b>
                 <small className="muted" style={{ display: 'block', marginTop: 2 }}>
-                  ฿{hourly.toLocaleString()}/ชม{timed.length > 0 ? ` · ${timed.map((s) => `${formatDuration(s.duration)} ฿${s.price.toLocaleString()}`).join(' · ')}` : ' · ยังไม่ตั้งราคา'}
+                  ฿ {hourly.toLocaleString()}/ชม{timed.length > 0 ? ` · ${timed.map((s) => `${formatDuration(s.duration)} ฿ ${s.price.toLocaleString()} (ค่าแรง ฿ ${commBaht(s).toLocaleString()})`).join(' · ')}` : ' · ยังไม่ตั้งราคา'}
                 </small>
-                {timed[0] && <small className="muted" style={{ display: 'block' }}>คอม {Math.round((timed[0].flatRate || 0) * 100)}%</small>}
               </span>
-              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿{hourly.toLocaleString()}/ชม</b>
+              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {hourly.toLocaleString()}/ชม</b>
               <button className="icon-btn" onClick={() => openEditC(name)} aria-label={`แก้ไข ${name}`}><Pencil size={15} /></button>
               <button className="icon-btn danger" onClick={() => deleteC(name)} aria-label={`ลบ ${name}`}><Trash2 size={15} /></button>
             </div>
@@ -343,22 +425,22 @@ export default function PageManage({ data, saveData }) {
         </Card>
       )}
 
-      {tab === 'addons' && (
+      {tab === 'services' && (
         <Card>
           <CardHead
             title="บริการเสริม"
             hint="POS ขั้นระยะเวลา · +เงิน +เวลา"
             right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddA}><Plus size={15} /> เพิ่มเสริม</button>}
           />
-          <p className="muted" style={{ marginBottom: 8 }}>เช่น ประคบสมุนไพร +30 นาที ฿350 · เลือกได้หลายอย่างต่อลูกค้า 1 คน</p>
+          <p className="muted" style={{ marginBottom: 8 }}>เช่น ประคบสมุนไพร +30 นาที ฿ 350 · เลือกได้หลายอย่างต่อลูกค้า 1 คน</p>
           {addons.map((a) => (
             <div key={a.id} className="mrow">
               <span className="grow">
                 <b style={{ fontSize: 13.5 }}>{a.name}</b>
                 <small className="muted" style={{ display: 'block' }}>+{a.minutes} นาที · {a.id}</small>
               </span>
-              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>+฿{(a.price || 0).toLocaleString()}</b>
-              <button className={`toggle${a.active === false ? '' : ' on'}`} onClick={() => toggleA(a)} title="สลับสถานะ">{a.active === false ? 'พัก' : 'ใช้'}</button>
+              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>+฿ {(a.price || 0).toLocaleString()}</b>
+              <button className={`switch${a.active === false ? '' : ' on'}`} onClick={() => toggleA(a)} title={a.active === false ? 'แตะเพื่อเปิดใช้' : 'แตะเพื่อปิด'} aria-label={`สลับเปิดปิด ${a.name}`}><i /><span>{a.active === false ? 'ปิด' : 'เปิด'}</span></button>
               <button className="icon-btn" onClick={() => openEditA(a)} aria-label={`แก้ไข ${a.name}`}><Pencil size={15} /></button>
               <button className="icon-btn danger" onClick={() => deleteA(a)} aria-label={`ลบ ${a.name}`}><Trash2 size={15} /></button>
             </div>
@@ -367,8 +449,33 @@ export default function PageManage({ data, saveData }) {
         </Card>
       )}
 
+      {tab === 'promos' && (
+        <Card>
+          <CardHead
+            title="โปรโมชันส่วนลด"
+            hint="POS + แก้ไขบิล · เลือกแทนกรอกมือ"
+            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP}><Plus size={15} /> เพิ่มโปร</button>}
+          />
+          <p className="muted" style={{ marginBottom: 8 }}>เช่น โปรวันเกิด −฿ 500 · โปร 10 ครั้ง −฿ 300 · แตะ 1 โปรต่อ 1 บิล</p>
+          {promos.map((p) => (
+            <div key={p.id} className="mrow">
+              <span className="grow">
+                <b style={{ fontSize: 13.5 }}>{p.name}</b>
+                <small className="muted" style={{ display: 'block' }}>{p.id}</small>
+              </span>
+              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>−฿ {(p.amount || 0).toLocaleString()}</b>
+              <button className={`toggle${p.active === false ? '' : ' on'}`} onClick={() => toggleP(p)} title="สลับสถานะ">{p.active === false ? 'พัก' : 'ใช้'}</button>
+              <button className="icon-btn" onClick={() => openEditP(p)} aria-label={`แก้ไข ${p.name}`}><Pencil size={15} /></button>
+              <button className="icon-btn danger" onClick={() => deleteP(p)} aria-label={`ลบ ${p.name}`}><Trash2 size={15} /></button>
+            </div>
+          ))}
+          {promos.length === 0 && <EmptyState title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
+        </Card>
+      )}
+
       {showT && (
         <Modal onClose={() => { setShowT(false); setErr(''); }}>
+          <button className="modal-x" onClick={() => { setShowT(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <h3>{editingT ? `แก้ไข ${editingT.name}` : 'เพิ่มพนักงาน'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="f2" style={{ marginTop: 12 }}>
@@ -388,7 +495,6 @@ export default function PageManage({ data, saveData }) {
             </div>
           </div>
           <div className="modal-row">
-            <button onClick={() => { setShowT(false); setErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
             <button onClick={saveT} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>
           </div>
         </Modal>
@@ -396,33 +502,44 @@ export default function PageManage({ data, saveData }) {
 
       {showC && (
         <Modal onClose={() => { setShowC(false); setErr(''); }}>
+          <button className="modal-x" onClick={() => { setShowC(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <h3>{editingCat ? `แก้ไข ${editingCat}` : 'เพิ่มรายการ'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="field" style={{ marginTop: 12 }}><label>ชื่อรายการ *</label><input value={cForm.name} onChange={(e) => setCForm({ ...cForm, name: e.target.value })} placeholder="เช่น นวดไทย" className="input" /></div>
-          <div className="f2">
-            <div className="field"><label>ราคาต่อชม (฿) *</label><input type="number" min="0" value={cForm.hourly} onChange={(e) => applyHourly(e.target.value)} placeholder="เช่น 300" className="input" /></div>
-            <div className="field"><label>คอม (%)</label><input type="number" min="0" max="100" value={cForm.flatRatePct} onChange={(e) => setCForm({ ...cForm, flatRatePct: e.target.value })} placeholder="35" className="input" /></div>
+          <div className="field"><label>ราคาต่อชม (฿) *</label><input type="number" min="0" value={cForm.hourly} onChange={(e) => applyHourly(e.target.value)} placeholder="เช่น 300" className="input" /></div>
+          <div className="field"><label>เพิ่มเวลาอื่น (นาที) เช่น 3 ชม = 180</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="number" min="1" value={customDur} onChange={(e) => setCustomDur(e.target.value)} placeholder="เช่น 180" className="input" style={{ flex: 1, minWidth: 0 }} />
+              <button type="button" className="btn btn-ghost" style={{ flexShrink: 0, whiteSpace: 'nowrap', padding: '11px 14px' }} onClick={addCustomDur}><Plus size={15} /> เพิ่มเวลา</button>
+            </div>
           </div>
-          <div className="field"><label>ช่วงเวลาที่ขาย (แตะเพื่อเปิด/ปิด + แก้ราคาเองได้)</label>
-            {DUR_OPTIONS.map((d) => {
+          <div className="field"><label>ช่วงเวลาที่ขาย + ราคา + ค่าแรง (บาท) — แตะเพื่อเปิด/ปิด</label>
+            {allDurs.map((d) => {
               const on = cForm.prices[d] != null && cForm.prices[d] !== '';
               return (
-                <div key={d} className="mrow">
-                  <button type="button" className={`toggle${on ? ' on' : ''}`} onClick={() => toggleDur(d)}>{formatDuration(d)}</button>
-                  <span className="grow muted">{d} นาที</span>
-                  <span className="cash-amt">฿<input type="number" min="0" value={cForm.prices[d] ?? ''} disabled={!on} onChange={(e) => setCForm({ ...cForm, prices: { ...cForm.prices, [d]: e.target.value } })} placeholder="0" /></span>
+                <div key={d} className={`dur-edit${on ? '' : ' off'}`}>
+                  <div className="dur-edit-top">
+                    <button type="button" className={`toggle${on ? ' on' : ''}`} onClick={() => toggleDur(d)}>{formatDuration(d)}</button>
+                    <button type="button" className="icon-btn danger" onClick={() => toggleDur(d)} aria-label={`ลบ ${formatDuration(d)}`}><Trash2 size={15} /></button>
+                  </div>
+                  {on && (
+                    <div className="dur-edit-grid">
+                      <div className="field" style={{ marginBottom: 0 }}><label>ราคา (฿)</label><input type="number" min="0" value={cForm.prices[d] ?? ''} onChange={(e) => setCForm({ ...cForm, prices: { ...cForm.prices, [d]: e.target.value } })} placeholder="0" className="input" /></div>
+                      <div className="field" style={{ marginBottom: 0 }}><label>ค่าแรง (฿)</label><input type="number" min="0" value={cForm.comms[d] ?? ''} onChange={(e) => setCForm({ ...cForm, comms: { ...cForm.comms, [d]: e.target.value } })} placeholder="0" className="input" /></div>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
           <div className="modal-row">
-            <button onClick={() => { setShowC(false); setErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
             <button onClick={saveC} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>
           </div>
         </Modal>
       )}
       {showA && (
         <Modal onClose={() => { setShowA(false); setErr(''); }}>
+          <button className="modal-x" onClick={() => { setShowA(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <h3>{editingA ? `แก้ไข ${editingA.name}` : 'เพิ่มบริการเสริม'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="field" style={{ marginTop: 12 }}><label>ชื่อบริการเสริม *</label><input value={aForm.name} onChange={(e) => setAForm({ ...aForm, name: e.target.value })} placeholder="เช่น ประคบสมุนไพร" className="input" /></div>
@@ -441,8 +558,31 @@ export default function PageManage({ data, saveData }) {
             </select>
           </div>
           <div className="modal-row">
-            <button onClick={() => { setShowA(false); setErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
             <button onClick={saveA} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>
+          </div>
+        </Modal>
+      )}
+      {showP && (
+        <Modal onClose={() => { setShowP(false); setErr(''); }}>
+          <button className="modal-x" onClick={() => { setShowP(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
+          <h3>{editingP ? `แก้ไข ${editingP.name}` : 'เพิ่มโปรโมชัน'}</h3>
+          {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
+          <div className="field" style={{ marginTop: 12 }}><label>ชื่อโปรโมชัน *</label><input value={pForm.name} onChange={(e) => setPForm({ ...pForm, name: e.target.value })} placeholder="เช่น โปรวันเกิด" className="input" /></div>
+          <div className="f2">
+            <div className="field"><label>ยอดส่วนลด (฿) *</label><input type="number" min="1" value={pForm.amount} onChange={(e) => setPForm({ ...pForm, amount: e.target.value })} placeholder="500" className="input" /></div>
+            <div className="field"><label>สถานะ</label>
+              <select value={pForm.active ? 'on' : 'off'} onChange={(e) => setPForm({ ...pForm, active: e.target.value === 'on' })} className="input">
+                <option value="on">ใช้งาน</option><option value="off">พัก</option>
+              </select>
+            </div>
+          </div>
+          <div className="preset-row" style={{ marginTop: 0, marginBottom: 12 }}>
+            {[100, 200, 300, 500].map((m) => (
+              <button key={m} type="button" className="preset-btn" onClick={() => setPForm((f) => ({ ...f, amount: String(m) }))}>฿ {m}</button>
+            ))}
+          </div>
+          <div className="modal-row">
+            <button onClick={saveP} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>
           </div>
         </Modal>
       )}

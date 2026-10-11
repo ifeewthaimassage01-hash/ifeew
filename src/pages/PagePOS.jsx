@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ReceiptText, Plus, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, Pencil, Trash2, ChevronDown, Check } from 'lucide-react';
+import { ReceiptText, Plus, ShieldAlert, Banknote, QrCode, CheckCircle2, Search, TriangleAlert, Pencil, Trash2, ChevronDown, Check, X } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, formatDuration } from '../components/ui';
 import { generateBillId } from '../data/demoData';
 
@@ -22,30 +22,23 @@ function timeToMinutes(t) {
   return h * 60 + m;
 }
 
-/* สร้าง timeline slots จาก booked slots (ใช้หาช่วงว่างแนะนำ) */
-function buildTimeline(bookedSlots, duration) {
-  const slots = [];
-  const startOfDay = 10 * 60;
-  const endOfDay = 22 * 60;
-  for (let t = startOfDay; t + duration <= endOfDay; t += 30) {
-    const conflict = bookedSlots.some((s) => t < s.end && t + duration > s.start);
-    slots.push({ start: t, end: t + duration, available: !conflict });
-  }
-  return slots;
-}
-
-/* เวลาปัจจุบัน (นาที) ปัดขึ้นเป็น 5 นาที */
+/* เวลาปัจจุบัน (นาที) ปัดขึ้นเป็น 15 นาที — ตรงกับ grid เลือกเวลา */
 function nowMinutes() {
   const now = new Date();
   const m = now.getHours() * 60 + now.getMinutes();
-  return Math.ceil(m / 5) * 5;
+  return Math.ceil(m / 15) * 15;
 }
 
-const OPEN_MIN = 10 * 60;
-const CLOSE_MIN = 22 * 60;
+function snap15(m) {
+  return Math.round(m / 15) * 15;
+}
 
-/* Dropdown เวลาแบบ custom — แต่งได้เต็มที่ เข้าธีมน้ำตาล-ครีม */
-function TimeDropdown({ value, options, onChange, label }) {
+const OPEN_MIN = 12 * 60;
+const CLOSE_MIN = 23 * 60;
+const GRID_STEP = 15;
+
+/* Dropdown เวลาใบใหญ่ — ตัวเลขใหญ่ + ป้ายชั่วโมง/นาที เข้าธีมร้าน */
+function TimeDropdown({ value, options, onChange, label, sub }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const current = options.find((o) => o.v === value);
@@ -59,7 +52,8 @@ function TimeDropdown({ value, options, onChange, label }) {
   return (
     <div className={`dropdown timepick-dd${open ? ' open' : ''}`} ref={ref}>
       <button className="dropdown-btn timepick-btn" onClick={() => setOpen(!open)} type="button" aria-label={label}>
-        <span className="dd-label timepick-val">{current?.l ?? '--'}</span>
+        <span className="timepick-val">{current?.l ?? '--'}</span>
+        <span className="timepick-sub">{sub}</span>
         <ChevronDown size={16} className="dd-caret" />
       </button>
       {open && (
@@ -76,7 +70,7 @@ function TimeDropdown({ value, options, onChange, label }) {
   );
 }
 
-export default function PagePOS({ data, saveData, onNavigate }) {
+export default function PagePOS({ data, saveData, onNavigate, role }) {
   const therapistsList = (data.therapists || []).filter((t) => t.active !== false);
   const services = data.services || [];
 
@@ -113,6 +107,14 @@ export default function PagePOS({ data, saveData, onNavigate }) {
   const [customer, setCustomer] = useState('');
   const [memberNo, setMemberNo] = useState('');
   const [discount, setDiscount] = useState('');
+  const [promoId, setPromoId] = useState('');
+  const promosActive = (data.promotions || []).filter((p) => p.active !== false);
+  const promoName = promosActive.find((p) => p.id === promoId)?.name || '';
+  const selectPromo = (p) => {
+    if (promoId === p.id) { setPromoId(''); setDiscount(''); }
+    else { setPromoId(p.id); setDiscount(String(p.amount)); }
+    setErr('');
+  };
 
   const [showAuth, setShowAuth] = useState(false);
   const [authPass, setAuthPass] = useState('');
@@ -171,11 +173,6 @@ export default function PagePOS({ data, saveData, onNavigate }) {
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 
-  const timeline = useMemo(() => {
-    if (!selectedDuration) return [];
-    return buildTimeline(bookedSlots, totalMinutes);
-  }, [bookedSlots, totalMinutes, selectedDuration]);
-
   // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก)
   const timeError = useMemo(() => {
     if (selectedStartTime == null || !selectedDuration) return '';
@@ -186,12 +183,37 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     return '';
   }, [selectedStartTime, selectedDuration, totalMinutes, bookedSlots]);
 
-  // ช่วงว่างถัดไปที่แนะนำ (หลังเวลาที่ pick)
-  const suggestedTime = useMemo(() => {
-    if (!timeError || !selectedDuration || selectedStartTime == null) return null;
-    const next = timeline.find((s) => s.available && s.start >= selectedStartTime);
-    return next ? next.start : null;
-  }, [timeError, timeline, selectedDuration, selectedStartTime]);
+  // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / เกินเวลาร้าน
+  const slotState = (t) => {
+    if (!selectedDuration) return 'oob';
+    if (t < OPEN_MIN || t + totalMinutes > CLOSE_MIN) return 'oob';
+    const clash = bookedSlots.some((s) => t < s.end && t + totalMinutes > s.start);
+    return clash ? 'clash' : 'free';
+  };
+
+  // ช่วงว่างถัดไป (ละเอียด 15 นาที) นับจากเวลาฐาน — ใช้กับปุ่มแนะนำ + auto-snap
+  const nextFreeFrom = (base) => {
+    if (!selectedDuration) return null;
+    const start = Math.max(snap15(base ?? nowMinutes()), OPEN_MIN);
+    for (let t = start; t + totalMinutes <= CLOSE_MIN; t += GRID_STEP) {
+      if (slotState(t) === 'free') return t;
+    }
+    return null;
+  };
+
+  // เข้าขั้น 4 โหมดเพิ่มใหม่แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย (โหมดแก้ไขไม่แตะค่าเดิม)
+  const snapGuard = useMemo(() => ({ doneFor: null }), []);
+  useEffect(() => {
+    if (step !== 4 || editingIdx != null || !selectedDuration || selectedStartTime == null) return;
+    if (!timeError) return;
+    const key = `${activeTherapistId}-${selectedStartTime}-${totalMinutes}`;
+    if (snapGuard.doneFor === key) return;
+    snapGuard.doneFor = key;
+    const next = nextFreeFrom(selectedStartTime);
+    // eslint-disable-next-line no-use-before-define
+    if (next != null) setSelectedStartTime(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const subtotal = customers.reduce((s, c) => s + c.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
@@ -312,19 +334,27 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     if (customers.length === 0) { setErr('เพิ่มลูกค้าอย่างน้อย 1 คนก่อนเปิดบิล'); return; }
     setErr('');
     try {
-      if (sessionStorage.getItem(MGR_KEY) === '1') { openBill('จำรหัสในกะนี้'); return; }
+      if (sessionStorage.getItem(MGR_KEY) === '1') { openBill('จำรหัสในกะนี้', 'paid'); return; }
     } catch { /* ignore */ }
     setAuthErr('');
     setShowAuth(true);
   };
 
-  const openBill = (reason) => {
+  // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติผู้จัดการ, สถานะ open
+  const openDraftBill = () => {
+    if (customers.length === 0) { setErr('เพิ่มลูกค้าอย่างน้อย 1 คนก่อนเปิดบิล'); return; }
+    setErr('');
+    openBill('เปิดบิลรอเช็คบิล', 'open');
+  };
+
+  const openBill = (reason, status = 'paid') => {
     const id = generateBillId();
     const now = new Date();
+    const isOpen = status === 'open';
     const newBill = {
       id, date: now.toISOString(), customer, memberNo,
       customers: customers.map((c) => ({ ...c })),
-      // mirror ให้หน้ารายงานเก่า (ประวัติ/ปิดวัน/คอม) ที่อ่าน b.items ทำงานได้
+      // mirror ให้หน้ารายงานเก่า (ประวัติ/ปิดวัน/ค่าแรง) ที่อ่าน b.items ทำงานได้
       items: customers.map((c) => ({
         serviceId: c.serviceId,
         serviceName: (c.addons || []).length ? `${c.serviceName} + ${(c.addons || []).map((a) => a.name).join(', ')}` : c.serviceName,
@@ -333,19 +363,20 @@ export default function PagePOS({ data, saveData, onNavigate }) {
         qty: 1, price: c.price, discount: 0, net: c.price,
         duration: c.totalMinutes || c.duration, startTime: c.startTime,
       })),
-      subtotal, discount: discVal, total, paymentMethod, status: 'paid', createdAt: now.toISOString(),
+      subtotal, discount: discVal, total, paymentMethod, status, createdAt: now.toISOString(),
+      promotion: promoName || '',
     };
     saveData({
       ...data,
       bills: [...(data.bills || []), newBill],
       auditLog: [...(data.auditLog || []), {
         id: `A-${Date.now()}`, timestamp: now.toISOString(), user: 'ระบบ POS',
-        action: 'สร้างบิล', detail: `${id} · ฿${total.toLocaleString()} · ${paymentMethod} · ${customers.length} ลูกค้า`,
-        oldValue: '-', newValue: 'paid', approvedBy: '-',
+        action: isOpen ? 'เปิดบิล (รอเช็คบิล)' : 'สร้างบิล', detail: `${customer || 'ลูกค้าหน้าร้าน'} · ฿ ${total.toLocaleString()} · ${isOpen ? 'ยังไม่ชำระ' : paymentMethod} · ${customers.length} ลูกค้า`,
+        oldValue: '-', newValue: status, approvedBy: isOpen ? '-' : (reason || '-'),
       }],
     });
-    setSuccessBill({ id, total, count: customers.length });
-    setCustomers([]); setCustomer(''); setMemberNo(''); setDiscount('');
+    setSuccessBill({ total, count: customers.length, status, customer });
+    setCustomers([]); setCustomer(''); setMemberNo(''); setDiscount(''); setPromoId('');
     resetPick();
     setEditingIdx(null); setStep(1);
     setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); setRememberMgr(false);
@@ -355,7 +386,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
     if (authPass !== '123123') { setAuthErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
     if (!authReason.trim()) { setAuthErr('กรุณาระบุเหตุผลสั้น ๆ'); return; }
     if (rememberMgr) { try { sessionStorage.setItem(MGR_KEY, '1'); } catch { /* ignore */ } }
-    openBill(authReason);
+    openBill(authReason, 'paid');
   };
 
   return (
@@ -393,7 +424,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
                 <button key={c} className={`cat-card${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
                   <span className="cat-card-main">
                     <b>{c}</b>
-                    <small>{durs.map((d) => formatDuration(d.duration)).join(' · ')} · ฿{min.toLocaleString()}{max !== min ? `–${max.toLocaleString()}` : ''}</small>
+                    <small>{durs.map((d) => formatDuration(d.duration)).join(' · ')} · ฿ {min.toLocaleString()}{max !== min ? `–${max.toLocaleString()}` : ''}</small>
                   </span>
                   <span className="cat-card-arrow">{selectedCategory === c ? '✓' : '›'}</span>
                 </button>
@@ -420,7 +451,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
               {availableDurations.map(({ duration, price }) => (
                 <button key={duration} className={`dur-card${selectedDuration === duration ? ' on' : ''}`} onClick={() => pickDuration(duration)}>
                   <span className="dur-label">{formatDuration(duration)}</span>
-                  <span className="dur-price">฿{price.toLocaleString()}</span>
+                  <span className="dur-price">฿ {price.toLocaleString()}</span>
                 </button>
               ))}
             </div>
@@ -434,7 +465,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
                     <button key={a.id} type="button" className={`addon-row${on ? ' on' : ''}`} onClick={() => toggleAddon(a.id)}>
                       <span className="addon-check">{on ? '✓' : ''}</span>
                       <span className="addon-main"><b>{a.name}</b><small>+{a.minutes} นาที</small></span>
-                      <span className="addon-price">+฿{a.price.toLocaleString()}</span>
+                      <span className="addon-price">+฿ {a.price.toLocaleString()}</span>
                     </button>
                   );
                 })}
@@ -498,65 +529,70 @@ export default function PagePOS({ data, saveData, onNavigate }) {
       {step === 4 && selectedCategory && selectedDuration && activeTherapistId && (
         <Card>
           <CardHead
-            title="เลือกเวลาเริ่ม"
+            title={editingIdx != null ? 'แก้ไขรายการ' : 'เลือกเวลาเริ่ม'}
             hint={`${selectedCategory} · ${formatDuration(selectedDuration)} · ${activeTherapistName}`}
             right={editingIdx != null ? (<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={cancelEdit}>ยกเลิก</button>) : null}
           />
           <div className="field">
-            <label>เวลาเริ่ม (24 ชม.)</label>
-              <div className="timepick-row">
-                <TimeDropdown
-                  label="ชั่วโมง"
-                  value={selectedStartTime != null ? Math.floor(selectedStartTime / 60) : null}
-                  onChange={(h) => {
-                    const curMin = selectedStartTime != null ? selectedStartTime % 60 : 0;
-                    setSelectedStartTime(h * 60 + curMin);
-                    setErr('');
-                  }}
-                  options={Array.from({ length: 13 }, (_, i) => i + 10).map((h) => ({ v: h, l: String(h).padStart(2, '0') }))}
-                />
-                <span className="timepick-colon">:</span>
-                <TimeDropdown
-                  label="นาที"
-                  value={selectedStartTime != null ? selectedStartTime % 60 : 0}
-                  onChange={(m) => {
-                    const curH = selectedStartTime != null ? Math.floor(selectedStartTime / 60) : 10;
-                    setSelectedStartTime(curH * 60 + m);
-                    setErr('');
-                  }}
-                  options={(() => {
-                    const cur = selectedStartTime != null ? selectedStartTime % 60 : 0;
-                    const steps = Array.from({ length: 12 }, (_, i) => i * 5);
-                    const opts = steps.includes(cur) ? steps : [...steps, cur].sort((a, b) => a - b);
-                    return opts.map((m) => ({ v: m, l: String(m).padStart(2, '0') }));
-                  })()}
-                />
-                {selectedStartTime != null && (
-                  <span className="timepick-end">จบ {minutesToTime(selectedStartTime + totalMinutes)}</span>
-                )}
-              </div>
-              {timeError ? (
-                <div className="alert warn" style={{ marginTop: 8 }}>{timeError}
-                  {suggestedTime != null && (
-                    <button type="button" className="preset-btn" style={{ marginLeft: 8 }} onClick={() => setSelectedStartTime(suggestedTime)}>
-                      ใช้ {minutesToTime(suggestedTime)}
+            <label>เวลาเริ่ม</label>
+            <div className="timepick-row">
+              <TimeDropdown
+                label="ชั่วโมง"
+                sub="ชั่วโมง"
+                value={selectedStartTime != null ? Math.floor(selectedStartTime / 60) : null}
+                onChange={(h) => {
+                  const curMin = selectedStartTime != null ? selectedStartTime % 60 : 0;
+                  setSelectedStartTime(h * 60 + curMin);
+                  setErr('');
+                }}
+                options={Array.from({ length: Math.floor(CLOSE_MIN / 60) - Math.floor(OPEN_MIN / 60) + 1 }, (_, i) => Math.floor(OPEN_MIN / 60) + i).map((h) => ({ v: h, l: String(h).padStart(2, '0') }))}
+              />
+              <span className="timepick-colon">:</span>
+              <TimeDropdown
+                label="นาที"
+                sub="นาที"
+                value={selectedStartTime != null ? selectedStartTime % 60 : 0}
+                onChange={(m) => {
+                  const curH = selectedStartTime != null ? Math.floor(selectedStartTime / 60) : Math.floor(OPEN_MIN / 60);
+                  setSelectedStartTime(curH * 60 + m);
+                  setErr('');
+                }}
+                options={(() => {
+                  const cur = selectedStartTime != null ? selectedStartTime % 60 : 0;
+                  const steps = Array.from({ length: 12 }, (_, i) => i * 5);
+                  const opts = steps.includes(cur) ? steps : [...steps, cur].sort((a, b) => a - b);
+                  return opts.map((m) => ({ v: m, l: String(m).padStart(2, '0') }));
+                })()}
+              />
+            </div>
+            {selectedStartTime != null && (
+              <div className="tend-box full">จบ {minutesToTime(selectedStartTime + totalMinutes)} · รวม {formatDuration(totalMinutes)}</div>
+            )}
+            {timeError ? (
+              <div className="alert warn" style={{ marginTop: 8 }}>{timeError}
+                {(() => {
+                  const nf = nextFreeFrom(selectedStartTime ?? nowMinutes());
+                  return nf != null ? (
+                    <button type="button" className="preset-btn" style={{ marginLeft: 8 }} onClick={() => setSelectedStartTime(nf)}>
+                      ใช้ {minutesToTime(nf)}
                     </button>
-                  )}
-                </div>
-              ) : (
-                <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
-              )}
+                  ) : null;
+                })()}
+              </div>
+            ) : (
+              <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
+            )}
           </div>
 
           {validPick && (
             <div className="summary-box">
               <div className="r"><span>บริการ</span><b>{selectedCategory} {formatDuration(selectedDuration)}</b></div>
               {(selectedAddons.map((id) => addonsActive.find((a) => a.id === id)).filter(Boolean)).map((a) => (
-                <div key={a.id} className="r"><span>+ {a.name} (+{a.minutes} นาที)</span><b>+฿{a.price.toLocaleString()}</b></div>
+                <div key={a.id} className="r"><span>+ {a.name} (+{a.minutes} นาที)</span><b>+฿ {a.price.toLocaleString()}</b></div>
               ))}
               <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
               <div className="r"><span>เวลา</span><b>{minutesToTime(selectedStartTime)} – {minutesToTime(selectedStartTime + totalMinutes)} · รวม {formatDuration(totalMinutes)}</b></div>
-              <div className="r"><span>ราคา</span><b>฿{(priceFor(selectedDuration) + addonPrice).toLocaleString()}</b></div>
+              <div className="r"><span>ราคา</span><b>฿ {(priceFor(selectedDuration) + addonPrice).toLocaleString()}</b></div>
             </div>
           )}
 
@@ -580,7 +616,7 @@ export default function PagePOS({ data, saveData, onNavigate }) {
 
       {/* STEP 5: ตรวจสอบ + ชำระเงิน */}
       {step === 5 && (
-        <>
+        <div className="pos-grid">
           <Card>
             <CardHead
               title="รายการในบิล"
@@ -599,30 +635,31 @@ export default function PagePOS({ data, saveData, onNavigate }) {
                   <button onClick={() => handleEditCustomer(idx)} aria-label="แก้ไข"><Pencil size={13} /></button>
                   <button onClick={() => handleRemoveCustomer(idx)} aria-label="ลบ"><Trash2 size={13} /></button>
                 </span>
-                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿{c.price.toLocaleString()}</b>
+                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {c.price.toLocaleString()}</b>
               </div>
             ))}
           </Card>
 
           {customers.length > 0 && (
-            <Card>
+            <Card className="pos-side">
               <div className="f2">
                 <div className="field" style={{ marginBottom: 8 }}><label>ชื่อลูกค้า</label><input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="ไม่บังคับ" className="input" /></div>
                 <div className="field" style={{ marginBottom: 8 }}><label>สมาชิก</label><input value={memberNo} onChange={(e) => setMemberNo(e.target.value)} placeholder="M-xxxx" className="input" /></div>
               </div>
               <div className="field" style={{ marginBottom: 8 }}>
-                <label>ส่วนลดท้ายบิล (฿)</label>
-                <div className="disc-row">
-                  <input type="number" min="0" max={subtotal} value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="0" />
+                <label>โปรโมชันส่วนลด</label>
+                {promosActive.length > 0 ? (
                   <div className="preset-row" style={{ marginTop: 0 }}>
-                    {[50, 100, 200].map((v) => (
-                      <button key={v} type="button" className="preset-btn" onClick={() => setDiscount(String((Number(discount) || 0) + v))}>+{v}</button>
+                    {promosActive.map((p) => (
+                      <button key={p.id} type="button" className={`preset-btn${promoId === p.id ? ' on' : ''}`} style={promoId === p.id ? { background: 'var(--brown-950)', color: '#fff', borderColor: 'var(--brown-950)' } : null} onClick={() => selectPromo(p)}>{p.name} −฿ {p.amount.toLocaleString()}</button>
                     ))}
-                    {discount !== '' && <button type="button" className="preset-btn" onClick={() => setDiscount('')}>ล้าง</button>}
+                    {promoId && <button type="button" className="preset-btn" onClick={() => { setPromoId(''); setDiscount(''); }}>ไม่ใช้โปร</button>}
                   </div>
-                </div>
+                ) : (
+                  <p className="muted">ยังไม่มีโปรโมชัน — เพิ่มได้ในหน้าจัดการร้าน</p>
+                )}
               </div>
-              <div className="field"><label>ชำระโดย</label>
+              <div className="field"><label>ชำระโดย <span className="muted">(ใช้ตอนเช็คบิล — ถ้าเปิดบิลไว้ก่อนยังไม่ต้องเลือกก็ได้)</span></label>
                 <div className="pay-grid">
                   {PAY_METHODS.map((m) => {
                     const Icon = m.icon;
@@ -635,38 +672,44 @@ export default function PagePOS({ data, saveData, onNavigate }) {
                 </div>
               </div>
               <div className="summary-box">
-                <div className="r"><span>รวมย่อย</span><b>฿{subtotal.toLocaleString()}</b></div>
-                <div className="r"><span>ส่วนลด</span><b>−฿{discVal.toLocaleString()}</b></div>
-                <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿{total.toLocaleString()}</b></div>
+                <div className="r"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
+                <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
+                <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿ {total.toLocaleString()}</b></div>
               </div>
-              <button className="btn btn-primary btn-block" onClick={startCheckout}>
-                <ReceiptText size={18} /> ยืนยันเปิดบิล · ฿{total.toLocaleString()}
-              </button>
+              <div className="modal-row" style={{ marginTop: 4 }}>
+                <button className="btn btn-ghost" style={{ width: '100%' }} onClick={openDraftBill}>
+                  <ReceiptText size={18} /> เปิดบิลไว้ก่อน
+                </button>
+                <button className="btn btn-primary" style={{ width: '100%' }} onClick={startCheckout}>
+                  เช็คบิลเลย · ฿ {total.toLocaleString()}
+                </button>
+              </div>
+              <p className="muted" style={{ marginTop: 8, fontSize: 11.5, textAlign: 'center' }}>เปิดบิลไว้ก่อน = ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลัง เพิ่มบริการระหว่างนวดได้ที่หน้าประวัติบิล</p>
             </Card>
           )}
-        </>
+        </div>
       )}
 
       {/* แถบบิลลัดไปตรวจสอบ — โผล่เมื่อมีลูกค้าในบิลแล้ว (ยกเว้นอยู่หน้าตรวจสอบ) */}
       {customers.length > 0 && step !== 5 && !showAuth && !successBill && (
         <div className="cta-float" onClick={() => setStep(5)}>
-          <span className="t"><b>฿{total.toLocaleString()} · {customers.length} ลูกค้า</b><small>แตะเพื่อตรวจสอบ + ชำระเงิน</small></span>
+          <span className="t"><b>฿ {total.toLocaleString()} · {customers.length} ลูกค้า</b><small>แตะเพื่อตรวจสอบ + ชำระเงิน</small></span>
           <button onClick={(e) => { e.stopPropagation(); setStep(5); }}>ตรวจสอบ →</button>
         </div>
       )}
 
       {showAuth && (
         <Modal onClose={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }}>
+          <button className="modal-x" onClick={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <div className="pagehead-main" style={{ marginBottom: 8 }}>
             <div className="pagehead-icon"><ShieldAlert size={22} /></div>
-            <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿{total.toLocaleString()} · {paymentMethod} · {customers.length} ลูกค้า</p></div>
+            <div><h3>ยืนยันเปิดบิล</h3><p className="muted">ยอด ฿ {total.toLocaleString()} · {paymentMethod} · {customers.length} ลูกค้า</p></div>
           </div>
           {authErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {authErr}</div>}
           <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setAuthErr(''); }} placeholder="123123" className="input" /></div>
           <div className="field"><label>หมายเหตุ (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setAuthErr(''); }} placeholder="เช่น รับเงินสดครบถ้วน" className="input" rows={2} /></div>
           <label className="mgr-remember"><input type="checkbox" checked={rememberMgr} onChange={(e) => setRememberMgr(e.target.checked)} /> จำรหัสในกะนี้</label>
           <div className="modal-row">
-            <button onClick={() => { setShowAuth(false); setAuthPass(''); setAuthReason(''); setAuthErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
             <button onClick={confirmAuth} disabled={!authReason.trim() || !authPass} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเปิดบิล</button>
           </div>
         </Modal>
@@ -674,15 +717,16 @@ export default function PagePOS({ data, saveData, onNavigate }) {
 
       {successBill && (
         <Modal onClose={() => setSuccessBill(null)}>
+          <button className="modal-x" onClick={() => setSuccessBill(null)} aria-label="ปิด"><X size={16} /></button>
           <div style={{ textAlign: 'center', padding: '8px 0' }}>
             <div className="empty-ic" style={{ background: '#f7f0e5', color: '#b0885f', width: 66, height: 66 }}><CheckCircle2 size={32} /></div>
-            <h3 style={{ fontSize: 27 }}>เปิดบิลสำเร็จ</h3>
-            <div className="mono" style={{ marginTop: 4 }}>{successBill.id}</div>
-            <div style={{ fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿{successBill.total.toLocaleString()}</div>
-            <div className="muted" style={{ marginTop: 4 }}>{successBill.count} ลูกค้า</div>
+            <h3 style={{ fontSize: 27 }}>{successBill.status === 'open' ? 'เปิดบิลไว้แล้ว' : 'เช็คบิลสำเร็จ'}</h3>
+            <div className="muted" style={{ marginTop: 4 }}>{successBill.customer || 'ลูกค้าหน้าร้าน'}</div>
+            <div style={{ fontSize: 44, color: 'var(--brown)', fontVariantNumeric: 'tabular-nums' }}>฿ {successBill.total.toLocaleString()}</div>
+            <div className="muted" style={{ marginTop: 4 }}>{successBill.count} ลูกค้า{successBill.status === 'open' ? ' · รอเช็คบิลหลังนวดเสร็จ' : ''}</div>
             <div className="modal-row">
               <button onClick={() => setSuccessBill(null)} className="btn btn-ghost" style={{ width: '100%' }}>เปิดบิลต่อ</button>
-              <button onClick={() => { setSuccessBill(null); onNavigate && onNavigate('bills'); }} className="btn btn-primary" style={{ width: '100%' }}>ดูประวัติบิล</button>
+              <button onClick={() => { setSuccessBill(null); onNavigate && onNavigate('bills'); }} className="btn btn-primary" style={{ width: '100%' }}>{successBill.status === 'open' ? 'ดูบิลที่เปิดอยู่' : 'ดูบิล'}</button>
             </div>
           </div>
         </Modal>

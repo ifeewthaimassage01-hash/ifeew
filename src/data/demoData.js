@@ -38,12 +38,26 @@ export function svcLabel(s) {
   return `${s.category} ${h} ชม ${r} นาที`;
 }
 
+// ค่าแรงคงที่ (บาท) ของแถวบริการ — ใช้ flatAmount ถ้ามี ไม่งั้นคำนวณจาก flatRate เดิม
+export function commBaht(s) {
+  if (!s) return 0;
+  if (s.flatAmount != null) return s.flatAmount;
+  return Math.round((s.price || 0) * (s.flatRate || 0));
+}
+
 // บริการเสริม (add-on) — เลือกเพิ่มใน POS ขั้นระยะเวลาได้หลายอย่าง
 export const addonTypes = [
   { id: 'A01', name: 'ประคบสมุนไพร', minutes: 30, price: 350, active: true },
   { id: 'A02', name: 'ศีรษะและไหล่', minutes: 20, price: 250, active: true },
 ];
 export const DEFAULT_ADDONS = addonTypes;
+
+// โปรโมชันส่วนลดท้ายบิล — เลือกใน POS / หน้าแก้ไขบิล แทนการกรอกมือ
+export const promoTypes = [
+  { id: 'P01', name: 'โปรวันเกิด', amount: 500, active: true },
+  { id: 'P02', name: 'โปร 10 ครั้ง', amount: 300, active: true },
+];
+export const DEFAULT_PROMOTIONS = promoTypes;
 
 // ค่าเริ่มต้นสำหรับปุ่มรีเซ็ตในหน้าจัดการร้าน
 export const DEFAULT_SERVICES = serviceTypes;
@@ -75,6 +89,7 @@ function buildSeed() {
       services: serviceTypes,
       serviceCategories: [...categories],
       addons: addonTypes.map((a) => ({ ...a })),
+      promotions: promoTypes.map((p) => ({ ...p })),
       bills: [
         {
           id: 'INV-20261007-001',
@@ -191,6 +206,10 @@ export function loadData() {
       if (!byId.has(def.id)) { byId.set(def.id, { ...def }); migrated = true; }
     }
     services = [...byId.values()];
+    // migrate: ค่าแรงคงที่ต่อแถว (flatAmount, บาท) — เติมจาก flatRate เดิมถ้ายังไม่มี
+    services.forEach((s) => {
+      if (s.flatAmount == null) { s.flatAmount = Math.round((s.price || 0) * (s.flatRate || 0)); migrated = true; }
+    });
     const merged = {
       ...seed,
       ...parsed,
@@ -198,6 +217,7 @@ export function loadData() {
       services,
       serviceCategories: parsed.serviceCategories || seed.serviceCategories,
       addons: parsed.addons || seed.addons,
+      promotions: parsed.promotions || seed.promotions,
       bills: parsed.bills || [],
       expenses: parsed.expenses || [],
       auditLog: parsed.auditLog || [],
