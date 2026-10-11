@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
-import { Card, CardHead, Kpi, EmptyState, DateRange, inDateRange } from '../components/ui';
+import { Card, CardHead, EmptyState, DateRange, inDateRange } from '../components/ui';
 import { bkkToday } from '../utils/bkk';
 import { svcLabel, commBaht, freelanceDisplayName } from '../data/demoData';
 
@@ -24,6 +24,9 @@ export default function PageCommission({ data, saveData, role }) {
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, tieredCommission: 0, rate: 0.30, total: 0, services: {}, svcDetail: {}, history: [] }; });
   let freelanceTotal = 0;
   let freelanceJobs = 0;
+  let freelanceComm = 0;
+  const regBillIds = new Set();
+  const extBillIds = new Set();
   const freelanceById = {};
   bills.forEach((bill) => {
     (bill.items || bill.customers || []).forEach((itm) => {
@@ -34,6 +37,9 @@ export default function PageCommission({ data, saveData, role }) {
         const net = itm.net ?? itm.price ?? 0;
         const qty = itm.qty || 1;
         freelanceTotal += net; freelanceJobs += qty;
+        const svc = (data.services || []).find((x) => x.id === itm.serviceId);
+        if (svc) freelanceComm += commBaht(svc) * qty;
+        extBillIds.add(bill.id);
         if (!freelanceById[key]) freelanceById[key] = { jobs: 0, total: 0 };
         freelanceById[key].jobs += qty;
         freelanceById[key].total += net;
@@ -46,6 +52,7 @@ export default function PageCommission({ data, saveData, role }) {
       const comm = commBaht(svc) * qty;
       s.totalSales += net;
       s.jobs += qty;
+      regBillIds.add(bill.id);
       // โหมด Flat: หมอประจำ (บาท) ต่อครั้งที่นวด
       s.flatCommission += comm;
       // นับว่านวดอะไรไปบ้าง + เก็บประวัติ
@@ -242,10 +249,8 @@ export default function PageCommission({ data, saveData, role }) {
           <>
             {!isStaff && (
             <div className="kpi-grid">
-              <div className="kpi dark"><div className="kpi-label">ยอดขายหมอวิ่ง</div><div className="kpi-value">฿ {Math.round(freelanceTotal).toLocaleString()}</div><div className="kpi-sub">{bills.length} บิลชำระแล้ว</div></div>
-              <Kpi label="งานหมอวิ่ง" value={freelanceJobs} sub="ครั้ง" />
-              <Kpi label="หมอวิ่ง" value={freelanceList.length} sub="คน" />
-              <Kpi label="เฉลี่ยต่อคน" value={`฿ ${Math.round(freelanceTotal / (freelanceList.length || 1)).toLocaleString()}`} small sub="ยอดขาย" />
+              <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(freelanceTotal - freelanceComm).toLocaleString()}</div><div className="kpi-sub">{extBillIds.size} บิลชำระแล้ว</div></div>
+              <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(freelanceComm).toLocaleString()}</div><div className="kpi-sub">{((freelanceComm / (freelanceTotal || 1)) * 100).toFixed(1)}% ของยอดขาย</div></div>
             </div>
             )}
 
@@ -298,24 +303,16 @@ export default function PageCommission({ data, saveData, role }) {
 
       <DateRange from={dr.from} to={dr.to} onChange={setDr} />
 
-      {freelanceTotal > 0 && (
-        <div className="alert warn" style={{ marginBottom: 12 }}>ยอดหมอวิ่ง (นอกระบบ) ฿ {Math.round(freelanceTotal).toLocaleString()} · {freelanceJobs} งาน — ไม่รวมในค่าแรงพนักงานประจำ</div>
-      )}
+      
 
       {!isStaff && (
       <div className="kpi-grid">
-        <div className="kpi dark"><div className="kpi-label">ยอดขายรวม (รวมหมอวิ่ง)</div><div className="kpi-value">฿ {Math.round(sumSales).toLocaleString()}</div><div className="kpi-sub">{bills.length} บิลชำระแล้ว</div></div>
-        <div className="kpi brass"><div className="kpi-label">ค่าแรงรวม (หมอประจำ)</div><div className="kpi-value">฿ {Math.round(sumComm).toLocaleString()}</div><div className="kpi-sub">{((sumComm / (sumSales || 1)) * 100).toFixed(1)}% ของยอดขาย</div></div>
-        <Kpi label="พนักงาน" value={therapists.length} sub="คน" />
-        <Kpi label="เฉลี่ยต่อคน" value={`฿ ${Math.round(sumSales / (therapists.length || 1)).toLocaleString()}`} small sub="ยอดขาย" />
+        <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(sumSalesPaid - sumComm).toLocaleString()}</div><div className="kpi-sub">{regBillIds.size} บิลชำระแล้ว</div></div>
+        <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(sumComm).toLocaleString()}</div><div className="kpi-sub">{((sumComm / (sumSalesPaid || 1)) * 100).toFixed(1)}% ของยอดขาย</div></div>
       </div>
       )}
 
-      {pending.count > 0 && (
-        <div className="alert warn" style={{ marginBottom: 12 }}>
-          รอเช็คบิล {pending.count} บิล · ยอดค้าง ฿ {Math.round(pending.sales).toLocaleString()} · ค่าแรงโดยประมาณ ฿ {Math.round(pending.comm).toLocaleString()} — ยังไม่รวมในยอดข้างบน จ่ายจริงตอนเช็คบิล
-        </div>
-      )}
+      
 
       <Card className="table-card show-desktop">
         <div className="table-scroll">

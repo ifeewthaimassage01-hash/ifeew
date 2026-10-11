@@ -287,9 +287,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       {openBills.length > 0 && (
         <Card>
           <CardHead title="บิลที่เปิดอยู่" hint={`${openBills.length} บิล · รอเช็คบิล`} />
-          <div className="alert warn" style={{ marginTop: 0, marginBottom: 10 }}>
-            ยอดค้างรวม ฿ {openBills.reduce((s, b) => s + billTotal(b), 0).toLocaleString()} — กด “เช็คบิล” หลังนวดเสร็จ หรือ “แก้ไข” เพื่อเพิ่มบริการระหว่างนวด
-          </div>
+          
           {openBills.map((b) => {
             const rows = billRows(b);
             const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';

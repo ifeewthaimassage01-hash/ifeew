@@ -75,9 +75,10 @@ export default function PageDashboard({ data }) {
         <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(dayTotal - expenseToday - freelanceToday).toLocaleString()}</div>
         <div className="hero-sub">ยอดสุทธิ{freelanceToday > 0 && ` · รวมค่าหมอวิ่ง ฿ ${Math.round(freelanceToday).toLocaleString()}`}</div>
-        <div className="hero-grid">
+        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
-          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseToday + freelanceToday).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseToday).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(rangeSplit.regComm + rangeSplit.extComm).toLocaleString()}</div></div>
         </div>
       </div>
 

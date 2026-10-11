@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { FileText, Search, ShieldAlert, TriangleAlert, Plus, Minus, Pencil, Trash2, Calendar, ChevronDown, Check, Banknote, Smartphone, Filter, Tag, X } from 'lucide-react';
+import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, fmtBkk } from '../utils/bkk';
 import OpenBillsSection from '../components/OpenBills';
@@ -178,38 +178,35 @@ export default function PageBills({ data, saveData, role }) {
 
           <div className="mlist show-mobile">
             {history.map((b) => {
-              const isCancelled = b.status === 'cancelled';
-              const payIcon = b.paymentMethod === 'เงินสด' ? Banknote : Smartphone;
-              const PayIcon = payIcon;
+              const rows = billRows(b);
+              const paid = b.status === 'paid';
+              const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
+              const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
               return (
-                <div key={b.id} className="mcard bill-card">
-                  <div className="bill-card-main" onClick={() => setDetailBill(b)}>
-                    <div className="bill-icon-wrap">
-                      <PayIcon size={18} strokeWidth={1.8} />
+                <div key={b.id} className="hcard">
+                  <div className="hcard-head">
+                    <div className="hcard-ava"><ReceiptText size={18} strokeWidth={1.8} /></div>
+                    <div className="hcard-title">
+                      <b>{docName}{docExtra}</b>
+                      <span className="muted"><Calendar size={11} /> {fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{b.startTime ? ` · เริ่ม ${b.startTime}` : ''} · {b.paymentMethod}</span>
                     </div>
-                    <div className="bill-info">
-                      <div className="bill-customer">{b.customer || 'ลูกค้าหน้าร้าน'}</div>
-                      <div className="bill-meta">
-                        <Calendar size={11} style={{ verticalAlign: -1 }} />
-                        {fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        <span className="bill-dot">·</span>
-                        {b.paymentMethod}
-                      </div>
-                    </div>
-                    <div className={`bill-amount ${isCancelled ? 'cancelled' : 'income'}`}>
-                      {isCancelled ? <Minus size={14} /> : <Plus size={14} />}
-                      ฿ {billTotal(b).toLocaleString()}
-                    </div>
+                    <div className={`hcard-amt${paid ? '' : ' cancelled'}`}>{paid ? '+' : ''} ฿ {billTotal(b).toLocaleString()}</div>
                   </div>
-                  <div className="bill-actions">
-                    <button className="bill-action-btn edit" onClick={() => setDetailBill(b)} title="ดูรายละเอียด">
-                      <Pencil size={14} />
-                    </button>
-                    {canVoid && b.status === 'paid' && (
-                      <button className="bill-action-btn delete" onClick={() => setVoidTarget(b)} title="ยกเลิกบิล">
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                  <div className="hcard-doc">ลูกค้า: <b>{b.customer || 'ลูกค้าหน้าร้าน'}</b></div>
+                  <div className="hcard-svcs">
+                    {rows.map((it, i) => (
+                      <div key={i} className="hcard-svc"><span>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</span><b>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b></div>
+                    ))}
+                    {b.promotion ? <div className="hcard-svc promo"><span>โปร: {b.promotion}</span><b>−฿ {(b.discount || 0).toLocaleString()}</b></div> : null}
+                  </div>
+                  <div className="hcard-foot">
+                    <StatusBadge status={b.status} />
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      <button className="bill-action-btn edit" onClick={() => setDetailBill(b)} title="ดูรายละเอียด"><Pencil size={14} /></button>
+                      {canVoid && paid && (
+                        <button className="bill-action-btn delete" onClick={() => setVoidTarget(b)} title="ยกเลิกบิล"><Trash2 size={14} /></button>
+                      )}
+                    </span>
                   </div>
                 </div>
               );

@@ -1153,6 +1153,23 @@ label.filebtn {
 .bill-action-btn:active { transform: scale(0.92); }
 .bill-action-btn.edit { background: var(--brown-tint); color: var(--brown-dark); }
 .bill-action-btn.delete { background: var(--red-bg); color: var(--red); }
+/* การ์ดประวัติบิล — ชื่อลูกค้า/ยอด + หมอนวด + บริการ/ราคา + pill สถานะ */
+.hcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--sh-card); }
+.hcard-head { display: flex; align-items: center; gap: 11px; }
+.hcard-ava { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; background: var(--brown-tint-2); border: 1px solid var(--line-soft); color: var(--brown-dark); display: flex; align-items: center; justify-content: center; }
+.hcard-title { flex: 1; min-width: 0; }
+.hcard-title b { font-size: 14.5px; font-weight: 700; display: block; }
+.hcard-title .muted { display: flex; align-items: center; gap: 5px; font-size: 11.5px; margin-top: 2px; flex-wrap: wrap; }
+.hcard-amt { font-size: 17px; font-weight: 700; color: var(--green-ok); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hcard-amt.cancelled { color: var(--faint); text-decoration: line-through; }
+.hcard-doc { margin-top: 9px; font-size: 12.5px; color: var(--muted); }
+.hcard-doc b { color: var(--brown-dark); }
+.hcard-svcs { margin-top: 7px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 4px 11px; }
+.hcard-svc { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px dashed var(--line); }
+.hcard-svc:last-child { border-bottom: 0; }
+.hcard-svc b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hcard-svc.promo b { color: var(--green-ok); }
+.hcard-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
 
 /* ---------- dropdown filter (finance-app style) ---------- */
 .filter-toggle {
