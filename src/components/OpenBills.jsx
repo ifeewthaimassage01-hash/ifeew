@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X } from 'lucide-react';
-import { Card, CardHead, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText } from 'lucide-react';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { commBaht } from '../data/demoData';
 
 const billRows = (b) => b.items || b.customers || [];
@@ -121,7 +121,14 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authReason, setAuthReason] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !checkoutDone) return null;
+  // คง section ไว้ตลอด (ไม่ return null) เพื่อให้ dialog สำเร็จไม่โดนถอดพร้อมบิลใบสุดท้าย
+  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !checkoutDone) {
+    return (
+      <div id="open-bills" style={{ scrollMarginTop: 16 }}>
+        <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
+      </div>
+    );
+  }
 
   const startEdit = (b) => {
     setEditTarget(b);

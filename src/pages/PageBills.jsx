@@ -102,9 +102,7 @@ export default function PageBills({ data, saveData, role }) {
       </div>
 
       {tab === 'open' && (
-        openCount > 0
-          ? <OpenBillsSection data={data} saveData={saveData} role={role} />
-          : <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
+        <OpenBillsSection data={data} saveData={saveData} role={role} />
       )}
 
       {tab === 'history' && (
