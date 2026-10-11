@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock } from 'lucide-react';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht } from '../data/demoData';
+import { uploadSlip, resolveImageUrl } from '../lib/images';
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
@@ -112,6 +113,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [checkoutTarget, setCheckoutTarget] = useState(null);
   const [checkoutPay, setCheckoutPay] = useState('เงินสด');
   const [slipName, setSlipName] = useState('');
+  const [slipUploading, setSlipUploading] = useState(false);
+  const [slipErr, setSlipErr] = useState('');
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
@@ -250,7 +253,23 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setCheckoutTarget(b);
     setCheckoutPay(b.paymentMethod || 'เงินสด');
     setSlipName(b.slip || '');
+    setSlipErr('');
     setExpandedKey(null);
+  };
+
+  const handleSlipFile = async (file) => {
+    if (!file) return;
+    setSlipErr('');
+    setSlipUploading(true);
+    try {
+      const url = await uploadSlip(file);
+      setSlipName(url);
+    } catch (e) {
+      console.error(e);
+      setSlipErr(e.message || 'อัปโหลดสลิปไม่สำเร็จ');
+    } finally {
+      setSlipUploading(false);
+    }
   };
 
   const doCheckoutBill = (b, payMethod) => {
@@ -405,8 +424,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
       )}
 
       {checkoutTarget && (
-        <Modal onClose={() => { setCheckoutTarget(null); setSlipName(''); }}>
-          <button className="modal-x" onClick={() => { setCheckoutTarget(null); setSlipName(''); }} aria-label="ปิด"><X size={16} /></button>
+        <Modal onClose={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }}>
+          <button className="modal-x" onClick={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <div className="mcard-top">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
@@ -434,14 +453,25 @@ export default function OpenBillsSection({ data, saveData, role }) {
           </div>
           {checkoutPay === 'QR Code / โอนเงิน' && (
             <div className="field"><label>สลิปโอนเงิน</label>
-              <label className="filebtn"><Upload size={19} /><span>{slipName ? `แนบแล้ว: ${slipName}` : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
-                <input type="file" accept="image/*" hidden onChange={(e) => setSlipName(e.target.files[0]?.name || '')} />
+              {slipErr && <div className="err-banner">⚠ {slipErr}</div>}
+              <label className="filebtn">
+                {slipUploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
+                <span>{slipUploading ? 'กำลังอัปโหลด…' : slipName ? (resolveImageUrl(slipName) ? 'เปลี่ยนสลิป' : `แนบแล้ว: ${slipName}`) : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
+                <input type="file" accept="image/*,application/pdf" hidden disabled={slipUploading} onChange={(e) => handleSlipFile(e.target.files[0])} />
               </label>
+              {resolveImageUrl(slipName) && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <img src={resolveImageUrl(slipName)} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <ExternalLink size={13} /> เปิดดูสลิป
+                  </a>
+                </div>
+              )}
             </div>
           )}
           <div className="modal-cta modal-cta-3">
-            <button onClick={() => { startEdit(checkoutTarget); setCheckoutTarget(null); setSlipName(''); }} className="btn btn-ghost" style={{ width: '100%' }}>แก้ไข</button>
-            <button onClick={() => doCheckoutBill(checkoutTarget, checkoutPay)} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเช็คบิล</button>
+            <button onClick={() => { startEdit(checkoutTarget); setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>แก้ไข</button>
+            <button onClick={() => doCheckoutBill(checkoutTarget, checkoutPay)} disabled={slipUploading} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเช็คบิล</button>
           </div>
         </Modal>
       )}

@@ -13,6 +13,9 @@ function toBillRow(b) {
     payment_method: b.paymentMethod || '',
     status: b.status || 'open',
     discount: b.discount || 0,
+    slip_url: b.slip || '',
+    paid_at: b.paidAt || null,
+    branch_id: b.branchId || 'main',
   };
 }
 
@@ -25,6 +28,9 @@ function fromBillRow(r, itemsByBill) {
     paymentMethod: r.payment_method || '',
     status: r.status || 'open',
     discount: r.discount || 0,
+    slip: r.slip_url || '',
+    paidAt: r.paid_at || null,
+    branchId: r.branch_id || 'main',
     createdAt: r.created_at || r.date,
     items: (itemsByBill[r.id] || []).map((i) => ({
       serviceId: i.service_id,
@@ -107,7 +113,7 @@ export async function loadCloudData(fallbackLocal) {
       expenses: (expenses.data || []).map((e) => ({
         id: e.id, date: e.date, category: e.category, item: e.item,
         amount: e.amount, method: e.method, approvedBy: e.approved_by,
-        receiptUrl: e.receipt_url, notes: e.notes,
+        receiptUrl: e.receipt_url, notes: e.notes, branchId: e.branch_id || 'main',
       })),
       auditLog: (audit.data || []).map((a) => ({
         id: a.id, timestamp: a.timestamp, user: a.user_name, action: a.action,
@@ -159,7 +165,7 @@ export async function syncDataToCloud(d) {
     if (d.expenses) tasks.push(supabase.from('expenses').upsert(d.expenses.map((e) => ({
       id: e.id, date: e.date || null, category: e.category || 'ทั่วไป', item: e.item || '',
       amount: e.amount || 0, method: e.method || '', approved_by: e.approvedBy || '',
-      receipt_url: e.receiptUrl || '', notes: e.notes || '',
+      receipt_url: e.receiptUrl || '', notes: e.notes || '', branch_id: e.branchId || 'main',
     }))));
     if (d.auditLog) {
       // audit log only grows — upsert last 200 to bound payload

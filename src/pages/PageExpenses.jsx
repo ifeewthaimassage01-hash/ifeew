@@ -1,12 +1,32 @@
 import { useState } from 'react';
-import { Plus, Upload, CheckCircle2, Receipt } from 'lucide-react';
+import { Plus, Upload, CheckCircle2, Receipt, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, alertDialog } from '../components/ui';
 import { bkkToday, bkkNow } from '../utils/bkk';
+import { uploadReceipt, resolveImageUrl, isCloudinaryConfigured } from '../lib/images';
 
 export default function PageExpenses({ data, saveData, role }) {
   const [form, setForm] = useState({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState('');
+  const receiptPreview = resolveImageUrl(form.receiptUrl);
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    setErr('');
+    setUploading(true);
+    try {
+      const url = await uploadReceipt(file);
+      setForm((f) => ({ ...f, receiptUrl: url }));
+    } catch (e) {
+      console.error(e);
+      setErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
+        ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
+        : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
   const expenses = [...(data.expenses || [])].reverse();
   const monthTotal = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
 
@@ -25,7 +45,7 @@ export default function PageExpenses({ data, saveData, role }) {
         action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿ ${newExpense.amount}`, approvedBy: form.approvedBy || '-',
       }],
     });
-    setForm({ ...form, amount: '', notes: '' });
+    setForm({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
     setSaved(true);
     alertDialog({ title: 'บันทึกค่าใช้จ่ายแล้ว', message: `${label} · ฿ ${newExpense.amount.toLocaleString()}` });
     setTimeout(() => setSaved(false), 2500);
@@ -59,12 +79,22 @@ export default function PageExpenses({ data, saveData, role }) {
               </div>
               <div className="field"><label>ผู้อนุมัติ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้อนุมัติ" className="input" /></div>
             </div>
-            <div className="field"><label>ใบเสร็จ / หลักฐาน</label>
-              <label className="filebtn"><Upload size={19} /><span>{form.receiptUrl ? `แนบแล้ว: ${form.receiptUrl}` : 'แตะเพื่อแนบรูปใบเสร็จ (จำลอง)'}</span>
-                <input type="file" hidden onChange={(e) => setForm({ ...form, receiptUrl: e.target.files[0]?.name || '' })} />
+            <div className="field"><label>ใบเสร็จ / หลักฐาน {!isCloudinaryConfigured && <span className="muted">(ยังไม่ตั้งค่า Cloudinary)</span>}</label>
+              <label className="filebtn">
+                {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
+                <span>{uploading ? 'กำลังอัปโหลด…' : form.receiptUrl ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
+                <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} key={form.receiptUrl || 'empty'} onChange={(e) => handleFile(e.target.files[0])} />
               </label>
+              {receiptPreview && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                  <a href={receiptPreview} target="_blank" rel="noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <ExternalLink size={13} /> เปิดดูรูปเต็ม
+                  </a>
+                </div>
+              )}
             </div>
-            <button type="submit" className="btn btn-primary btn-block"><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
+            <button type="submit" className="btn btn-primary btn-block" disabled={uploading}><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
             {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
           </form>
         </Card>
@@ -72,16 +102,19 @@ export default function PageExpenses({ data, saveData, role }) {
         <Card>
           <CardHead title="ประวัติล่าสุด" hint={`${expenses.length} รายการ`} />
           <div style={{ maxHeight: 560, overflowY: 'auto' }}>
-            {expenses.map((exp) => (
+            {expenses.map((exp) => {
+              const url = resolveImageUrl(exp.receiptUrl);
+              return (
               <div key={exp.id} className="exp-row">
-                <span className="exp-ic"><Receipt size={16} /></span>
+                <span className="exp-ic">{url ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6 }} /> : <Receipt size={16} />}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <b style={{ fontSize: 13.5, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exp.item}</b>
-                  <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}</span>
+                  <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}{url ? <> · <a href={url} target="_blank" rel="noreferrer">ดูใบเสร็จ</a></> : exp.receiptUrl ? ` · มีไฟล์: ${exp.receiptUrl}` : ''}</span>
                 </span>
                 <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {exp.amount.toLocaleString()}</b><div className="muted">{exp.id}</div></span>
               </div>
-            ))}
+              );
+            })}
             {expenses.length === 0 && <EmptyState icon={Receipt} title="ยังไม่มีรายจ่าย" subtitle="บันทึกผ่านฟอร์มด้านข้าง" />}
           </div>
         </Card>
