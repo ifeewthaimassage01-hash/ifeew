@@ -242,3 +242,13 @@ export async function syncDataToCloud(d) {
     throw err;
   }
 }
+
+// Hard delete a bill (owner only) — upsert sync can't propagate deletions,
+// so remove items + header from cloud explicitly. Local state is updated by caller.
+export async function deleteBillFromCloud(id) {
+  if (!isSupabaseConfigured || !supabase || !id) return;
+  const { error: itemErr } = await supabase.from('bill_items').delete().eq('bill_id', id);
+  if (itemErr) throw itemErr;
+  const { error: billErr } = await supabase.from('bills').delete().eq('id', id);
+  if (billErr) throw billErr;
+}

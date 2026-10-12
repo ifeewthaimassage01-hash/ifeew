@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
+import { deleteBillFromCloud } from '../data/cloudSync';
 import { commBaht } from '../data/demoData';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
@@ -87,8 +88,7 @@ export default function PageBills({ data, saveData, role }) {
   };
 
   // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
-  const requestVoid = (b) => {
-    if (role === 'staff') {
+  const requestVoid = (b) => {    if (role === 'staff') {
       alertDialog({ title: 'จำเป็นต้องให้เจ้าของร้านยกเลิก', message: 'บิลนี้ต้องให้เจ้าของร้านเป็นคนยกเลิก กรุณาเรียกเจ้าของร้านมายืนยัน' });
       return;
     }
@@ -109,6 +109,35 @@ export default function PageBills({ data, saveData, role }) {
     });
     setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr('');
     alertDialog({ title: 'ยกเลิกบิลแล้ว', message: 'สถานะเปลี่ยนเป็นยกเลิกแล้ว' });
+  };
+
+  // ลบถาวร — เจ้าของร้านเท่านั้น (พนักงานไม่เห็นปุ่ม)
+  const deleteBill = async (b) => {
+    if (role === 'staff') return;
+    const ok = await confirmDialog({
+      title: `ลบบิล ${b.id} ถาวร?`,
+      message: 'บิลและรายการจะหายจากระบบทั้งหมด · ยอดขาย/ค่าแรงจะเปลี่ยน · บิลที่ลบแล้วกู้ไม่ได้',
+      confirmLabel: 'ลบถาวร', danger: true,
+    });
+    if (!ok) return;
+    saveData({
+      ...data,
+      bills: (data.bills || []).filter((x) => x.id !== b.id),
+      auditLog: [...(data.auditLog || []), {
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'เจ้าของร้าน',
+        action: 'ลบบิลถาวร', detail: `${b.id} · ${b.customer || 'ลูกค้าหน้าร้าน'} · ฿ ${billTotal(b).toLocaleString()}`,
+        oldValue: b.status || '-', newValue: 'deleted', approvedBy: 'เจ้าของร้าน',
+      }],
+    });
+    try {
+      await deleteBillFromCloud(b.id);
+    } catch (e) {
+      console.error(e);
+      alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });
+      return;
+    }
+    setDetailBill(null);
+    alertDialog({ title: 'ลบบิลแล้ว', message: `ลบ ${b.id} ออกจากระบบแล้ว` });
   };
 
   return (
@@ -193,6 +222,7 @@ export default function PageBills({ data, saveData, role }) {
                       <td className="c">
                         <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
                         {canVoid && b.status === 'paid' && <> <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button></>}
+                        {role !== 'staff' && <> <button onClick={() => deleteBill(b)} className="btn-soft-danger" title="ลบบิลถาวร (เจ้าของร้าน)">ลบ</button></>}
                       </td>
                     </tr>
                   ))}
@@ -287,6 +317,11 @@ export default function PageBills({ data, saveData, role }) {
           {canVoid && detailBill.status === 'paid' && (
             <div className="modal-row">
               <button onClick={() => { requestVoid(detailBill); if (role !== 'staff') setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ยกเลิกบิลนี้</button>
+            </div>
+          )}
+          {role !== 'staff' && (
+            <div className="modal-row">
+              <button onClick={() => deleteBill(detailBill)} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ลบบิลนี้ถาวร</button>
             </div>
           )}
         </Modal>
