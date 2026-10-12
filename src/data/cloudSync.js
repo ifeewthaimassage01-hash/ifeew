@@ -16,6 +16,7 @@ function toBillRow(b) {
     slip_url: b.slip || '',
     paid_at: b.paidAt || null,
     branch_id: b.branchId || 'main',
+    fuel: b.fuel || 0,
   };
 }
 
@@ -31,6 +32,7 @@ function fromBillRow(r, itemsByBill) {
     slip: r.slip_url || '',
     paidAt: r.paid_at || null,
     branchId: r.branch_id || 'main',
+    fuel: r.fuel || 0,
     createdAt: r.created_at || r.date,
     items: (itemsByBill[r.id] || []).map((i) => ({
       serviceId: i.service_id,
@@ -194,7 +196,7 @@ export async function syncDataToCloud(d) {
         approved_by: a.approvedBy || '',
       }))));
     }
-    if (d.bills) tasks.push(tolerantUpsert('bills', d.bills.map(toBillRow), ['slip_url', 'paid_at', 'branch_id']));
+    if (d.bills) tasks.push(tolerantUpsert('bills', d.bills.map(toBillRow), ['slip_url', 'paid_at', 'branch_id', 'fuel']));
     const results = await Promise.all(tasks);
     const err = results.find((r) => r?.error)?.error;
     if (err) throw err;

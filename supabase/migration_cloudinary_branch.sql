@@ -11,3 +11,6 @@ update public.expenses set branch_id = 'main' where branch_id is null;
 
 create index if not exists bills_branch_id_idx on public.bills(branch_id);
 create index if not exists expenses_branch_id_idx on public.expenses(branch_id);
+
+-- Fuel allowance for visiting therapists (฿30/round, shop expense tied to the bill)
+alter table public.bills add column if not exists fuel integer not null default 0;

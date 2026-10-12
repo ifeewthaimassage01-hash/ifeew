@@ -289,6 +289,7 @@ export default function PageBills({ data, saveData, role }) {
             <div className="r"><span>ลูกค้า</span><b>{detailBill.customer || '—'}</b></div>
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
+            {(detailBill.fuel || 0) > 0 && <div className="r"><span>ค่าน้ำมันหมอวิ่ง</span><b>+฿ {(detailBill.fuel || 0).toLocaleString()}</b></div>}
             {detailBill.promotion && <div className="r"><span>โปรโมชัน</span><b>{detailBill.promotion}</b></div>}
             {detailBill.slip && (
               <div className="r"><span>สลิป</span>

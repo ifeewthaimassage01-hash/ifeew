@@ -87,6 +87,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const [therapistType, setTherapistType] = useState('resident'); // resident | visiting
   // หมอวิ่ง = พิมพ์ชื่อใช้เลย ไม่ต้องเพิ่มเข้าทะเบียน
   const [visitingName, setVisitingName] = useState('');
+  // ค่าน้ำมันหมอวิ่ง ฿30/รอบ (รายจ่ายร้าน ไม่ได้บวกในบิลลูกค้า) — default ติ๊กไว้
+  const [fuelChecked, setFuelChecked] = useState(true);
   const activeTherapistId = therapistType === 'visiting'
     ? (visitingName.trim() ? `EXT-VIS-${visitingName.trim()}` : null)
     : selectedTherapist;
@@ -237,6 +239,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setSelectedStartTime(null);
     setVisitingName('');
     setTherapistType('resident');
+    setFuelChecked(true);
     setLooping(false);
   };
 
@@ -314,6 +317,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       therapistId: activeTherapistId, therapistName: activeTherapistName,
       startTime: minutesToTime(selectedStartTime),
       endTime: minutesToTime(endMin),
+      // ค่าน้ำมันหมอวิ่ง ฿30/รอบ — รายจ่ายร้าน ไม่บวกยอดลูกค้า
+      fuel: therapistType === 'visiting' && fuelChecked ? 30 : 0,
       items: pickedServices.map((p, i) => ({
         serviceId: p.serviceId,
         serviceName: (p.addons || []).length ? `${p.serviceName} + ${(p.addons || []).map((a) => a.name).join(', ')}` : p.serviceName,
@@ -626,6 +631,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 <div className="r"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
                 <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
                 <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿ {total.toLocaleString()}</b></div>
+                {therapistType === 'visiting' && (
+                  <label className="check-row" style={{ marginTop: 6 }}>
+                    <input type="checkbox" checked={fuelChecked} onChange={(e) => setFuelChecked(e.target.checked)} />
+                    <span>ค่าน้ำมันหมอวิ่ง <b>+฿ 30</b>/รอบ <small className="muted">(รายจ่ายร้าน ไม่บวกในบิล)</small></span>
+                  </label>
+                )}
               </div>
               <button className="btn btn-primary btn-block" style={{ marginTop: 4 }} onClick={openDraftBill}>
                 <ReceiptText size={18} /> เปิดบิลไว้ก่อน · ฿ {total.toLocaleString()}

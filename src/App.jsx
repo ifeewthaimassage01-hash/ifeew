@@ -143,7 +143,7 @@ export default function App() {
           </main>
           <footer className="foot">
             <div className="container">
-              <span>I'FEEW Thai Massage — POS & Back-Office</span>
+              <span>I'FEEW Thai Massage — POS</span>
               <span title={cloudError || ''}>
                 {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : `○ Local mode${cloudError ? ` — ${cloudError}` : ''}`} · Clean & Warm Spa · {bkkYear()}
               </span>

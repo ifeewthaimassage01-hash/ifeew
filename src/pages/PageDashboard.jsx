@@ -1,8 +1,11 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange } from '../components/ui';
 import { commBaht } from '../data/demoData';
 import { bkkToday } from '../utils/bkk';
+import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
+import { downloadMonthExcel } from '../lib/monthExcel';
 
 function localDay(offset = 0) {
   return bkkToday(offset);
@@ -16,7 +19,9 @@ const PAY_LABELS = ['เงินสด', 'QR Code / โอนเงิน'];
 
 export default function PageDashboard({ data }) {
   const today = localDay(0);
+  const [tab, setTab] = useState('day');
   const [dr, setDr] = useState({ from: today, to: today });
+  const [stmtMonth, setStmtMonth] = useState(() => today.slice(0, 7));
   const paidBills = (data.bills || []).filter((b) => b.status === 'paid');
   const totalSales = paidBills.reduce((s, b) => s + billTotal(b), 0);
   const totalExpenses = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
@@ -44,8 +49,9 @@ export default function PageDashboard({ data }) {
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   const expenseToday = (data.expenses || []).filter((e) => inDateRange(e.date, dr.from, dr.to)).reduce((s, e) => s + e.amount, 0);
   const freelanceToday = rangeSplit.extComm;
-  // ยอดสุทธิ = รายได้ − รายจ่ายทั้งหมด(รายจ่าย + หมอวิ่ง) − ค่าแรงหมอประจำ
-  const expenseAllToday = expenseToday + freelanceToday;
+  // ยอดสุทธิ = รายได้ − รายจ่ายทั้งหมด(รายจ่าย + หมอวิ่ง + ค่าน้ำมัน) − ค่าแรงหมอประจำ
+  const fuelToday = rangeBills.reduce((s, b) => s + (b.fuel || 0), 0);
+  const expenseAllToday = expenseToday + freelanceToday + fuelToday;
   const netToday = dayTotal - expenseAllToday - rangeSplit.regComm;
 
   // รายจ่ายทั้งหมด = รายจ่าย + ค่าแรงหมอประจำ + ค่าแรงหมอวิ่ง
@@ -54,35 +60,29 @@ export default function PageDashboard({ data }) {
   PAY_LABELS.forEach((m) => { paySum[m] = 0; });
   rangeBills.forEach((b) => { if (paySum[b.paymentMethod] !== undefined) paySum[b.paymentMethod] += billTotal(b); });
 
+  const month = buildMonthReport(data, stmtMonth);
+
   return (
     <div>
-      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={`สรุป ${fmtRange(dr.from, dr.to)}`} />
+      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={tab === 'day' ? `สรุป ${fmtRange(dr.from, dr.to)}` : `สรุป${month.monthLabel}`} />
 
-      <div className="kpi-grid">
-        <div className="kpi kpi-income">
-          <div className="kpi-label">รายได้รวม</div>
-          <div className="kpi-value">฿ {Math.round(totalSales).toLocaleString()}</div>
-        </div>
-        <div className="kpi kpi-expense">
-          <div className="kpi-label">รายจ่ายรวม</div>
-          <div className="kpi-value">฿ {Math.round(expenseGrand).toLocaleString()}</div>
-        </div>
-        <div className="kpi dark span2">
-          <div className="kpi-label">ยอดสุทธิรวม</div>
-          <div className="kpi-value">฿ {Math.round(totalSales - expenseGrand).toLocaleString()}</div>
-        </div>
+      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <button onClick={() => setTab('day')} className={tab === 'day' ? 'on' : ''}>รายวัน</button>
+        <button onClick={() => setTab('month')} className={tab === 'month' ? 'on' : ''}>รายเดือน</button>
       </div>
 
+      {tab === 'day' && (
+      <>
       <DateRange from={dr.from} to={dr.to} onChange={setDr} />
 
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
-        <div className="hero-sub">ยอดสุทธิ{freelanceToday > 0 && ` · รวมค่าหมอวิ่ง ฿ ${Math.round(freelanceToday).toLocaleString()}`}</div>
+        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่าย(รวมหมอวิ่ง+ค่าน้ำมัน) − ค่าแรงหมอประจำ{fuelToday > 0 ? ` · ค่าน้ำมัน ฿ ${Math.round(fuelToday).toLocaleString()}` : ''}</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
-          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
-          <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(rangeSplit.regComm).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">ค่าแรงหมอประจำ</span><div className="hv">฿ {Math.round(rangeSplit.regComm).toLocaleString()}</div></div>
         </div>
       </div>
 
@@ -120,6 +120,46 @@ export default function PageDashboard({ data }) {
           </div>
         </Card>
       </div>
+
+      </>
+      )}
+
+      {tab === 'month' && (
+      <>
+      <div className="field"><label>เดือน</label>
+        <input type="month" value={stmtMonth} onChange={(e) => e.target.value && setStmtMonth(e.target.value)} className="input" />
+      </div>
+
+      <div className="hero-dark">
+        <div className="hero-top"><span>สรุป{month.monthLabel}</span><span>{month.paidBills.length} บิล</span></div>
+        <div className="hero-net">฿ {Math.round(month.net).toLocaleString()}</div>
+        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่าย(รวมหมอวิ่ง+ค่าน้ำมัน) − ค่าแรงหมอประจำ{month.fuelSum > 0 ? ` · ค่าน้ำมัน ฿ ${Math.round(month.fuelSum).toLocaleString()}` : ''}</div>
+        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(month.income).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(month.expenseAll).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">ค่าแรงหมอประจำ</span><div className="hv">฿ {Math.round(month.regComm).toLocaleString()}</div></div>
+        </div>
+      </div>
+
+      <Card>
+        <CardHead title="ค่าแรงเดือนนี้" hint={`${month.therRows.length} หมอ`} />
+        <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+          <div className="mini-box"><div className="l">หมอประจำ</div><div className="v">฿ {Math.round(month.regComm).toLocaleString()}</div></div>
+          <div className="mini-box hl"><div className="l">หมอวิ่ง</div><div className="v">฿ {Math.round(month.extComm).toLocaleString()}</div></div>
+        </div>
+      </Card>
+
+      <Card>
+        <CardHead title="ใบสรุปประจำเดือน" hint="ดาวน์โหลดไฟล์" />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-primary auto" style={{ flex: 1 }} onClick={() => window.print()}>PDF</button>
+          <button className="btn btn-ghost auto" style={{ flex: 1 }} onClick={() => downloadMonthExcel(data, stmtMonth)}>Excel</button>
+        </div>
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>PDF: กดแล้วเลือกปลายทางเป็น “Save as PDF” · Excel: ได้ไฟล์ CSV เปิดด้วย Excel ได้เลย</p>
+      </Card>
+      </>
+      )}
+      {createPortal(<div className="print-only"><MonthStatement data={data} month={stmtMonth} /></div>, document.body)}
     </div>
   );
 }

@@ -25,6 +25,7 @@ export default function PageCommission({ data, saveData, role }) {
   let freelanceTotal = 0;
   let freelanceJobs = 0;
   let freelanceComm = 0;
+  let freelanceFuel = 0;
   const regBillIds = new Set();
   const extBillIds = new Set();
   const freelanceById = {};
@@ -65,9 +66,12 @@ export default function PageCommission({ data, saveData, role }) {
       s.history.push({ billId: bill.id, date: bill.date || bill.createdAt || '', label, qty, net, comm });
     });
   });
+  // ค่าน้ำมันหมอวิ่ง ฿30/รอบ — ผูกกับบิลที่มีงานหมอวิ่ง
+  bills.forEach((bill) => {
+    if (extBillIds.has(bill.id)) freelanceFuel += bill.fuel || 0;
+  });
   therapists.forEach((t) => {
-    const s = stats[t.id];
-    let comm = 0;
+    const s = stats[t.id];    let comm = 0;
     for (let i = 0; i < TIERS.length; i++) {
       const prev = i === 0 ? 0 : TIERS[i - 1].max;
       const range = Math.min(TIERS[i].max, s.totalSales) - prev;
@@ -249,8 +253,8 @@ export default function PageCommission({ data, saveData, role }) {
           <>
             {!isStaff && (
             <div className="kpi-grid">
-              <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(freelanceTotal - freelanceComm).toLocaleString()}</div><div className="kpi-sub">{extBillIds.size} บิลชำระแล้ว</div></div>
-              <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(freelanceComm).toLocaleString()}</div><div className="kpi-sub">{((freelanceComm / (freelanceTotal || 1)) * 100).toFixed(1)}% ของยอดขาย</div></div>
+              <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(freelanceTotal - freelanceComm - freelanceFuel).toLocaleString()}</div><div className="kpi-sub">{extBillIds.size} บิลชำระแล้ว</div></div>
+              <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(freelanceComm + freelanceFuel).toLocaleString()}</div><div className="kpi-sub">ค่าแรง ฿ {Math.round(freelanceComm).toLocaleString()}{freelanceFuel > 0 ? ` + ค่าน้ำมัน ฿ ${Math.round(freelanceFuel).toLocaleString()}` : ''}</div></div>
             </div>
             )}
 
