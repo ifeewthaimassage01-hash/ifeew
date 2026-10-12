@@ -326,6 +326,18 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
   .ob-btns > * { flex: 1; }
 }
 .big-price { font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+
+/* เช็คบ็อกซ์ค่าน้ำมันหมอวิ่ง — การ์ดไฮไลต์ตอนติ๊ก */
+.fuel-check { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 11px 12px; border-radius: 12px; border: 1.5px dashed var(--line); cursor: pointer; transition: border-color 0.15s, background 0.15s; user-select: none; }
+.fuel-check.on { border-style: solid; border-color: #d9bd93; background: var(--brown-tint); }
+.fuel-ic { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: var(--surface-2); color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.fuel-check.on .fuel-ic { background: var(--brown); color: #fff; }
+.fuel-tx { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; }
+.fuel-tx small { display: block; font-weight: 400; font-size: 11.5px; margin-top: 1px; }
+.fuel-toggle { width: 38px; height: 22px; flex-shrink: 0; border-radius: 999px; background: var(--line); position: relative; transition: background 0.15s; }
+.fuel-toggle i { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: left 0.15s; box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+.fuel-toggle.on { background: var(--brown); }
+.fuel-toggle.on i { left: 18px; }
 .show-desktop { display: none; }
 
 /* ---------- receipt ticket (signature, light) ---------- */

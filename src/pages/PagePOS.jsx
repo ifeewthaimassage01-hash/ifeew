@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check } from 'lucide-react';
+import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, Fuel } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
 import { generateBillId, chainTimes } from '../data/demoData';
 import { bkkNow, bkkMinutes } from '../utils/bkk';
@@ -632,10 +632,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
                 <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿ {total.toLocaleString()}</b></div>
                 {therapistType === 'visiting' && (
-                  <label className="check-row" style={{ marginTop: 6 }}>
-                    <input type="checkbox" checked={fuelChecked} onChange={(e) => setFuelChecked(e.target.checked)} />
-                    <span>ค่าน้ำมันหมอวิ่ง <b>+฿ 30</b>/รอบ <small className="muted">(รายจ่ายร้าน ไม่บวกในบิล)</small></span>
-                  </label>
+                  <div className={`fuel-check${fuelChecked ? ' on' : ''}`} onClick={() => setFuelChecked(!fuelChecked)} role="switch" aria-checked={fuelChecked} tabIndex={0} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFuelChecked(!fuelChecked); } }} style={{ cursor: 'pointer' }}>
+                    <span className="fuel-ic"><Fuel size={17} /></span>
+                    <span className="fuel-tx">ค่าน้ำมันหมอวิ่ง <b>+฿ 30/รอบ</b><small className="muted">รายจ่ายร้าน ไม่บวกในบิล</small></span>
+                    <span className={`fuel-toggle${fuelChecked ? ' on' : ''}`}><i /></span>
+                  </div>
                 )}
               </div>
               <button className="btn btn-primary btn-block" style={{ marginTop: 4 }} onClick={openDraftBill}>
