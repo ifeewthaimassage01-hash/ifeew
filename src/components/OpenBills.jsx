@@ -312,29 +312,36 @@ export default function OpenBillsSection({ data, saveData, role }) {
             const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
             const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
             return (
-            <div key={b.id} className="mcard" style={{ marginBottom: 8 }}>
-              <div className="mcard-top">
-                <div>
-                  <b style={{ fontSize: 20  }}>{docName}{docExtra}</b>
-                  <div className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</div>
-                </div>
+            <div key={b.id} className="ob-card">
+              <div className="ob-head">
+                <span className="ob-ava">{(docName || '?').charAt(0)}</span>
+                <span className="ob-who">
+                  <b>{docName}{docExtra}</b>
+                  <span className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</span>
+                </span>
                 <StatusBadge status="open" />
               </div>
+              <div className="ob-rows">
               {rows.map((it, i) => (
-                <div key={i} className="mcard-bot" style={{ padding: '6px 0', borderTop: i === 0 ? 0 : '1px dashed var(--line)' }}>
-                  <span className="muted" style={{ flex: 1, minWidth: 0 }}>
-                    <b style={{ fontSize: 13, color: 'var(--ink)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.serviceName || it.serviceId}</b>
-                    {(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : ''}
-                  </span>
-                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
+                <div key={i} className="ob-row">
+                  <span className="ob-time muted">{(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : '—'}</span>
+                  <span className="ob-name">{it.serviceName || it.serviceId}</span>
+                  <b className="ob-price">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
                 </div>
               ))}
-              {b.promotion ? <div className="muted" style={{ marginTop: 2 }}>โปร: {b.promotion}</div> : null}
-              <div className="mcard-bot" style={{ marginTop: 6 }}>
-                <span className="big-price">฿ {billTotal(b).toLocaleString()}</span>
-                <span style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => startEdit(b)} className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 12.5 }}>แก้ไข</button>
-                  <button onClick={() => startCheckoutBill(b)} className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 12.5 }}>เช็คบิล</button>
+              </div>
+              {b.promotion ? <div className="ob-promo muted">โปร: {b.promotion}</div> : null}
+              <div className="ob-total">
+                <span className="ob-sum">
+                  <span className="ob-grand">฿ {billTotal(b).toLocaleString()}</span>
+                  <span className="muted">ค่าแรง ฿ {rows.reduce((s, it) => {
+                    const svc = (data.services || []).find((x) => x.id === it.serviceId);
+                    return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
+                  }, 0).toLocaleString()}</span>
+                </span>
+                <span className="ob-btns">
+                  <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
+                  <button onClick={() => startCheckoutBill(b)} className="btn btn-primary">เช็คบิล</button>
                   {canVoid && <button onClick={() => { setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr(''); }} className="btn-soft-danger">ยกเลิก</button>}
                 </span>
               </div>

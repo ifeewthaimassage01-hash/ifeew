@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
+import { commBaht } from '../data/demoData';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
@@ -73,6 +74,16 @@ export default function PageBills({ data, saveData, role }) {
     return matchQ && inDateRange(b.date, dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
+
+  // ชื่อหมอของบิล: ใช้ชื่อที่เซฟไว้ก่อน ถ้าไม่มีค่อยค้นจากรหัสในรายชื่อพนักงานปัจจุบัน
+  const therapistDisplay = (b) => {
+    const rows = billRows(b);
+    if (b.therapistName) return b.therapistName;
+    if (rows[0]?.therapistName) return rows[0].therapistName;
+    const tid = b.therapistId || rows[0]?.therapistId;
+    const t = (data.therapists || []).find((x) => x.id === tid);
+    return t ? t.name : (tid || '—');
+  };
 
   const confirmVoid = () => {
     if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
@@ -156,14 +167,18 @@ export default function PageBills({ data, saveData, role }) {
           <Card className="table-card show-desktop">
             <div className="table-scroll">
               <table className="tbl">
-                <thead><tr><th>วันที่</th><th>ลูกค้า</th><th>ช่องทาง</th><th className="r">ยอด</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
+                <thead><tr><th>วันที่</th><th>หมอนวด</th><th>ช่องทาง</th><th className="r">ยอด</th><th className="r">ค่าแรงหมอ</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
                 <tbody>
                   {history.map((b) => (
                     <tr key={b.id}>
                       <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
-                      <td><b style={{ fontWeight: 600 }}>{b.customer || '—'}</b>{b.memberNo && <div className="muted">{b.memberNo}</div>}</td>
+                      <td><b style={{ fontWeight: 600 }}>{therapistDisplay(b)}</b></td>
                       <td className="muted">{b.paymentMethod}</td>
                       <td className="r"><b>฿ {billTotal(b).toLocaleString()}</b></td>
+                      <td className="r muted">฿ {billRows(b).reduce((s, it) => {
+                        const svc = (data.services || []).find((x) => x.id === it.serviceId);
+                        return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
+                      }, 0).toLocaleString()}</td>
                       <td><StatusBadge status={b.status} /></td>
                       <td className="c">
                         <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
@@ -181,8 +196,12 @@ export default function PageBills({ data, saveData, role }) {
             {history.map((b) => {
               const rows = billRows(b);
               const paid = b.status === 'paid';
-              const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
+              const docName = therapistDisplay(b);
               const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
+              const commTotal = rows.reduce((s, it) => {
+                const svc = (data.services || []).find((x) => x.id === it.serviceId);
+                return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
+              }, 0);
               return (
                 <div key={b.id} className="hcard" onClick={() => setDetailBill(b)} style={{ cursor: 'pointer' }}>
                   <div className="hcard-head">
@@ -199,6 +218,7 @@ export default function PageBills({ data, saveData, role }) {
                       <div key={i} className="hcard-svc"><span>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</span><b>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b></div>
                     ))}
                     {b.promotion ? <div className="hcard-svc promo"><span>โปร: {b.promotion}</span><b>−฿ {(b.discount || 0).toLocaleString()}</b></div> : null}
+                    <div className="hcard-svc"><span className="muted">ค่าแรงหมอ{docExtra ? 'วิ่ง' : ''}</span><b>฿ {commTotal.toLocaleString()}</b></div>
                   </div>
                   <div className="hcard-foot">
                     <StatusBadge status={b.status} />
@@ -225,7 +245,7 @@ export default function PageBills({ data, saveData, role }) {
             <StatusBadge status={detailBill.status} />
           </div>
           <div className="summary-box" style={{ marginTop: 12 }}>
-            <div className="r"><span>หมอ</span><b>{detailBill.therapistName || billRows(detailBill)[0]?.therapistName || '—'}</b></div>
+            <div className="r"><span>หมอ</span><b>{therapistDisplay(detailBill)}</b></div>
             <div className="r"><span>ลูกค้า</span><b>{detailBill.customer || '—'}</b></div>
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>

@@ -327,7 +327,7 @@ export default function PageCommission({ data, saveData, role }) {
                     <td className="r">{s.jobs}</td>
                     <td className="r mono">฿ {Math.round(s.totalSales).toLocaleString()}</td>
                     <td className="r"><b style={{ color: 'var(--brown)' }}>฿ {s.total.toLocaleString()}</b></td>
-                    <td className="r"><button className="btn-ghost" onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด"><Eye size={14} /></button></td>
+                    <td className="r"><button className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด">ดู</button></td>
                   </tr>
                 );
               })}

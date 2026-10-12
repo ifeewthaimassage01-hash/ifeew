@@ -66,7 +66,6 @@ export default function PageDashboard({ data }) {
         <div className="kpi kpi-expense">
           <div className="kpi-label">รายจ่ายรวม</div>
           <div className="kpi-value">฿ {Math.round(expenseGrand).toLocaleString()}</div>
-          <div className="kpi-sub">รายจ่าย ฿ {Math.round(totalExpenses).toLocaleString()} · ค่าแรงหมอ ฿ {Math.round(all.regComm).toLocaleString()} · หมอวิ่ง ฿ {Math.round(freelanceTotal).toLocaleString()}</div>
         </div>
         <div className="kpi dark span2">
           <div className="kpi-label">ยอดสุทธิรวม</div>
