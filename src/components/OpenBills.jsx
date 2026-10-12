@@ -286,8 +286,16 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setCheckoutTarget(null); setSlipName('');
   };
 
-  const confirmVoid = () => {
-    if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
+  // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
+  const requestVoid = (b) => {
+    if (role === 'staff') {
+      alertDialog({ title: 'จำเป็นต้องให้เจ้าของร้านยกเลิก', message: 'บิลนี้ต้องให้เจ้าของร้านเป็นคนยกเลิก กรุณาเรียกเจ้าของร้านมายืนยัน' });
+      return;
+    }
+    setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr('');
+  };
+
+  const confirmVoid = () => {    if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -343,7 +351,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 <span className="ob-btns">
                   <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
                   <button onClick={() => startCheckoutBill(b)} className="btn btn-primary">เช็คบิล</button>
-                  {canVoid && <button onClick={() => { setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr(''); }} className="btn-soft-danger">ยกเลิก</button>}
+                  {canVoid && <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button>}
                 </span>
               </div>
             </div>

@@ -86,6 +86,15 @@ export default function PageBills({ data, saveData, role }) {
     return t ? t.name : (tid || '—');
   };
 
+  // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
+  const requestVoid = (b) => {
+    if (role === 'staff') {
+      alertDialog({ title: 'จำเป็นต้องให้เจ้าของร้านยกเลิก', message: 'บิลนี้ต้องให้เจ้าของร้านเป็นคนยกเลิก กรุณาเรียกเจ้าของร้านมายืนยัน' });
+      return;
+    }
+    setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr('');
+  };
+
   const confirmVoid = () => {
     if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
@@ -183,7 +192,7 @@ export default function PageBills({ data, saveData, role }) {
                       <td><StatusBadge status={b.status} /></td>
                       <td className="c">
                         <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
-                        {canVoid && b.status === 'paid' && <> <button onClick={() => setVoidTarget(b)} className="btn-soft-danger">ยกเลิก</button></>}
+                        {canVoid && b.status === 'paid' && <> <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button></>}
                       </td>
                     </tr>
                   ))}
@@ -226,7 +235,7 @@ export default function PageBills({ data, saveData, role }) {
                     <span style={{ display: 'flex', gap: 6 }}>
                       <button className="bill-action-btn edit" onClick={(e) => { e.stopPropagation(); setDetailBill(b); }} title="ดูรายละเอียด"><Pencil size={14} /></button>
                       {canVoid && paid && (
-                        <button className="bill-action-btn delete" onClick={(e) => { e.stopPropagation(); setVoidTarget(b); }} title="ยกเลิกบิล"><Trash2 size={14} /></button>
+                        <button className="bill-action-btn delete" onClick={(e) => { e.stopPropagation(); requestVoid(b); }} title="ยกเลิกบิล"><Trash2 size={14} /></button>
                       )}
                     </span>
                   </div>
@@ -277,7 +286,7 @@ export default function PageBills({ data, saveData, role }) {
           </div>
           {canVoid && detailBill.status === 'paid' && (
             <div className="modal-row">
-              <button onClick={() => { setVoidTarget(detailBill); setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ยกเลิกบิลนี้</button>
+              <button onClick={() => { requestVoid(detailBill); if (role !== 'staff') setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ยกเลิกบิลนี้</button>
             </div>
           )}
         </Modal>
