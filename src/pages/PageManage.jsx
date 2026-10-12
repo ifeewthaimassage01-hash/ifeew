@@ -410,16 +410,29 @@ export default function PageManage({ data, saveData }) {
           />
           <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา</p>
           {catRows.map(({ name, timed, hourly }) => (
-            <div key={name} className="mrow" style={{ alignItems: 'flex-start' }}>
-              <span className="grow">
-                <b style={{ fontSize: 14 }}>{name}</b>
-                <small className="muted" style={{ display: 'block', marginTop: 2 }}>
-                  ฿ {hourly.toLocaleString()}/ชม{timed.length > 0 ? ` · ${timed.map((s) => `${formatDuration(s.duration)} ฿ ${s.price.toLocaleString()} (ค่าแรง ฿ ${commBaht(s).toLocaleString()})`).join(' · ')}` : ' · ยังไม่ตั้งราคา'}
-                </small>
-              </span>
-              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {hourly.toLocaleString()}/ชม</b>
-              <button className="icon-btn" onClick={() => openEditC(name)} aria-label={`แก้ไข ${name}`}><Pencil size={15} /></button>
-              <button className="icon-btn danger" onClick={() => deleteC(name)} aria-label={`ลบ ${name}`}><Trash2 size={15} /></button>
+            <div key={name} className="mcat-card">
+              <div className="mcat-head">
+                <b className="mcat-name">{name}</b>
+                <span className="mcat-hourly">฿ {hourly.toLocaleString()}/ชม</span>
+                <span className="mcat-actions">
+                  <button className="icon-btn" onClick={() => openEditC(name)} aria-label={`แก้ไข ${name}`}><Pencil size={15} /></button>
+                  <button className="icon-btn danger" onClick={() => deleteC(name)} aria-label={`ลบ ${name}`}><Trash2 size={15} /></button>
+                </span>
+              </div>
+              {timed.length > 0 ? (
+                <div className="mcat-grid">
+                  <div className="mcat-row mcat-grid-head"><span>เวลา</span><span>ราคา</span><span>ค่าแรง</span></div>
+                  {timed.map((s) => (
+                    <div key={s.id} className="mcat-row">
+                      <span>{formatDuration(s.duration)}</span>
+                      <span>฿ {s.price.toLocaleString()}</span>
+                      <span className="muted">฿ {commBaht(s).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <small className="muted">ยังไม่ตั้งราคา</small>
+              )}
             </div>
           ))}
           {cats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="กดเพิ่มรายการ" />}

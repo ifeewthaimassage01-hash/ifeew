@@ -1091,6 +1091,19 @@ label.filebtn {
 .mrow { display: flex; align-items: center; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--line-soft); }
 .mrow:last-child { border-bottom: 0; }
 .mrow .grow { flex: 1; min-width: 0; }
+
+/* การ์ดรายการ + ราคา — ชื่อบน ตารางเวลาล่าง ตัวเลขชิดขวาตรงกัน */
+.mcat-card { border-bottom: 1px solid var(--line-soft); padding: 12px 2px; }
+.mcat-card:last-child { border-bottom: 0; }
+.mcat-head { display: flex; align-items: center; gap: 8px; }
+.mcat-name { flex: 1; min-width: 0; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mcat-hourly { flex-shrink: 0; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; background: var(--brown-tint); color: var(--brown-dark); border: 1px solid #e7d6c3; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+.mcat-actions { flex-shrink: 0; display: flex; gap: 6px; }
+.mcat-grid { margin-top: 8px; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; }
+.mcat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 7px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.mcat-row span:nth-child(2), .mcat-row span:nth-child(3) { text-align: right; }
+.mcat-row + .mcat-row { border-top: 1px solid var(--line-soft); }
+.mcat-grid-head { background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 700; }
 .icon-btn.danger { color: var(--red); border-color: #ecbcb4; background: var(--red-bg); }
 .toggle {
   border: 1px solid var(--line); background: #fff; border-radius: 999px;

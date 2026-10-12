@@ -174,7 +174,7 @@ function buildSeed() {
     };
 }
 
-const STORAGE_KEY = 'ifeew_data';
+const STORAGE_KEY = 'ifeew_data_v2'; // v2: no demo seed (old v1 cache ignored)
 let memoryFallback = null;
 
 function storageGet() {
@@ -198,44 +198,48 @@ function storageSet(obj) {
 }
 
 export function seedLocalStorage() {
-  try {
-    if (!storageGet()) {
-      storageSet(buildSeed());
-    }
-  } catch {
-    memoryFallback = buildSeed();
-  }
+  // disabled: start empty, no demo seed.
+  // Defaults still available on demand via PageManage > resetServices (DEFAULT_SERVICES).
+}
+
+function emptyData() {
+  return {
+    therapists: [],
+    services: [],
+    serviceCategories: [],
+    addons: [],
+    promotions: [],
+    bills: [],
+    cashDrawer: {},
+    expenses: [],
+    auditLog: [],
+    eodStatus: {},
+    commissionSettings: { mode: 'flat', flatRates: {} },
+  };
 }
 
 export function loadData() {
-  seedLocalStorage();
   try {
     const raw = storageGet();
-    if (!raw) return buildSeed();
+    if (!raw) return emptyData();
     const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return buildSeed();
-    // ensure required collections exist (merge with seed defaults)
-    const seed = buildSeed();
-    let services = parsed.services || seed.services;
-    // migrate: เติมรายการใหม่ (S12–S15) ให้ร้านเก่าอัตโนมัติ โดยไม่ทับของที่แก้แล้ว
-    const byId = new Map(services.map((s) => [s.id, s]));
+    if (!parsed || typeof parsed !== 'object') return emptyData();
+    // ensure required collections exist (merge with empty defaults)
+    const empty = emptyData();
+    const services = parsed.services || [];
     let migrated = false;
-    for (const def of seed.services) {
-      if (!byId.has(def.id)) { byId.set(def.id, { ...def }); migrated = true; }
-    }
-    services = [...byId.values()];
     // migrate: ค่าแรงคงที่ต่อแถว (flatAmount, บาท) — เติมจาก flatRate เดิมถ้ายังไม่มี
     services.forEach((s) => {
       if (s.flatAmount == null) { s.flatAmount = Math.round((s.price || 0) * (s.flatRate || 0)); migrated = true; }
     });
     const merged = {
-      ...seed,
+      ...empty,
       ...parsed,
-      therapists: parsed.therapists || seed.therapists,
+      therapists: parsed.therapists || [],
       services,
-      serviceCategories: parsed.serviceCategories || seed.serviceCategories,
-      addons: parsed.addons || seed.addons,
-      promotions: parsed.promotions || seed.promotions,
+      serviceCategories: parsed.serviceCategories || [],
+      addons: parsed.addons || [],
+      promotions: parsed.promotions || [],
       bills: parsed.bills || [],
       expenses: parsed.expenses || [],
       auditLog: parsed.auditLog || [],
@@ -245,7 +249,7 @@ export function loadData() {
     }
     return merged;
   } catch {
-    return buildSeed();
+    return emptyData();
   }
 }
 
