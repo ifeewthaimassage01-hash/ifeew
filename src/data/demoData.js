@@ -175,26 +175,15 @@ function buildSeed() {
 }
 
 const STORAGE_KEY = 'ifeew_data_v2'; // v2: no demo seed (old v1 cache ignored)
-let memoryFallback = null;
 
+// Local cache disabled by request: Supabase is the single source of truth.
+// storageGet always misses so loadData() starts empty; storageSet is a no-op.
 function storageGet() {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    return localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return memoryFallback ? JSON.stringify(memoryFallback) : null;
-  }
+  return null;
 }
 
-function storageSet(obj) {
-  memoryFallback = obj;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-    }
-  } catch {
-    /* sandboxed iframe — keep in-memory only */
-  }
+function storageSet(_obj) {
+  /* no local persistence */
 }
 
 export function seedLocalStorage() {

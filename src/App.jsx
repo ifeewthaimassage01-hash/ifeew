@@ -9,7 +9,7 @@ import PageBills from './pages/PageBills';
 import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
 import PageManage from './pages/PageManage';
-import { loadData, persistData } from './data/demoData';
+import { loadData } from './data/demoData';
 import { loadCloudData, scheduleSync, cloudStatus } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { bkkYear } from './utils/bkk';
@@ -55,7 +55,6 @@ export default function App() {
           setData(cloud);
           setCloudMode(cloudStatus.mode);
           setCloudError('');
-          try { persistData(cloud); } catch { /* cache only */ }
         } else if (!cancelled) {
           setCloudMode(cloudStatus.mode);
           setCloudError(cloudStatus.lastError || 'ต่อ cloud ไม่ได้ — ใช้ local สำรอง');
