@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check } from 'lucide-react';
-import { Card, CardHead, EmptyState, formatDuration } from '../components/ui';
+import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
 import { generateBillId, chainTimes } from '../data/demoData';
 import { bkkNow, bkkMinutes } from '../utils/bkk';
 
@@ -303,7 +303,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     openBill();
   };
 
-  const openBill = () => {
+  const openBill = async () => {
     const id = generateBillId();
     const stamp = bkkNow();
     const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
@@ -339,6 +339,10 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setPickedServices([]); setDiscount(''); setPromoId('');
     resetAll();
     setStep(1);
+    await alertDialog({
+      title: 'เปิดบิลแล้ว',
+      message: `${newBill.items.map((i) => i.serviceName).join(' · ')} · ${activeTherapistName} · ฿ ${total.toLocaleString()}`,
+    });
     if (onNavigate) onNavigate('bills');
   };
 
@@ -468,8 +472,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   const active = selectedTherapist === th.id;
                   return (
                     <button key={th.id} onClick={() => pickTherapist(th.id)} className={`thera${active ? ' on' : ''}`}>
-                      <span className="thera-ava">{(th.nickname || th.name || '?').charAt(0)}</span>
-                      <span><b>{th.name}</b><small>{th.nickname} · {th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
+                      <span className="thera-ava">{(th.name || '?').charAt(0)}</span>
+                      <span><b>{th.name}</b><small>{th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
                       <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเลือก'}</span>
                     </button>
                   );

@@ -77,7 +77,7 @@ export default function PageExpenses({ data, saveData, role }) {
                   <option>เงินสด</option><option>QR Code / โอนเงิน</option>
                 </select>
               </div>
-              <div className="field"><label>ผู้อนุมัติ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้อนุมัติ" className="input" /></div>
+              <div className="field"><label>ลงชื่อ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้จ่าย" className="input" /></div>
             </div>
             <div className="field"><label>ใบเสร็จ / หลักฐาน {!isCloudinaryConfigured && <span className="muted">(ยังไม่ตั้งค่า Cloudinary)</span>}</label>
               <label className="filebtn">

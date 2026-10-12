@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText } from 'lucide-react';
+import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, fmtBkk } from '../utils/bkk';
+import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
 /* Dropdown filter — ใช้ซ้ำได้สำหรับตัวกรองทั้งหมด */
@@ -183,7 +184,7 @@ export default function PageBills({ data, saveData, role }) {
               const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
               const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
               return (
-                <div key={b.id} className="hcard">
+                <div key={b.id} className="hcard" onClick={() => setDetailBill(b)} style={{ cursor: 'pointer' }}>
                   <div className="hcard-head">
                     <div className="hcard-ava"><ReceiptText size={18} strokeWidth={1.8} /></div>
                     <div className="hcard-title">
@@ -202,9 +203,9 @@ export default function PageBills({ data, saveData, role }) {
                   <div className="hcard-foot">
                     <StatusBadge status={b.status} />
                     <span style={{ display: 'flex', gap: 6 }}>
-                      <button className="bill-action-btn edit" onClick={() => setDetailBill(b)} title="ดูรายละเอียด"><Pencil size={14} /></button>
+                      <button className="bill-action-btn edit" onClick={(e) => { e.stopPropagation(); setDetailBill(b); }} title="ดูรายละเอียด"><Pencil size={14} /></button>
                       {canVoid && paid && (
-                        <button className="bill-action-btn delete" onClick={() => setVoidTarget(b)} title="ยกเลิกบิล"><Trash2 size={14} /></button>
+                        <button className="bill-action-btn delete" onClick={(e) => { e.stopPropagation(); setVoidTarget(b); }} title="ยกเลิกบิล"><Trash2 size={14} /></button>
                       )}
                     </span>
                   </div>
@@ -229,7 +230,16 @@ export default function PageBills({ data, saveData, role }) {
             <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
             {detailBill.promotion && <div className="r"><span>โปรโมชัน</span><b>{detailBill.promotion}</b></div>}
-            {detailBill.slip && <div className="r"><span>สลิป</span><b>{detailBill.slip}</b></div>}
+            {detailBill.slip && (
+              <div className="r"><span>สลิป</span>
+                {resolveImageUrl(detailBill.slip) ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                    <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู</a>
+                  </span>
+                ) : <b>{detailBill.slip}</b>}
+              </div>
+            )}
           </div>
           <CardHead title="รายการบริการ" hint={`${billRows(detailBill).length} รายการ`} />
           {billRows(detailBill).map((it, i) => (

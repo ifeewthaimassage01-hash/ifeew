@@ -131,9 +131,9 @@ export default function PageCommission({ data, saveData, role }) {
 
         <div className="hist-hero">
           <div className="hist-hero-top">
-            <div className="hist-ava">{historyFor.nickname.charAt(0)}</div>
+            <div className="hist-ava">{(historyFor.name || '?').charAt(0)}</div>
             <div className="hist-id">
-              <div className="hist-name">{historyFor.name} <span>· {historyFor.nickname}</span></div>
+              <div className="hist-name">{historyFor.name}</div>
               <div className="hist-role">
                 <span className={`badge ${historyFor.role === 'senior' ? 'paid' : 'info'}`}>{historyFor.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span>
                 <span className="hist-jobs">{hs.jobs} งานทั้งหมด</span>
@@ -323,7 +323,7 @@ export default function PageCommission({ data, saveData, role }) {
                 const s = stats[t.id];
                 return (
                   <tr key={t.id}>
-                    <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 600 }}>{t.name} <span className="muted">({t.nickname})</span></b> <span className={`badge ${t.role === 'senior' ? 'paid' : 'info'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span></td>
+                    <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 600 }}>{t.name}</b> <span className={`badge ${t.role === 'senior' ? 'paid' : 'info'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span></td>
                     <td className="r">{s.jobs}</td>
                     <td className="r mono">฿ {Math.round(s.totalSales).toLocaleString()}</td>
                     <td className="r"><b style={{ color: 'var(--brown)' }}>฿ {s.total.toLocaleString()}</b></td>
@@ -344,8 +344,8 @@ export default function PageCommission({ data, saveData, role }) {
             <Card key={t.id}>
               <div className="mcard-top">
                 <div className="pagehead-main">
-                  <div className="thera-ava" style={{ width: 46, height: 46 }}>{t.nickname.charAt(0)}</div>
-                  <div><b style={{ fontSize: 14 }}>{t.name} <span className="muted">· {t.nickname}</span></b><div className="muted">#{idx + 1} · {s.jobs} งาน · {t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</div></div>
+                  <div className="thera-ava" style={{ width: 46, height: 46 }}>{(t.name || '?').charAt(0)}</div>
+                  <div><b style={{ fontSize: 14 }}>{t.name}</b><div className="muted">#{idx + 1} · {s.jobs} งาน · {t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</div></div>
                 </div>
                 <div className="mcard-actions">
                   {idx === 0 && s.totalSales > 0 && <span className="badge info"><Crown size={11} /> Top</span>}

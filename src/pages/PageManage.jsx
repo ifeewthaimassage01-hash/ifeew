@@ -20,8 +20,7 @@ function pushAudit(data, action, detail, newValue) {
   }];
 }
 
-const EMPTY_THERAPIST = { name: '', nickname: '', role: 'junior', active: true };
-const DUR_OPTIONS = [45, 60, 90, 120];
+const EMPTY_THERAPIST = { name: '', role: 'junior', active: true };
 
 /* ราคาต่อชมของรายการ = ราคา 60 นาที (ถ้ามี) ไม่งั้นเฉลี่ยจากตัวสั้นสุด */
 function hourlyOf(rows) {
@@ -44,7 +43,7 @@ export default function PageManage({ data, saveData }) {
   // ฟอร์มรายการ (รวมราคา): ชื่อ + ราคาต่อชม + ราคาและค่าแรง(บาท)แต่ละช่วงเวลา
   const [showC, setShowC] = useState(false);
   const [editingCat, setEditingCat] = useState(null); // null = เพิ่มใหม่
-  const [cForm, setCForm] = useState({ name: '', hourly: '', prices: {}, comms: {} });
+  const [cForm, setCForm] = useState({ name: '', prices: {}, comms: {} });
   const [customDur, setCustomDur] = useState('');
 
   const therapists = data.therapists || [];
@@ -74,15 +73,15 @@ export default function PageManage({ data, saveData }) {
 
   /* ---------- therapists (เดิม) ---------- */
   const openAddT = () => { setEditingT(null); setTForm(EMPTY_THERAPIST); setErr(''); setShowT(true); };
-  const openEditT = (t) => { setEditingT(t); setTForm({ name: t.name, nickname: t.nickname, role: t.role, active: t.active !== false }); setErr(''); setShowT(true); };
+  const openEditT = (t) => { setEditingT(t); setTForm({ name: t.name, role: t.role, active: t.active !== false }); setErr(''); setShowT(true); };
 
   const saveT = () => {
-    if (!tForm.name.trim() || !tForm.nickname.trim()) { setErr('กรอกชื่อและชื่อเล่นพนักงาน'); return; }
+    if (!tForm.name.trim()) { setErr('กรอกชื่อพนักงาน'); return; }
     setErr('');
     if (editingT) {
       saveData({
         ...data,
-        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), nickname: tForm.nickname.trim(), role: tForm.role, active: tForm.active } : t)),
+        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), nickname: '', role: tForm.role, active: tForm.active } : t)),
         auditLog: pushAudit(data, 'แก้ไขพนักงาน', `${editingT.id} · ${tForm.name.trim()}`, tForm.active ? 'ใช้งาน' : 'พักงาน'),
       });
       alertDialog({ title: `แก้ไข ${tForm.name.trim()} แล้ว` });
@@ -90,7 +89,7 @@ export default function PageManage({ data, saveData }) {
       const id = nextId('T', therapists);
       saveData({
         ...data,
-        therapists: [...therapists, { id, name: tForm.name.trim(), nickname: tForm.nickname.trim(), role: tForm.role, active: true }],
+        therapists: [...therapists, { id, name: tForm.name.trim(), nickname: '', role: tForm.role, active: true }],
         auditLog: pushAudit(data, 'เพิ่มพนักงาน', `${id} · ${tForm.name.trim()}`, 'ใช้งาน'),
       });
       alertDialog({ title: `เพิ่ม ${tForm.name.trim()} แล้ว`, message: `รหัสพนักงาน ${id}` });
@@ -120,7 +119,7 @@ export default function PageManage({ data, saveData }) {
   /* ---------- รายการ + ราคาต่อชม ---------- */
   const openAddC = () => {
     setEditingCat(null);
-    setCForm({ name: '', hourly: '', prices: { 60: '' }, comms: {} });
+    setCForm({ name: '', prices: {}, comms: {} });
     setCustomDur('');
     setErr(''); setShowC(true);
   };
@@ -132,44 +131,18 @@ export default function PageManage({ data, saveData }) {
     const comms = {};
     timed.forEach((s) => { prices[s.duration] = String(s.price); comms[s.duration] = String(commBaht(s)); });
     setEditingCat(catName);
-    setCForm({
-      name: catName,
-      hourly: String(hourlyOf(rows) || ''),
-      prices: Object.keys(prices).length ? prices : { 60: '' },
-      comms,
-    });
+    setCForm({ name: catName, prices, comms });
     setCustomDur('');
     setErr(''); setShowC(true);
   };
 
-  // กรอกราคาต่อชมแล้วเติมราคาช่วงเวลาอัตโนมัติ (แก้เองได้)
-  const applyHourly = (hourlyStr) => {
-    const h = Number(hourlyStr);
-    setCForm((f) => {
-      if (!hourlyStr || !Number.isFinite(h) || h <= 0) return { ...f, hourly: hourlyStr };
-      const next = { ...f.prices };
-      // เติมเฉพาะช่องที่ยังว่าง เพื่อไม่ทับที่แก้เองแล้ว
-      const auto = { 45: h * 0.75, 60: h, 90: h * 1.5, 120: h * 2 - 50 };
-      Object.entries(auto).forEach(([d, v]) => {
-        if (next[d] === '' || next[d] == null) next[d] = String(Math.round(v / 10) * 10);
-      });
-      return { ...f, hourly: hourlyStr, prices: next };
-    });
-  };
-
-  const toggleDur = (d) => {
+  // ถังขยะ = ลบช่วงเวลานั้นทิ้งเกลี้ยง (ราคา+ค่าแรงหาย, ตัวเลือกเวลาหายไปด้วยถ้าเป็นเวลากำหนดเอง)
+  const deleteDur = (d) => {
     setCForm((f) => {
       const next = { ...f.prices };
       const nextComm = { ...f.comms };
-      if (next[d] != null && next[d] !== '') {
-        delete next[d];
-        delete nextComm[d];
-      } else {
-        const h = Number(f.hourly) || 0;
-        const fallback = { 45: h * 0.75, 60: h, 90: h * 1.5, 120: h * 2 - 50 };
-        next[d] = String(Math.round((fallback[d] || (h * d) / 60 || 0) / 10) * 10);
-        if (nextComm[d] == null) nextComm[d] = '';
-      }
+      delete next[d];
+      delete nextComm[d];
       return { ...f, prices: next, comms: nextComm };
     });
   };
@@ -178,12 +151,11 @@ export default function PageManage({ data, saveData }) {
   const addCustomDur = () => {
     const d = Math.round(Number(customDur));
     if (!Number.isFinite(d) || d <= 0) { setErr('กรอกจำนวนนาทีที่จะเพิ่ม (เช่น 180)'); return; }
-    if (cForm.prices[d] != null && cForm.prices[d] !== '') { setErr('มีช่วงเวลานี้แล้ว'); return; }
+    if (cForm.prices[d] != null) { setErr('มีช่วงเวลานี้แล้ว'); return; }
     setErr('');
-    const h = Number(cForm.hourly) || 0;
     setCForm((f) => ({
       ...f,
-      prices: { ...f.prices, [d]: String(Math.round(((h * d) / 60 || 0) / 10) * 10) },
+      prices: { ...f.prices, [d]: '' },
       comms: { ...f.comms, [d]: '' },
     }));
     setCustomDur('');
@@ -194,11 +166,12 @@ export default function PageManage({ data, saveData }) {
     if (!name) { setErr('กรอกชื่อรายการ'); return; }
     if (!editingCat && cats.includes(name)) { setErr('มีรายการนี้แล้ว'); return; }
     if (editingCat && name !== editingCat && cats.includes(name)) { setErr('มีรายการนี้แล้ว'); return; }
-    const durs = Object.keys(cForm.prices).map(Number).filter((d) => cForm.prices[d] !== '' && Number(cForm.prices[d]) >= 0);
-    if (durs.length === 0) { setErr('เลือกเวลาอย่างน้อย 1 ช่วง (เช่น 60 นาที)'); return; }
-    for (const d of durs) {
-      if (cForm.prices[d] === '' || Number(cForm.prices[d]) < 0) { setErr('กรอกราคาแต่ละช่วงให้ถูกต้อง'); return; }
+    const enabled = Object.keys(cForm.prices).map(Number);
+    if (enabled.length === 0) { setErr('เลือกเวลาอย่างน้อย 1 ช่วง (เช่น 60 นาที)'); return; }
+    for (const d of enabled) {
+      if (cForm.prices[d] === '' || !Number.isFinite(Number(cForm.prices[d])) || Number(cForm.prices[d]) < 0) { setErr(`กรอกราคาของ ${formatDuration(d)} ให้ถูกต้อง`); return; }
     }
+    const durs = enabled;
     setErr('');
     // ค่าแรงเป็นบาทต่อช่วงเวลา (ค่าว่าง = 0)
     const commOf = (d) => Math.max(0, Math.round(Number(cForm.comms[d]) || 0));
@@ -235,7 +208,7 @@ export default function PageManage({ data, saveData }) {
       ...data,
       services: nextServices,
       serviceCategories: nextCats,
-      auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, `฿ ${Number(cForm.hourly || 0).toLocaleString()}/ชม · ค่าแรง ${durs.map((d) => `฿ ${commOf(d).toLocaleString()}`).join(' / ')}`),
+      auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ')),
     });
     setShowC(false);
     alertDialog({ title: `${editingCat ? 'แก้ไข' : 'เพิ่ม'}รายการ ${name} แล้ว`, message: durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ') });
@@ -360,8 +333,8 @@ export default function PageManage({ data, saveData }) {
     alertDialog({ title: `ลบ ${p.name} แล้ว` });
   };
 
-  // ช่วงเวลาทั้งหมดในฟอร์ม = ปุ่มมาตรฐาน + เวลาที่เพิ่มเอง เรียงน้อยไปมาก
-  const allDurs = [...new Set([...DUR_OPTIONS, ...Object.keys(cForm.prices).map(Number)])]
+  // ช่วงเวลาในฟอร์ม = เฉพาะที่ผู้ใช้เพิ่มแล้ว เรียงน้อยไปมาก (ไม่โชว์ล่วงหน้า)
+  const allDurs = Object.keys(cForm.prices).map(Number)
     .filter((d) => Number.isFinite(d) && d > 0)
     .sort((a, b) => a - b);
 
@@ -380,9 +353,9 @@ export default function PageManage({ data, saveData }) {
           <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddT}><Plus size={15} /> เพิ่มพนักงาน</button>} />
           {therapists.map((t) => (
             <div key={t.id} className="mrow">
-              <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.nickname || '?').charAt(0)}</span>
+              <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.name || '?').charAt(0)}</span>
               <span className="grow">
-                <b style={{ fontSize: 13.5 }}>{t.name} <span className="muted">· {t.nickname} · {t.id}</span></b>
+                <b style={{ fontSize: 13.5 }}>{t.name} <span className="muted">· {t.id}</span></b>
                 <span style={{ display: 'flex', gap: 6, marginTop: 3 }}>
                   <span className={`badge ${t.role === 'senior' ? 'paid' : 'info'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span>
                   <span className={`badge ${t.active === false ? 'void' : 'neutral'}`}>{t.active === false ? 'พักงาน' : 'ใช้งาน'}</span>
@@ -492,10 +465,7 @@ export default function PageManage({ data, saveData }) {
           <button className="modal-x" onClick={() => { setShowT(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <h3>{editingT ? `แก้ไข ${editingT.name}` : 'เพิ่มพนักงาน'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
-          <div className="f2" style={{ marginTop: 12 }}>
-            <div className="field"><label>ชื่อ *</label><input value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} placeholder="เช่น คุณนิด" className="input" /></div>
-            <div className="field"><label>ชื่อเล่น *</label><input value={tForm.nickname} onChange={(e) => setTForm({ ...tForm, nickname: e.target.value })} placeholder="เช่น นิด" className="input" /></div>
-          </div>
+          <div className="field" style={{ marginTop: 12 }}><label>ชื่อ *</label><input value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} placeholder="เช่น คุณนิด" className="input" /></div>
           <div className="f2">
             <div className="field"><label>ระดับ</label>
               <select value={tForm.role} onChange={(e) => setTForm({ ...tForm, role: e.target.value })} className="input">
@@ -520,28 +490,25 @@ export default function PageManage({ data, saveData }) {
           <h3>{editingCat ? `แก้ไข ${editingCat}` : 'เพิ่มรายการ'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="field" style={{ marginTop: 12 }}><label>ชื่อรายการ *</label><input value={cForm.name} onChange={(e) => setCForm({ ...cForm, name: e.target.value })} placeholder="เช่น นวดไทย" className="input" /></div>
-          <div className="field"><label>ราคาต่อชม (฿) *</label><input type="number" min="0" value={cForm.hourly} onChange={(e) => applyHourly(e.target.value)} placeholder="เช่น 300" className="input" /></div>
-          <div className="field"><label>เพิ่มเวลาอื่น (นาที) เช่น 3 ชม = 180</label>
+          <div className="field"><label>เพิ่มช่วงเวลา (นาที) เช่น 3 ชม = 180</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input type="number" min="1" value={customDur} onChange={(e) => setCustomDur(e.target.value)} placeholder="เช่น 180" className="input" style={{ flex: 1, minWidth: 0 }} />
+              <input type="number" min="1" value={customDur} onChange={(e) => setCustomDur(e.target.value)} placeholder="นาทีอื่น เช่น 180" className="input" style={{ flex: 1, minWidth: 0 }} />
               <button type="button" className="btn btn-ghost" style={{ flexShrink: 0, whiteSpace: 'nowrap', padding: '11px 14px' }} onClick={addCustomDur}><Plus size={15} /> เพิ่มเวลา</button>
             </div>
           </div>
-          <div className="field"><label>ช่วงเวลาที่ขาย + ราคา + ค่าแรง (บาท) — แตะเพื่อเปิด/ปิด</label>
+          <div className="field"><label>ช่วงเวลาที่ขาย + ราคา + ค่าแรง (บาท)</label>
+            {allDurs.length === 0 && <p className="muted" style={{ marginBottom: 8 }}>ยังไม่เพิ่มช่วงเวลา — กดปุ่มด้านบนหรือกรอกนาทีเอง</p>}
             {allDurs.map((d) => {
-              const on = cForm.prices[d] != null && cForm.prices[d] !== '';
               return (
-                <div key={d} className={`dur-edit${on ? '' : ' off'}`}>
+                <div key={d} className="dur-edit">
                   <div className="dur-edit-top">
-                    <button type="button" className={`toggle${on ? ' on' : ''}`} onClick={() => toggleDur(d)}>{formatDuration(d)}</button>
-                    <button type="button" className="icon-btn danger" onClick={() => toggleDur(d)} aria-label={`ลบ ${formatDuration(d)}`}><Trash2 size={15} /></button>
+                    <span className="toggle on">{formatDuration(d)}</span>
+                    <button type="button" className="icon-btn danger" onClick={() => deleteDur(d)} aria-label={`ลบ ${formatDuration(d)}`}><Trash2 size={15} /></button>
                   </div>
-                  {on && (
-                    <div className="dur-edit-grid">
-                      <div className="field" style={{ marginBottom: 0 }}><label>ราคา (฿)</label><input type="number" min="0" value={cForm.prices[d] ?? ''} onChange={(e) => setCForm({ ...cForm, prices: { ...cForm.prices, [d]: e.target.value } })} placeholder="0" className="input" /></div>
-                      <div className="field" style={{ marginBottom: 0 }}><label>ค่าแรง (฿)</label><input type="number" min="0" value={cForm.comms[d] ?? ''} onChange={(e) => setCForm({ ...cForm, comms: { ...cForm.comms, [d]: e.target.value } })} placeholder="0" className="input" /></div>
-                    </div>
-                  )}
+                  <div className="dur-edit-grid">
+                    <div className="field" style={{ marginBottom: 0 }}><label>ราคา (฿) *</label><input type="number" min="0" value={cForm.prices[d] ?? ''} onChange={(e) => setCForm({ ...cForm, prices: { ...cForm.prices, [d]: e.target.value } })} placeholder="เช่น 350" className="input" /></div>
+                    <div className="field" style={{ marginBottom: 0 }}><label>ค่าแรง (฿)</label><input type="number" min="0" value={cForm.comms[d] ?? ''} onChange={(e) => setCForm({ ...cForm, comms: { ...cForm.comms, [d]: e.target.value } })} placeholder="0" className="input" /></div>
+                  </div>
                 </div>
               );
             })}
