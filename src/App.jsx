@@ -68,7 +68,6 @@ export default function App() {
   }, []);
 
   const saveData = (newData) => {
-    try { persistData(newData); } catch (err) { console.error(err); }
     setData({ ...newData });
     if (isSupabaseConfigured) scheduleSync(newData);
   };
