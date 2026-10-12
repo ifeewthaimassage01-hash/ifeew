@@ -97,7 +97,8 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
 
 /* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก */
 export default function OpenBillsSection({ data, saveData, role }) {
-  const canVoid = role !== 'staff';
+  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสผู้จัดการอยู่แล้ว
+  const canVoid = true;
   const openBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
 
   const [editTarget, setEditTarget] = useState(null);

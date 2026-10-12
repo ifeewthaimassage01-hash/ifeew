@@ -49,7 +49,8 @@ const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i),
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
 export default function PageBills({ data, saveData, role }) {
-  const canVoid = role !== 'staff';
+  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสผู้จัดการอยู่แล้ว
+  const canVoid = true;
   const [tab, setTab] = useState('open');
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
