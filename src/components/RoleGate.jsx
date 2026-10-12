@@ -50,9 +50,7 @@ export default function RoleGate({ onSelect }) {
               <span><b>เจ้าของร้าน</b><small>ภาพรวม · จัดการทั้งหมด</small></span>
             </button>
           </div>
-          <div className="gate-role-hint">
-            <span>เลือกบทบาทเพื่อเข้าใช้งาน</span>
-          </div>
+        
           </>
         ) : (
           <form onSubmit={submitOwner} style={{ marginTop: 18, textAlign: 'left' }}>
