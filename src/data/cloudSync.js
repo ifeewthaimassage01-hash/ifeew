@@ -141,6 +141,23 @@ export function scheduleSync(data) {
   }, 800);
 }
 
+// Upsert that tolerates a not-yet-migrated table: if PostgREST complains about
+// a missing column (migration_cloudinary_branch.sql not run yet), retry without it
+// so saving never breaks — new fields activate once the migration is applied.
+async function tolerantUpsert(table, rows, dropKeys) {
+  const first = await supabase.from(table).upsert(rows);
+  if (first.error && /could not find .* column/i.test(first.error.message || '')) {
+    console.warn(`[supabase] ${table} missing new columns, retrying without them. Run supabase/migration_cloudinary_branch.sql to enable.`);
+    const stripped = rows.map((r) => {
+      const c = { ...r };
+      (dropKeys || []).forEach((k) => delete c[k]);
+      return c;
+    });
+    return supabase.from(table).upsert(stripped);
+  }
+  return first;
+}
+
 export async function syncDataToCloud(d) {
   if (!isSupabaseConfigured || !supabase) return;
   try {
@@ -162,11 +179,11 @@ export async function syncDataToCloud(d) {
     if (d.promotions) tasks.push(supabase.from('promotions').upsert(d.promotions.map((p) => ({
       id: p.id, name: p.name, amount: p.amount, active: p.active !== false,
     }))));
-    if (d.expenses) tasks.push(supabase.from('expenses').upsert(d.expenses.map((e) => ({
+    if (d.expenses) tasks.push(tolerantUpsert('expenses', d.expenses.map((e) => ({
       id: e.id, date: e.date || null, category: e.category || 'ทั่วไป', item: e.item || '',
       amount: e.amount || 0, method: e.method || '', approved_by: e.approvedBy || '',
       receipt_url: e.receiptUrl || '', notes: e.notes || '', branch_id: e.branchId || 'main',
-    }))));
+    })), ['branch_id']));
     if (d.auditLog) {
       // audit log only grows — upsert last 200 to bound payload
       const tail = d.auditLog.slice(-200);
@@ -177,7 +194,7 @@ export async function syncDataToCloud(d) {
         approved_by: a.approvedBy || '',
       }))));
     }
-    if (d.bills) tasks.push(supabase.from('bills').upsert(d.bills.map(toBillRow)));
+    if (d.bills) tasks.push(tolerantUpsert('bills', d.bills.map(toBillRow), ['slip_url', 'paid_at', 'branch_id']));
     const results = await Promise.all(tasks);
     const err = results.find((r) => r?.error)?.error;
     if (err) throw err;

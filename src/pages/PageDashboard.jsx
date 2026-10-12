@@ -44,7 +44,12 @@ export default function PageDashboard({ data }) {
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   const expenseToday = (data.expenses || []).filter((e) => inDateRange(e.date, dr.from, dr.to)).reduce((s, e) => s + e.amount, 0);
   const freelanceToday = rangeSplit.extComm;
+  // ยอดสุทธิ = รายได้ − รายจ่ายทั้งหมด(รายจ่าย + หมอวิ่ง) − ค่าแรงหมอประจำ
+  const expenseAllToday = expenseToday + freelanceToday;
+  const netToday = dayTotal - expenseAllToday - rangeSplit.regComm;
 
+  // รายจ่ายทั้งหมด = รายจ่าย + ค่าแรงหมอประจำ + ค่าแรงหมอวิ่ง
+  const expenseGrand = totalExpenses + all.regComm + freelanceTotal;
   const paySum = {};
   PAY_LABELS.forEach((m) => { paySum[m] = 0; });
   rangeBills.forEach((b) => { if (paySum[b.paymentMethod] !== undefined) paySum[b.paymentMethod] += billTotal(b); });
@@ -60,12 +65,12 @@ export default function PageDashboard({ data }) {
         </div>
         <div className="kpi kpi-expense">
           <div className="kpi-label">รายจ่ายรวม</div>
-          <div className="kpi-value">฿ {Math.round(totalExpenses + freelanceTotal).toLocaleString()}</div>
-          {freelanceTotal > 0 && <div className="kpi-sub">รวมค่าหมอวิ่ง ฿ {Math.round(freelanceTotal).toLocaleString()}</div>}
+          <div className="kpi-value">฿ {Math.round(expenseGrand).toLocaleString()}</div>
+          <div className="kpi-sub">รายจ่าย ฿ {Math.round(totalExpenses).toLocaleString()} · ค่าแรงหมอ ฿ {Math.round(all.regComm).toLocaleString()} · หมอวิ่ง ฿ {Math.round(freelanceTotal).toLocaleString()}</div>
         </div>
         <div className="kpi dark span2">
           <div className="kpi-label">ยอดสุทธิรวม</div>
-          <div className="kpi-value">฿ {Math.round(totalSales - totalExpenses - freelanceTotal).toLocaleString()}</div>
+          <div className="kpi-value">฿ {Math.round(totalSales - expenseGrand).toLocaleString()}</div>
         </div>
       </div>
 
@@ -73,12 +78,12 @@ export default function PageDashboard({ data }) {
 
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
-        <div className="hero-net">฿ {Math.round(dayTotal - expenseToday - freelanceToday).toLocaleString()}</div>
+        <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
         <div className="hero-sub">ยอดสุทธิ{freelanceToday > 0 && ` · รวมค่าหมอวิ่ง ฿ ${Math.round(freelanceToday).toLocaleString()}`}</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
-          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseToday).toLocaleString()}</div></div>
-          <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(rangeSplit.regComm + rangeSplit.extComm).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">รายจ่าย</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
+          <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(rangeSplit.regComm).toLocaleString()}</div></div>
         </div>
       </div>
 
