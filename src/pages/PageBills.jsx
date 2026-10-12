@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, DateRange, inDateRange } from '../components/ui';
-import { bkkToday, fmtBkk } from '../utils/bkk';
+import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
