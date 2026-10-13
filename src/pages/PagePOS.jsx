@@ -478,7 +478,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   return (
                     <button key={th.id} onClick={() => pickTherapist(th.id)} className={`thera${active ? ' on' : ''}`}>
                       <span className="thera-ava">{(th.name || '?').charAt(0)}</span>
-                      <span><b>{th.name}</b><small>{th.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</small></span>
+                      <span><b>{th.name}</b></span>
                       <span className="pick">{active ? '✓ เลือกแล้ว' : 'แตะเลือก'}</span>
                     </button>
                   );

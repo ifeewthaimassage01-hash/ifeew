@@ -35,6 +35,12 @@ function itemTimeText(it) {
 
 /* ใบเสร็จ: รายการ (แตะขยายได้) + โปร + ยอดรวม */
 function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expandedKey, onToggle, onRemove }) {
+  const nameOf = (it) => {
+    if (it.serviceName) return it.serviceName;
+    const svc = (services || []).find((s) => s.id === it.serviceId);
+    if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
+    return it.serviceId;
+  };
   const commOf = (it) => {
     const svc = (services || []).find((s) => s.id === it.serviceId);
     return commBaht(svc) * (it.qty || 1);
@@ -50,13 +56,13 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
           <div key={key} className="rcpt-card">
             <div className="rcpt-top">
               <button type="button" className="rcpt-line1" onClick={() => onToggle && onToggle(open ? null : key)} aria-expanded={open}>
-                <b>{it.serviceName || it.serviceId}</b>
+                <b>{nameOf(it)}</b>
                 <span className="amt">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</span>
               </button>
               {onRemove && (
                 <button
                   onClick={async () => {
-                    const ok = await confirmDialog({ title: 'ลบรายการนี้?', message: it.serviceName || it.serviceId, confirmLabel: 'ลบ', danger: true });
+                    const ok = await confirmDialog({ title: 'ลบรายการนี้?', message: nameOf(it), confirmLabel: 'ลบ', danger: true });
                     if (ok) onRemove(it);
                   }}
                   aria-label="ลบรายการ"
@@ -121,7 +127,20 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authReason, setAuthReason] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  // คง section ไว้ตลอดเพื่อให้ state ไม่หายตอนบิลใบสุดท้ายถูกเช็คบิล
+  // โชว์ชื่อแทนรหัส: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากทะเบียนปัจจุบัน
+  const therapistNameOf = (b, rows) => {
+    if (b.therapistName) return b.therapistName;
+    if (rows[0]?.therapistName) return rows[0].therapistName;
+    const tid = b.therapistId || rows[0]?.therapistId;
+    const t = (data.therapists || []).find((x) => x.id === tid);
+    return t ? t.name : (tid || '—');
+  };
+  const serviceNameOf = (it) => {
+    if (it.serviceName) return it.serviceName;
+    const svc = (data.services || []).find((x) => x.id === it.serviceId);
+    if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
+    return it.serviceId || '—';
+  };
   if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) {
     return (
       <div id="open-bills" style={{ scrollMarginTop: 16 }}>
@@ -318,7 +337,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           
           {openBills.map((b) => {
             const rows = billRows(b);
-            const docName = b.therapistName || rows[0]?.therapistName || rows[0]?.therapistId || '—';
+            const docName = therapistNameOf(b, rows);
             const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
             return (
             <div key={b.id} className="ob-card">
@@ -334,7 +353,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
               {rows.map((it, i) => (
                 <div key={i} className="ob-row">
                   <span className="ob-time muted">{(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : '—'}</span>
-                  <span className="ob-name">{it.serviceName || it.serviceId}</span>
+                  <span className="ob-name">{serviceNameOf(it)}</span>
                   <b className="ob-price">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
                 </div>
               ))}

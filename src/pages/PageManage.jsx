@@ -20,7 +20,7 @@ function pushAudit(data, action, detail, newValue) {
   }];
 }
 
-const EMPTY_THERAPIST = { name: '', role: 'junior', active: true };
+const EMPTY_THERAPIST = { name: '', active: true };
 
 /* ราคาต่อชมของรายการ = ราคา 60 นาที (ถ้ามี) ไม่งั้นเฉลี่ยจากตัวสั้นสุด */
 function hourlyOf(rows) {
@@ -73,7 +73,7 @@ export default function PageManage({ data, saveData }) {
 
   /* ---------- therapists (เดิม) ---------- */
   const openAddT = () => { setEditingT(null); setTForm(EMPTY_THERAPIST); setErr(''); setShowT(true); };
-  const openEditT = (t) => { setEditingT(t); setTForm({ name: t.name, role: t.role, active: t.active !== false }); setErr(''); setShowT(true); };
+  const openEditT = (t) => { setEditingT(t); setTForm({ name: t.name, active: t.active !== false }); setErr(''); setShowT(true); };
 
   const saveT = () => {
     if (!tForm.name.trim()) { setErr('กรอกชื่อพนักงาน'); return; }
@@ -81,7 +81,7 @@ export default function PageManage({ data, saveData }) {
     if (editingT) {
       saveData({
         ...data,
-        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), nickname: '', role: tForm.role, active: tForm.active } : t)),
+        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), nickname: '', active: tForm.active } : t)),
         auditLog: pushAudit(data, 'แก้ไขพนักงาน', `${editingT.id} · ${tForm.name.trim()}`, tForm.active ? 'ใช้งาน' : 'พักงาน'),
       });
       alertDialog({ title: `แก้ไข ${tForm.name.trim()} แล้ว` });
@@ -89,7 +89,7 @@ export default function PageManage({ data, saveData }) {
       const id = nextId('T', therapists);
       saveData({
         ...data,
-        therapists: [...therapists, { id, name: tForm.name.trim(), nickname: '', role: tForm.role, active: true }],
+        therapists: [...therapists, { id, name: tForm.name.trim(), nickname: '', role: 'junior', active: true }],
         auditLog: pushAudit(data, 'เพิ่มพนักงาน', `${id} · ${tForm.name.trim()}`, 'ใช้งาน'),
       });
       alertDialog({ title: `เพิ่ม ${tForm.name.trim()} แล้ว`, message: `รหัสพนักงาน ${id}` });
@@ -355,9 +355,8 @@ export default function PageManage({ data, saveData }) {
             <div key={t.id} className="mrow">
               <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.name || '?').charAt(0)}</span>
               <span className="grow">
-                <b style={{ fontSize: 13.5 }}>{t.name} <span className="muted">· {t.id}</span></b>
+                <b style={{ fontSize: 13.5 }}>{t.name}</b>
                 <span style={{ display: 'flex', gap: 6, marginTop: 3 }}>
-                  <span className={`badge ${t.role === 'senior' ? 'paid' : 'info'}`}>{t.role === 'senior' ? 'อาวุโส' : 'รุ่นใหม่'}</span>
                   <span className={`badge ${t.active === false ? 'void' : 'neutral'}`}>{t.active === false ? 'พักงาน' : 'ใช้งาน'}</span>
                 </span>
               </span>
@@ -424,7 +423,7 @@ export default function PageManage({ data, saveData }) {
             <div key={a.id} className="mrow">
               <span className="grow">
                 <b style={{ fontSize: 13.5 }}>{a.name}</b>
-                <small className="muted" style={{ display: 'block' }}>+{a.minutes} นาที · {a.id}</small>
+                <small className="muted" style={{ display: 'block' }}>+{a.minutes} นาที</small>
               </span>
               <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>+฿ {(a.price || 0).toLocaleString()}</b>
               <button className={`switch${a.active === false ? '' : ' on'}`} onClick={() => toggleA(a)} title={a.active === false ? 'แตะเพื่อเปิดใช้' : 'แตะเพื่อปิด'} aria-label={`สลับเปิดปิด ${a.name}`}><i /><span>{a.active === false ? 'ปิด' : 'เปิด'}</span></button>
@@ -448,7 +447,6 @@ export default function PageManage({ data, saveData }) {
             <div key={p.id} className="mrow">
               <span className="grow">
                 <b style={{ fontSize: 13.5 }}>{p.name}</b>
-                <small className="muted" style={{ display: 'block' }}>{p.id}</small>
               </span>
               <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>−฿ {(p.amount || 0).toLocaleString()}</b>
               <button className={`toggle${p.active === false ? '' : ' on'}`} onClick={() => toggleP(p)} title="สลับสถานะ">{p.active === false ? 'พัก' : 'ใช้'}</button>
@@ -466,17 +464,10 @@ export default function PageManage({ data, saveData }) {
           <h3>{editingT ? `แก้ไข ${editingT.name}` : 'เพิ่มพนักงาน'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="field" style={{ marginTop: 12 }}><label>ชื่อ *</label><input value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} placeholder="เช่น คุณนิด" className="input" /></div>
-          <div className="f2">
-            <div className="field"><label>ระดับ</label>
-              <select value={tForm.role} onChange={(e) => setTForm({ ...tForm, role: e.target.value })} className="input">
-                <option value="junior">รุ่นใหม่</option><option value="senior">อาวุโส</option>
-              </select>
-            </div>
-            <div className="field"><label>สถานะ</label>
-              <select value={tForm.active ? 'on' : 'off'} onChange={(e) => setTForm({ ...tForm, active: e.target.value === 'on' })} className="input">
-                <option value="on">ใช้งาน</option><option value="off">พักงาน</option>
-              </select>
-            </div>
+          <div className="field"><label>สถานะ</label>
+            <select value={tForm.active ? 'on' : 'off'} onChange={(e) => setTForm({ ...tForm, active: e.target.value === 'on' })} className="input">
+              <option value="on">ใช้งาน</option><option value="off">พักงาน</option>
+            </select>
           </div>
           <div className="modal-row">
             <button onClick={saveT} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>

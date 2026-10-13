@@ -119,7 +119,7 @@ export function buildMonthReport(data, month) {
   paidBills.forEach((b) => {
     if (b.fuel) ledger.push({
       ts: `${String(b.date || '').slice(0, 10)}T${fmtTime(b.date) || '23:59'}`,
-      label: `ค่าน้ำมันหมอวิ่ง · ${b.id}`,
+      label: 'ค่าน้ำมันหมอวิ่ง',
       inAmt: 0, outAmt: b.fuel,
     });
   });
