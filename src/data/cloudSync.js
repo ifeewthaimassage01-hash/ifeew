@@ -135,11 +135,15 @@ export async function loadCloudData(fallbackLocal) {
 }
 
 let syncTimer = null;
+export const syncState = { pending: 0, lastDone: 0 };
 export function scheduleSync(data) {
   if (!isSupabaseConfigured || !supabase) return;
   clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
-    syncDataToCloud(data).catch((e) => console.error('[supabase] sync failed:', e));
+    syncState.pending += 1;
+    syncDataToCloud(data)
+      .catch((e) => console.error('[supabase] sync failed:', e))
+      .finally(() => { syncState.pending -= 1; syncState.lastDone = Date.now(); });
   }, 800);
 }
 

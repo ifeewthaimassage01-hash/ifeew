@@ -10,8 +10,9 @@ import PageExpenses from './pages/PageExpenses';
 import PageCommission from './pages/PageCommission';
 import PageManage from './pages/PageManage';
 import { loadData } from './data/demoData';
-import { loadCloudData, scheduleSync, cloudStatus } from './data/cloudSync';
+import { loadCloudData, scheduleSync, cloudStatus, syncState } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
+import { subscribePosTables } from './lib/realtime';
 import { bkkYear } from './utils/bkk';
 
 const ROLE_KEY = 'ifeew_role';
@@ -37,6 +38,7 @@ export default function App() {
   const [loadError, setLoadError] = useState('');
   const [cloudMode, setCloudMode] = useState('local');
   const [cloudError, setCloudError] = useState('');
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +68,35 @@ export default function App() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Realtime: reload on other devices' changes (read-only, never writes back).
+  // Skips while our own sync is pending/recent so fresh local edits aren't
+  // overwritten by stale cloud snapshots.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !data) return undefined;
+    let cancelled = false;
+    let timer = null;
+    const reload = async () => {
+      if (cancelled) return;
+      if (syncState.pending > 0 || Date.now() - syncState.lastDone < 2000) return;
+      try {
+        const cloud = await loadCloudData(null);
+        if (!cancelled && cloud) {
+          setData(cloud);
+          setCloudMode(cloudStatus.mode);
+          setCloudError('');
+        }
+      } catch (err) {
+        console.error('[realtime] reload failed:', err);
+      }
+    };
+    const unsub = subscribePosTables(
+      () => { clearTimeout(timer); timer = setTimeout(reload, 1000); },
+      (status) => { if (!cancelled) setLive(status === 'SUBSCRIBED'); },
+    );
+    return () => { cancelled = true; clearTimeout(timer); unsub(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSupabaseConfigured && !!data]);
 
   const saveData = (newData) => {
     setData({ ...newData });
@@ -145,7 +176,7 @@ export default function App() {
             <div className="container">
               <span>I'FEEW Thai Massage — POS</span>
               <span title={cloudError || ''}>
-                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : `○ Local mode${cloudError ? ` — ${cloudError}` : ''}`} · Clean & Warm Spa · {bkkYear()}
+                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : `○ Local mode${cloudError ? ` — ${cloudError}` : ''}`}{live ? ' · ● Live' : ''} · Clean & Warm Spa · {bkkYear()}
               </span>
             </div>
           </footer>
