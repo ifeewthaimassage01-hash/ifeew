@@ -254,7 +254,7 @@ export default function PageCommission({ data, saveData, role }) {
             {!isStaff && (
             <div className="kpi-grid">
               <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(freelanceTotal - freelanceComm - freelanceFuel).toLocaleString()}</div><div className="kpi-sub">{extBillIds.size} บิลชำระแล้ว</div></div>
-              <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(freelanceComm + freelanceFuel).toLocaleString()}</div><div className="kpi-sub">ค่าแรง ฿ {Math.round(freelanceComm).toLocaleString()}{freelanceFuel > 0 ? ` + ค่าน้ำมัน ฿ ${Math.round(freelanceFuel).toLocaleString()}` : ''}</div></div>
+              <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(freelanceComm + freelanceFuel).toLocaleString()}</div><div className="kpi-sub">รวมค่าน้ำมันแล้ว</div></div>
             </div>
             )}
 

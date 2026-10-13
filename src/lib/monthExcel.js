@@ -17,8 +17,7 @@ export function downloadMonthExcel(data, month) {
   L.push(['รายได้ทั้งหมด', num(r.income)]);
   L.push(['รายจ่าย', num(r.expenseSum)]);
   L.push(['ค่าแรงหมอประจำ', num(r.regComm)]);
-  L.push(['ค่าแรงหมอวิ่ง', num(r.extComm)]);
-  L.push(['ค่าน้ำมันหมอวิ่ง', num(r.fuelSum)]);
+  L.push(['ค่าแรงหมอวิ่ง (รวมค่าน้ำมัน)', num(r.extComm + r.fuelSum)]);
   L.push(['ยอดสุทธิ', num(r.net)]);
   L.push([]);
   L.push(['สรุปรายวัน']);

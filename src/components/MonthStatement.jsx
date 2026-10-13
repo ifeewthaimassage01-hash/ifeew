@@ -1,4 +1,5 @@
-// Monthly statement (print-to-PDF) — rendered inside .print-only, visible in print only.
+// Monthly statement (print-to-PDF) — bank-statement style with running balance.
+// Rendered inside .print-only, visible in print only.
 import { commBaht } from '../data/demoData';
 import { formatDuration } from './ui';
 import { bkkToday } from '../utils/bkk';
@@ -25,6 +26,12 @@ export function fmtTime(ts) {
   return m ? `${m[1]}:${m[2]}` : '';
 }
 
+function fmtDT(date, ts) {
+  const d = fmtDay(date);
+  const t = fmtTime(ts);
+  return t ? `${d} ${t}` : d;
+}
+
 // Shared computation for the printed statement and the Excel/CSV export.
 export function buildMonthReport(data, month) {
   const therapists = data.therapists || [];
@@ -40,12 +47,6 @@ export function buildMonthReport(data, month) {
   };
   const isStaff = (tid) => tid && staffIds.has(String(tid));
 
-  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && String(b.date || '').slice(0, 7) === month);
-  const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 10).slice(0, 7) === month);
-
-  const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
-  const expenseSum = expenses.reduce((s, e) => s + (e.amount || 0), 0);
-
   // ชื่อบริการ: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
   const serviceDisplay = (it) => {
     if (it.serviceName) return it.serviceName;
@@ -53,6 +54,12 @@ export function buildMonthReport(data, month) {
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
     return it.serviceId || '—';
   };
+
+  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && String(b.date || '').slice(0, 7) === month);
+  const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 10).slice(0, 7) === month);
+
+  const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
+  const expenseSum = expenses.reduce((s, e) => s + (e.amount || 0), 0);
 
   // line items sorted by datetime
   const lines = [];
@@ -100,6 +107,33 @@ export function buildMonthReport(data, month) {
   });
   const dayRows = Object.values(days).sort((a, b) => (a.date < b.date ? -1 : 1));
 
+  // ---- bank-style ledger: sales (+) / commissions+fuel+expenses (−) with running balance ----
+  const ledger = [];
+  lines.forEach((l) => {
+    ledger.push({
+      ts: `${l.date}T${fmtTime(l.ts) || '00:00'}`,
+      label: `${l.service} · ${l.therapist}`,
+      inAmt: l.price, outAmt: l.comm,
+    });
+  });
+  paidBills.forEach((b) => {
+    if (b.fuel) ledger.push({
+      ts: `${String(b.date || '').slice(0, 10)}T${fmtTime(b.date) || '23:59'}`,
+      label: `ค่าน้ำมันหมอวิ่ง · ${b.id}`,
+      inAmt: 0, outAmt: b.fuel,
+    });
+  });
+  expenses.forEach((e) => {
+    ledger.push({
+      ts: `${String(e.date || '').slice(0, 10)}T23:59`,
+      label: `${e.item || ''}${e.notes && e.notes !== e.item ? ` · ${e.notes}` : ''}`,
+      inAmt: 0, outAmt: e.amount || 0,
+    });
+  });
+  ledger.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+  let bal = 0;
+  ledger.forEach((r) => { bal += (r.inAmt || 0) - (r.outAmt || 0); r.balance = bal; });
+
   // payment channels
   const paySum = {};
   paidBills.forEach((b) => {
@@ -119,108 +153,53 @@ export function buildMonthReport(data, month) {
 
   return {
     month, monthLabel: thaiMonth(month),
-    paidBills, expenses, lines, dayRows, expByDay, paySum, therRows,
+    paidBills, expenses, lines, dayRows, expByDay, paySum, therRows, ledger,
     income, expenseSum, regComm, extComm, fuelSum, expenseAll, net,
   };
 }
 
 export default function MonthStatement({ data, month }) {
   const {
-    paidBills, expenses, lines, dayRows, expByDay, paySum, therRows,
+    paidBills, ledger, monthLabel,
     income, expenseSum, regComm, extComm, fuelSum, net,
   } = buildMonthReport(data, month);
 
   const thb = (n) => `฿ ${Math.round(n).toLocaleString()}`;
+  const num2 = (n) => Math.round(n).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
   return (
     <div className="stmt">
-      <div className="stmt-head">
+      <div className="stmt-bank-head">
         <div className="stmt-brand">I'FEEW THAI MASSAGE</div>
-        <h1>ใบสรุปประจำเดือน {thaiMonth(month)}</h1>
-        <div className="stmt-sub">พิมพ์เมื่อ {fmtDay(bkkToday())} · บิลชำระแล้ว {paidBills.length} ใบ · {lines.length} รายการ</div>
+        <div className="stmt-doc-title">ใบสรุปประจำเดือน {monthLabel}</div>
+        <div className="stmt-doc-sub">พิมพ์เมื่อ {fmtDay(bkkToday())} · บิลชำระแล้ว {paidBills.length} ใบ · {ledger.length} รายการ</div>
       </div>
 
+      <h2>รายการเดินบัญชี</h2>
       <table className="stmt-tbl">
+        <thead><tr><th>วันที่/เวลา</th><th>รายการ</th><th className="r">รายรับ</th><th className="r">รายจ่าย</th><th className="r">ยอดสะสม</th></tr></thead>
         <tbody>
-          <tr><td>รายได้ทั้งหมด</td><td className="r"><b>{thb(income)}</b></td></tr>
-          <tr><td>รายจ่าย</td><td className="r">{thb(expenseSum)}</td></tr>
-          <tr><td>ค่าแรงหมอประจำ</td><td className="r">{thb(regComm)}</td></tr>
-          <tr><td>ค่าแรงหมอวิ่ง</td><td className="r">{thb(extComm)}</td></tr>
-          <tr><td>ค่าน้ำมันหมอวิ่ง</td><td className="r">{thb(fuelSum)}</td></tr>
-          <tr className="stmt-net"><td><b>ยอดสุทธิ</b></td><td className="r"><b>{thb(net)}</b></td></tr>
-        </tbody>
-      </table>
-
-      <h2>สรุปรายวัน</h2>
-      <table className="stmt-tbl">
-        <thead><tr><th>วันที่</th><th className="r">บิล</th><th className="r">รายได้</th><th className="r">รายจ่าย</th><th className="r">สุทธิ</th></tr></thead>
-        <tbody>
-          {dayRows.map((d) => (
-            <tr key={d.date}>
-              <td>{fmtDay(d.date)}</td>
-              <td className="r">{d.bills.size}</td>
-              <td className="r">{thb(d.income)}</td>
-              <td className="r">{thb(expByDay[d.date] || 0)}</td>
-              <td className="r">{thb(d.income - (expByDay[d.date] || 0) - d.comm)}</td>
-            </tr>
-          ))}
-          {dayRows.length === 0 && <tr><td colSpan={5} className="c muted">— ไม่มีรายการ —</td></tr>}
-        </tbody>
-      </table>
-
-      <h2>รายการขายรายตัว</h2>
-      <table className="stmt-tbl">
-        <thead><tr><th>วันที่–เวลา</th><th>บริการ</th><th>หมอ</th><th className="r">ราคา</th><th className="r">ค่าแรง</th><th className="r">สุทธิ</th></tr></thead>
-        <tbody>
-          {lines.map((l, i) => (
+          {ledger.map((r, i) => (
             <tr key={i}>
-              <td style={{ whiteSpace: 'nowrap' }}>{fmtDay(l.date)} {fmtTime(l.ts)}</td>
-              <td>{l.service}</td>
-              <td>{l.therapist}</td>
-              <td className="r">{thb(l.price)}</td>
-              <td className="r">{thb(l.comm)}</td>
-              <td className="r">{thb(l.net)}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{fmtDT(r.ts.slice(0, 10), r.ts)}</td>
+              <td>{r.label}</td>
+              <td className="r">{r.inAmt ? num2(r.inAmt) : ''}</td>
+              <td className="r">{r.outAmt ? num2(r.outAmt) : ''}</td>
+              <td className="r">{num2(r.balance)}</td>
             </tr>
           ))}
-          {lines.length === 0 && <tr><td colSpan={6} className="c muted">— ไม่มีรายการ —</td></tr>}
-        </tbody>
-        {lines.length > 0 && (
-          <tfoot><tr><td colSpan={3}><b>รวมทั้งเดือน</b></td><td className="r"><b>{thb(income)}</b></td><td className="r"><b>{thb(regComm + extComm)}</b></td><td className="r"><b>{thb(income - regComm - extComm)}</b></td></tr></tfoot>
-        )}
-      </table>
-
-      <h2>ช่องทางชำระ</h2>
-      <table className="stmt-tbl">
-        <thead><tr><th>ช่องทาง</th><th className="r">บิล</th><th className="r">ยอด</th></tr></thead>
-        <tbody>
-          {Object.entries(paySum).map(([m, v]) => (
-            <tr key={m}><td>{m}</td><td className="r">{v.n}</td><td className="r">{thb(v.total)}</td></tr>
-          ))}
-          {Object.keys(paySum).length === 0 && <tr><td colSpan={3} className="c muted">— ไม่มีรายการ —</td></tr>}
+          {ledger.length === 0 && <tr><td colSpan={5} className="c muted">— ไม่มีรายการ —</td></tr>}
         </tbody>
       </table>
 
-      <h2>ค่าแรงรายหมอ</h2>
-      <table className="stmt-tbl">
-        <thead><tr><th>หมอ</th><th className="r">งาน</th><th className="r">ยอดขาย</th><th className="r">ค่าแรง</th></tr></thead>
-        <tbody>
-          {therRows.map((t) => (
-            <tr key={t.name}><td>{t.name}</td><td className="r">{t.jobs}</td><td className="r">{thb(t.sales)}</td><td className="r">{thb(t.comm)}</td></tr>
-          ))}
-          {therRows.length === 0 && <tr><td colSpan={4} className="c muted">— ไม่มีรายการ —</td></tr>}
-        </tbody>
-      </table>
-
-      <h2>รายการรายจ่าย</h2>
-      <table className="stmt-tbl">
-        <thead><tr><th>วันที่</th><th>รายการ</th><th>วิธีจ่าย</th><th className="r">ยอด</th></tr></thead>
-        <tbody>
-          {expenses.map((e) => (
-            <tr key={e.id}><td style={{ whiteSpace: 'nowrap' }}>{fmtDay(String(e.date || '').slice(0, 10))}</td><td>{e.item}{e.notes && e.notes !== e.item ? ` · ${e.notes}` : ''}</td><td>{e.method || '—'}</td><td className="r">{thb(e.amount || 0)}</td></tr>
-          ))}
-          {expenses.length === 0 && <tr><td colSpan={4} className="c muted">— ไม่มีรายการ —</td></tr>}
-        </tbody>
-      </table>
+      <h2>สรุปยอด</h2>
+      <div className="stmt-meta stmt-meta-bottom">
+        <span>รายได้ <b>{thb(income)}</b></span>
+        <span>รายจ่าย <b>{thb(expenseSum)}</b></span>
+        <span>ค่าแรงหมอประจำ <b>{thb(regComm)}</b></span>
+        <span>ค่าแรงหมอวิ่ง (รวมค่าน้ำมัน) <b>{thb(extComm + fuelSum)}</b></span>
+        <span className="stmt-meta-net">ยอดสุทธิ <b>{thb(net)}</b></span>
+      </div>
 
       <div className="stmt-foot">
         <span>ผู้จัดทำ: ........................................</span>

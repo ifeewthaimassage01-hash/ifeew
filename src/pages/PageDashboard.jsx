@@ -78,7 +78,7 @@ export default function PageDashboard({ data }) {
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
-        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่าย(รวมหมอวิ่ง+ค่าน้ำมัน) − ค่าแรงหมอประจำ{fuelToday > 0 ? ` · ค่าน้ำมัน ฿ ${Math.round(fuelToday).toLocaleString()}` : ''}</div>
+        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่ายรวม − ค่าแรงหมอประจำ</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
@@ -133,7 +133,7 @@ export default function PageDashboard({ data }) {
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป{month.monthLabel}</span><span>{month.paidBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(month.net).toLocaleString()}</div>
-        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่าย(รวมหมอวิ่ง+ค่าน้ำมัน) − ค่าแรงหมอประจำ{month.fuelSum > 0 ? ` · ค่าน้ำมัน ฿ ${Math.round(month.fuelSum).toLocaleString()}` : ''}</div>
+        <div className="hero-sub">ยอดสุทธิ = รายได้ − รายจ่ายรวม − ค่าแรงหมอประจำ</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(month.income).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(month.expenseAll).toLocaleString()}</div></div>
@@ -145,7 +145,7 @@ export default function PageDashboard({ data }) {
         <CardHead title="ค่าแรงเดือนนี้" hint={`${month.therRows.length} หมอ`} />
         <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
           <div className="mini-box"><div className="l">หมอประจำ</div><div className="v">฿ {Math.round(month.regComm).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">หมอวิ่ง</div><div className="v">฿ {Math.round(month.extComm).toLocaleString()}</div></div>
+          <div className="mini-box hl"><div className="l">หมอวิ่ง (รวมค่าน้ำมัน)</div><div className="v">฿ {Math.round(month.extComm + month.fuelSum).toLocaleString()}</div></div>
         </div>
       </Card>
 

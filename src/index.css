@@ -1432,23 +1432,25 @@ label.filebtn {
   .rail-btn.on .rail-badge { background: #fff; color: var(--brown-950); }
 }
 
-/* ---------- monthly statement (print only) ---------- */
+/* ---------- monthly statement (print only, bank style) ---------- */
 .print-only { display: none; }
-.stmt { color: #2b2118; font-size: 12px; }
-.stmt-head { text-align: center; background: #f3ede2; border: 1px solid #d8c6ac; border-radius: 10px; padding: 12px 10px; margin-bottom: 12px; }
-.stmt-brand { font-size: 12px; font-weight: 800; letter-spacing: 0.14em; color: #7a5c3e; }
-.stmt-head h1 { font-size: 20px; margin: 4px 0; color: #3d2c1c; }
-.stmt-sub { font-size: 11px; color: #7a6a58; }
-.stmt h2 { font-size: 13.5px; margin: 14px 0 6px; padding-left: 8px; border-left: 4px solid #a97e4f; color: #3d2c1c; }
-.stmt-tbl { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
-.stmt-tbl th, .stmt-tbl td { border: 1px solid #c9b896; padding: 5px 7px; text-align: left; }
-.stmt-tbl thead th { background: #efe4d3; color: #5d4527; }
+.stmt { color: #111; font-size: 11.5px; font-family: 'Sarabun', 'TH Sarabun New', sans-serif; }
+.stmt-bank-head { text-align: center; border: 1px solid #c9a86f; border-radius: 10px; padding: 12px 10px; margin-bottom: 12px; }
+.stmt-brand { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; color: #7a5c3e; }
+.stmt-doc-title { font-size: 19px; font-weight: 800; margin-top: 4px; }
+.stmt-doc-sub { font-size: 11px; color: #7a6a58; margin-top: 4px; }
+.stmt-meta { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; padding: 8px 0; border-bottom: 1px solid #999; margin-bottom: 4px; }
+.stmt-meta > span { display: flex; justify-content: space-between; }
+.stmt-meta-bottom { border-bottom: 0; border-top: 2px solid #111; margin-bottom: 0; padding-top: 10px; }
+.stmt-meta-net { font-size: 12.5px; }
+.stmt h2 { font-size: 13px; margin: 14px 0 5px; }
+.stmt-tbl { width: 100%; border-collapse: collapse; font-size: 11px; font-variant-numeric: tabular-nums; }
+.stmt-tbl th, .stmt-tbl td { border: 0; padding: 4px 6px; text-align: left; }
+.stmt-tbl thead th { border-top: 1px solid #999; border-bottom: 1px solid #999; color: #333; font-weight: 700; }
 .stmt-tbl .r { text-align: right; }
 .stmt-tbl .c { text-align: center; }
 .stmt-tbl .muted { color: #666; }
-.stmt-net td { background: #e8d9bd; font-size: 13px; }
-.stmt-tbl tfoot td { background: #f7f2e8; }
-.stmt-foot { display: flex; justify-content: space-between; margin-top: 18px; font-size: 12px; }
+.stmt-foot { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 8px; border-top: 1px solid #999; font-size: 11px; color: #444; }
 @media print {
   @page { size: A4; margin: 12mm; }
   #root { display: none !important; }
