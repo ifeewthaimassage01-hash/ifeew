@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { Flower2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { Flower2, TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
 import RoleGate, { saveRole, clearRole } from './components/RoleGate';
-import { loadData } from './data/store';
-import { loadCloudData, scheduleSync, cloudStatus, syncState } from './data/cloudSync';
+import { loadCloudData, scheduleSync, cloudStatus, syncState, subscribeSyncStatus, retrySync } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { subscribePosTables } from './lib/realtime';
 import { bkkYear } from './utils/bkk';
@@ -56,9 +55,28 @@ export default function App() {
   const [activePage, setActivePage] = useState(() => DEFAULT_PAGE[loadRole()] || 'pos');
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
-  const [cloudMode, setCloudMode] = useState('local');
+  const [cloudMode, setCloudMode] = useState('cloud');
   const [cloudError, setCloudError] = useState('');
   const [live, setLive] = useState(false);
+  // เตือนเน็ตหลุด / อัปโหลดล้ม — cloud-only จึงต้องบอก user ทันที ไม่เงียบ
+  const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [syncErr, setSyncErr] = useState('');
+  const dataRef = useRef(null);
+  dataRef.current = data;
+
+  // ฟังสถานะเน็ต + สถานะ sync (เน็ตกลับเมื่อไร sync ทันที)
+  useEffect(() => {
+    const on = () => { setOnline(true); if (dataRef.current) scheduleSync(dataRef.current); };
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off); };
+  }, []);
+  useEffect(() => subscribeSyncStatus((s) => {
+    setCloudMode(s.mode);
+    setCloudError(s.mode === 'error' ? s.error : '');
+    setSyncErr(s.mode === 'error' ? (s.error || 'อัปโหลดไม่สำเร็จ') : '');
+  }), []);
 
   // กัน role แปลกปลอม (เช่น storage ถูกแก้เอง) — ล้างแล้วเด้งกลับหน้าเลือกบทบาท
   useEffect(() => {
@@ -72,33 +90,30 @@ export default function App() {
     let cancelled = false;
     (async () => {
       try {
-        const local = loadData();
-        if (!local) throw new Error('empty');
         if (!isSupabaseConfigured) {
-          if (!cancelled) { setData(local); setCloudMode('local'); setCloudError('ไม่เจอ VITE_SUPABASE_URL/KEY — ต้อง restart dev server หลังสร้าง .env'); }
+          if (!cancelled) setLoadError('ต้องตั้งค่า Supabase (.env: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) แล้ว restart');
           return;
         }
-        // Show local instantly, then try cloud
-        if (!cancelled) { setData(local); setCloudMode('local'); }
-        const cloud = await loadCloudData(local);
+        // Cloud-only: โหลดจาก Supabase อย่างเดียว ไม่มีการแสดงข้อมูลก่อน
+        const cloud = await loadCloudData();
         if (!cancelled && cloud) {
           setData(cloud);
           setCloudMode(cloudStatus.mode);
           setCloudError('');
         } else if (!cancelled) {
-          setCloudMode(cloudStatus.mode);
-          setCloudError(cloudStatus.lastError || 'ต่อ cloud ไม่ได้ — ใช้ local สำรอง');
+          // โหลดล้มเหลว: แสดง error screen พร้อมปุ่มรีเฟรช ห้าม fallback เงียบ
+          setLoadError(cloudStatus.lastError || 'ต่อ cloud ไม่ได้ — กดรีเฟรชเพื่อลองใหม่');
         }
       } catch (err) {
         console.error(err);
-        if (!cancelled) setLoadError('โหลดข้อมูลเริ่มต้นไม่สำเร็จ');
+        if (!cancelled) setLoadError(err?.message || cloudStatus.lastError || 'โหลดข้อมูลจาก cloud ไม่สำเร็จ — กดรีเฟรชเพื่อลองใหม่');
       }
     })();
     return () => { cancelled = true; };
   }, []);
 
   // Realtime: reload on other devices' changes (read-only, never writes back).
-  // Skips while our own sync is pending/recent so fresh local edits aren't
+  // Skips while our own sync is pending/recent so fresh edits aren't
   // overwritten by stale cloud snapshots.
   // dep เป็น boolean ล้วน (dataReady) — ไม่ผูกกับ identity ของ object data
   const dataReady = !!data;
@@ -110,7 +125,7 @@ export default function App() {
       if (cancelled) return;
       if (syncState.pending > 0 || Date.now() - syncState.lastDone < 2000) return;
       try {
-        const cloud = await loadCloudData(null);
+        const cloud = await loadCloudData();
         if (!cancelled && cloud) {
           setData(cloud);
           setCloudMode(cloudStatus.mode);
@@ -128,9 +143,10 @@ export default function App() {
   }, [dataReady]);
 
   // stable ref — ผู้เรียกส่ง object ก้อนใหม่มาเองอยู่แล้ว ไม่ต้อง spread ซ้ำให้ re-render ฟรี
+  // cloud-only: บันทึกทุกครั้ง scheduleSync ลง Supabase เสมอ
   const saveData = useCallback((newData) => {
     setData(newData);
-    if (isSupabaseConfigured) scheduleSync(newData);
+    scheduleSync(newData);
   }, []);
 
   // เปลี่ยนหน้าทีไร scroll กลับบนสุดเสมอ (รวม BottomNav มือถือ)
@@ -193,6 +209,19 @@ export default function App() {
           <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} />
           <main className="page">
             <div className="container">
+              {!online && (
+                <div className="err-banner" role="alert">
+                  <WifiOff size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span>ไม่มีเน็ต — ข้อมูลที่บันทึกจะยังไม่ขึ้น cloud จนกว่าเน็ตจะกลับ (กลับมาแล้วระบบจะ sync ให้เอง)</span>
+                </div>
+              )}
+              {online && syncErr && (
+                <div className="err-banner" role="alert">
+                  <TriangleAlert size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ flex: 1 }}>อัปโหลดขึ้น cloud ไม่สำเร็จ — {syncErr}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => { if (data) retrySync(data).catch(() => {}); }}>ลองอีกครั้ง</button>
+                </div>
+              )}
               <div className="rise" key={activePage}>
                 <Suspense fallback={<div className="loadbar" role="status" aria-label="กำลังโหลดหน้า"><i /></div>}>
                   <PageComponent data={data} saveData={saveData} onNavigate={navigate} role={role} />
@@ -204,7 +233,7 @@ export default function App() {
             <div className="container">
               <span>I'FEEW Thai Massage — POS</span>
               <span title={cloudError || ''}>
-                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : cloudMode === 'cloud-seeding' ? '● กำลังย้ายข้อมูลขึ้น Cloud…' : `○ Local mode${cloudError ? ` — ${cloudError}` : ''}`}{live ? ' · ● Live' : ''} · Clean & Warm Spa · {bkkYear()}
+                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : `○ เกิดข้อผิดพลาด${cloudError ? ` — ${cloudError}` : ''}`}{live ? ' · ● Live' : ''} · Clean & Warm Spa · {bkkYear()}
               </span>
             </div>
           </footer>

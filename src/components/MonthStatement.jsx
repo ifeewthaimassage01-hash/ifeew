@@ -1,6 +1,6 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { commBaht } from '../lib/billing';
+import { commBaht, freelanceDisplayName } from '../lib/billing';
 import { formatDuration } from './ui';
 import { bkkToday } from '../utils/bkk';
 
@@ -29,10 +29,11 @@ export function fmtTime(ts) {
   return m ? `${m[1]}:${m[2]}` : '';
 }
 
-function fmtDT(date, ts) {
-  const d = fmtDay(date);
-  const t = fmtTime(ts);
-  return t ? `${d} ${t}` : d;
+// วันที่แบบตัวเลขสำหรับตาราง statement: dd/mm/yy (พ.ศ. 2 หลัก) เช่น 12/10/69
+export function fmtDNum(iso) {
+  const m = String(iso || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso || '';
+  return `${m[3]}/${m[2]}/${String(Number(m[1]) + 543).slice(-2)}`;
 }
 
 // Shared computation for the printed statement and the Excel/CSV export.
@@ -42,7 +43,8 @@ export function buildMonthReport(data, month) {
   const staffIds = new Set(therapists.map((t) => t.id));
   const nameOf = (tid, fallback) => {
     const t = therapists.find((x) => x.id === tid);
-    return t ? t.name : (fallback || tid || '—');
+    if (t) return t.name;
+    return freelanceDisplayName(fallback || tid || '—');
   };
   const commOf = (it) => {
     const svc = services.find((x) => x.id === it.serviceId);
@@ -121,7 +123,8 @@ export function buildMonthReport(data, month) {
   lines.forEach((l) => {
     ledger.push({
       ts: `${l.date}T${fmtTime(l.ts) || '00:00'}`,
-      label: `${l.service} · ${l.therapist}`,
+      label: l.service,
+      therapist: l.therapist,
       inAmt: l.price, outAmt: l.comm,
     });
   });
@@ -129,6 +132,7 @@ export function buildMonthReport(data, month) {
     if (b.fuel) ledger.push({
       ts: `${String(b.date || '').slice(0, 10)}T${fmtTime(b.date) || '23:59'}`,
       label: 'ค่าน้ำมันหมอวิ่ง',
+      therapist: '',
       inAmt: 0, outAmt: b.fuel,
     });
   });
@@ -136,6 +140,7 @@ export function buildMonthReport(data, month) {
     ledger.push({
       ts: `${String(e.date || '').slice(0, 10)}T23:59`,
       label: `${e.item || ''}${e.notes && e.notes !== e.item ? ` · ${e.notes}` : ''}`,
+      therapist: '',
       inAmt: 0, outAmt: e.amount || 0,
     });
   });
@@ -186,18 +191,20 @@ export default function MonthStatement({ data, month }) {
 
       <h2>รายการเดินบัญชี</h2>
       <table className="stmt-tbl">
-        <thead><tr><th>วันที่/เวลา</th><th>รายการ</th><th className="r">รายรับ</th><th className="r">รายจ่าย</th><th className="r">ยอดสะสม</th></tr></thead>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>รายการ</th><th>หมอนวด</th><th className="r">รายรับ</th><th className="r">รายจ่าย</th><th className="r">ยอดสะสม</th></tr></thead>
         <tbody>
           {ledger.map((r, i) => (
             <tr key={i}>
-              <td style={{ whiteSpace: 'nowrap' }}>{fmtDT(r.ts.slice(0, 10), r.ts)}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{fmtDNum(r.ts.slice(0, 10))}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{fmtTime(r.ts)}</td>
               <td>{r.label}</td>
+              <td>{r.therapist}</td>
               <td className="r">{r.inAmt ? num2(r.inAmt) : ''}</td>
               <td className="r">{r.outAmt ? num2(r.outAmt) : ''}</td>
               <td className="r">{num2(r.balance)}</td>
             </tr>
           ))}
-          {ledger.length === 0 && <tr><td colSpan={5} className="c muted">— ไม่มีรายการ —</td></tr>}
+          {ledger.length === 0 && <tr><td colSpan={7} className="c muted">— ไม่มีรายการ —</td></tr>}
         </tbody>
       </table>
 

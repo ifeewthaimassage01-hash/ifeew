@@ -3,7 +3,7 @@ import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar,
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
 import { deleteBillFromCloud } from '../data/cloudSync';
-import { commBaht } from '../lib/billing';
+import { commBaht, freelanceDisplayName, svcLabel } from '../lib/billing';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
@@ -88,14 +88,23 @@ export default function PageBills({ data, saveData, role }) {
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
+  // ชื่อบริการของแถว: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
+  // (บิลเก่าบางใบเซฟแค่ serviceId อย่างเดียว) — ไม่โชว์รหัสดิบอย่าง S13 ใน UI
+  const serviceDisplay = (it) => {
+    if (it.serviceName) return it.serviceName;
+    const svc = (data.services || []).find((x) => x.id === it.serviceId);
+    return svc ? svcLabel(svc) : (it.serviceId || '—');
+  };
+
   // ชื่อหมอของบิล: ใช้ชื่อที่เซฟไว้ก่อน ถ้าไม่มีค่อยค้นจากรหัสในรายชื่อพนักงานปัจจุบัน
+  // หมอวิ่งตัด prefix เทคนิค (EXT-VIS-) เหลือแค่ชื่อ — ไม่โชว์รหัสดิบใน UI
   const therapistDisplay = (b) => {
     const rows = billRows(b);
-    if (b.therapistName) return b.therapistName;
-    if (rows[0]?.therapistName) return rows[0].therapistName;
+    if (b.therapistName) return freelanceDisplayName(b.therapistName);
+    if (rows[0]?.therapistName) return freelanceDisplayName(rows[0].therapistName);
     const tid = b.therapistId || rows[0]?.therapistId;
     const t = (data.therapists || []).find((x) => x.id === tid);
-    return t ? t.name : (tid || '—');
+    return t ? t.name : freelanceDisplayName(tid || '—');
   };
 
   // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
@@ -265,7 +274,7 @@ export default function PageBills({ data, saveData, role }) {
                   <div className="hcard-doc">ลูกค้า: <b>{b.customer || 'ลูกค้าหน้าร้าน'}</b></div>
                   <div className="hcard-svcs">
                     {rows.map((it, i) => (
-                      <div key={i} className="hcard-svc"><span>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</span><b>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b></div>
+                      <div key={i} className="hcard-svc"><span>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</span><b>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b></div>
                     ))}
                     {b.promotion ? <div className="hcard-svc promo"><span>โปร: {b.promotion}</span><b>−฿ {(b.discount || 0).toLocaleString()}</b></div> : null}
                     <div className="hcard-svc"><span className="muted">ค่าแรงหมอ{docExtra ? 'วิ่ง' : ''}</span><b>฿ {commTotal.toLocaleString()}</b></div>
@@ -318,7 +327,7 @@ export default function PageBills({ data, saveData, role }) {
           {billRows(detailBill).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
-              <span className="tt"><b>{it.serviceName || it.serviceId}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId}{String(it.therapistId || detailBill.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
+              <span className="tt"><b>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {freelanceDisplayName(it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId || '—')}{String(it.therapistId || detailBill.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
               <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿ {(it.net || 0).toLocaleString()}</b>
             </div>
           ))}

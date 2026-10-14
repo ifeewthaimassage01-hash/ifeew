@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
-import { commBaht } from '../lib/billing';
+import { commBaht, freelanceDisplayName } from '../lib/billing';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 
 const billRows = (b) => b.items || b.customers || [];
@@ -102,7 +102,7 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
               )}
             </div>
             <div className="rcpt-chips">
-              <span className="rcpt-doc-chip">{it.therapistName || it.therapistId || '—'}{isRun ? ' · หมอวิ่ง' : ''}</span>
+              <span className="rcpt-doc-chip">{freelanceDisplayName(it.therapistName || it.therapistId || '—')}{isRun ? ' · หมอวิ่ง' : ''}</span>
               <span className="rcpt-comm-chip">ค่าแรง ฿ {commOf(it).toLocaleString()}</span>
             </div>
             <div className="rcpt-time"><Clock size={12} />{itemTimeText(it)}</div>
@@ -157,12 +157,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [voidErr, setVoidErr] = useState('');
 
   // โชว์ชื่อแทนรหัส: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากทะเบียนปัจจุบัน
+  // หมอวิ่งตัด prefix เทคนิค (EXT-VIS-) เหลือแค่ชื่อ — ไม่โชว์รหัสดิบใน UI
   const therapistNameOf = (b, rows) => {
-    if (b.therapistName) return b.therapistName;
-    if (rows[0]?.therapistName) return rows[0].therapistName;
+    if (b.therapistName) return freelanceDisplayName(b.therapistName);
+    if (rows[0]?.therapistName) return freelanceDisplayName(rows[0].therapistName);
     const tid = b.therapistId || rows[0]?.therapistId;
     const t = (data.therapists || []).find((x) => x.id === tid);
-    return t ? t.name : (tid || '—');
+    return t ? t.name : freelanceDisplayName(tid || '—');
   };
   const serviceNameOf = (it) => {
     if (it.serviceName) return it.serviceName;
@@ -459,7 +460,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 <button onClick={handleAddEditItem} className="btn btn-ghost" type="button" style={{ flexShrink: 0, whiteSpace: 'nowrap', padding: '11px 14px' }}><Plus size={15} /> เพิ่ม</button>
               </div>
               <p className="muted" style={{ marginTop: 6 }}>
-                หมอ: <b>{editItems[0]?.therapistName || editItems[0]?.therapistId || '—'}</b>
+                หมอ: <b>{freelanceDisplayName(editItems[0]?.therapistName || editItems[0]?.therapistId || '—')}</b>
                 {String(editItems[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}
                 {' · '}<button type="button" className="mini-link" onClick={() => { setShowAddSvc(false); setAddSvcId(''); }}>ย่อกลับ</button>
               </p>

@@ -119,10 +119,10 @@ export default function PageDashboard({ data }) {
           </div>
         </Card>
         <Card>
-          <CardHead title="หมอวิ่ง" hint="ยอดขาย · ค่าแรง" />
+          <CardHead title="หมอวิ่ง" hint="ยอดขาย · ค่าแรง (รวมค่าน้ำมัน)" />
           <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
             <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
-            <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm).toLocaleString()}</div></div>
+            <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</div></div>
           </div>
         </Card>
       </div>

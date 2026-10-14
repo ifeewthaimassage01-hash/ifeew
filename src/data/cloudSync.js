@@ -1,8 +1,42 @@
-// Cloud sync layer — Supabase as source of truth, localStorage as cache.
-// Keeps the same { data, saveData } shape so no page needs to change.
+// Cloud-only data layer — Supabase เป็นแหล่งข้อมูลจริงเพียงที่เดียว ไม่มี cache/fallback อื่น
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
-export const cloudStatus = { mode: 'local', lastError: '' };
+export const cloudStatus = { mode: 'cloud', lastError: '' };
+
+// ผู้ฟังสถานะ sync — App ใช้โชว์ banner เตือนเมื่ออัปโหลดล้ม (แทน console เงียบๆ)
+const syncListeners = new Set();
+function notifySync() {
+  const snap = { mode: cloudStatus.mode, error: cloudStatus.lastError };
+  syncListeners.forEach((cb) => { try { cb(snap); } catch { /* ignore */ } });
+}
+export function subscribeSyncStatus(cb) {
+  syncListeners.add(cb);
+  cb({ mode: cloudStatus.mode, error: cloudStatus.lastError });
+  return () => { syncListeners.delete(cb); };
+}
+function setCloudStatus(mode, error) {
+  cloudStatus.mode = mode;
+  cloudStatus.lastError = error || '';
+  notifySync();
+}
+
+// โครงข้อมูลว่างขั้นต่ำ — ใช้เป็นโครงตอน cloud ว่างเปล่าเท่านั้น ไม่ใช่ cache
+export function emptyCloudData() {
+  return {
+    therapists: [],
+    services: [],
+    serviceCategories: [],
+    serviceCategoryEn: {},
+    addons: [],
+    promotions: [],
+    bills: [],
+    cashDrawer: {},
+    expenses: [],
+    auditLog: [],
+    eodStatus: {},
+    commissionSettings: { mode: 'flat', flatRates: {} },
+  };
+}
 
 function toBillRow(b) {
   return {
@@ -45,10 +79,10 @@ function fromBillRow(r, itemsByBill) {
   };
 }
 
-export async function loadCloudData(fallbackLocal) {
+export async function loadCloudData() {
   if (!isSupabaseConfigured || !supabase) {
-    cloudStatus.mode = 'local';
-    return null;
+    setCloudStatus('error', 'ต้องตั้งค่า Supabase (.env: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) แล้ว restart');
+    throw new Error(cloudStatus.lastError);
   }
   try {
     // NOTE: .limit(5000)+order กัน payload บวม; ถ้าโตกว่านี้ให้ทำ pagination (range/from-to)
@@ -78,15 +112,11 @@ export async function loadCloudData(fallbackLocal) {
       (bills.data?.length || 0) === 0 &&
       (services.data?.length || 0) === 0;
 
-    // First run: cloud empty but local has data -> seed cloud once
-    if (isEmpty && fallbackLocal && (fallbackLocal.bills?.length || fallbackLocal.services?.length)) {
-      cloudStatus.mode = 'cloud-seeding';
-      await syncDataToCloud(fallbackLocal);
-      cloudStatus.mode = 'cloud';
-      return fallbackLocal;
+    // Cloud ว่างเปล่าจริง = คืนชุดว่างปกติ (mode cloud)
+    if (isEmpty) {
+      setCloudStatus('cloud', '');
+      return emptyCloudData();
     }
-
-    if (isEmpty && !fallbackLocal) return null;
 
     const itemsByBill = {};
     for (const i of items.data || []) {
@@ -95,8 +125,7 @@ export async function loadCloudData(fallbackLocal) {
     const settingsMap = {};
     for (const s of settings.data || []) settingsMap[s.key] = s.value;
 
-    cloudStatus.mode = 'cloud';
-    cloudStatus.lastError = '';
+    setCloudStatus('cloud', '');
     return {
       therapists: (therapists.data || []).map((t) => ({
         id: t.id, name: t.name, nickname: t.nickname, role: t.role, active: t.active,
@@ -124,16 +153,15 @@ export async function loadCloudData(fallbackLocal) {
         detail: a.detail, oldValue: a.old_value, newValue: a.new_value,
         approvedBy: a.approved_by,
       })),
-      cashDrawer: settingsMap.cash_drawer || fallbackLocal?.cashDrawer || {},
-      eodStatus: settingsMap.eod_status || fallbackLocal?.eodStatus || {},
-      commissionSettings: settingsMap.commission_settings || fallbackLocal?.commissionSettings || { mode: 'flat', flatRates: {} },
+      cashDrawer: settingsMap.cash_drawer || {},
+      eodStatus: settingsMap.eod_status || {},
+      commissionSettings: settingsMap.commission_settings || { mode: 'flat', flatRates: {} },
       // ชื่ออังกฤษหมวดบริการ — เก็บใน app_settings JSON, ข้อมูลเก่าไม่มี = {} (fallback map กลาง)
-      serviceCategoryEn: settingsMap.service_category_en || fallbackLocal?.serviceCategoryEn || {},
+      serviceCategoryEn: settingsMap.service_category_en || {},
     };
   } catch (err) {
     console.error('[supabase] load failed:', err);
-    cloudStatus.mode = 'local';
-    cloudStatus.lastError = err.message || String(err);
+    setCloudStatus('error', err.message || String(err));
     return null;
   }
 }
@@ -292,18 +320,25 @@ export async function syncDataToCloud(d) {
     ], { onConflict: 'key' }));
     if (settingsErr) throw settingsErr;
 
-    cloudStatus.mode = 'cloud';
-    cloudStatus.lastError = '';
+    setCloudStatus('cloud', '');
   } catch (err) {
     console.error('[supabase] sync failed:', err);
-    cloudStatus.mode = 'local';
-    cloudStatus.lastError = err.message || String(err);
+    setCloudStatus('error', err.message || String(err));
     throw err;
   }
 }
 
+// กด "ลองอีกครั้ง" จาก banner — sync ทันทีไม่รอ debounce
+export function retrySync(data) {
+  if (!isSupabaseConfigured || !supabase) return Promise.reject(new Error(cloudStatus.lastError || 'not configured'));
+  clearTimeout(syncTimer);
+  syncState.pending += 1;
+  return syncDataToCloud(data)
+    .finally(() => { syncState.pending -= 1; syncState.lastDone = Date.now(); });
+}
+
 // Hard delete a bill (owner only) — upsert sync can't propagate deletions,
-// so remove items + header from cloud explicitly. Local state is updated by caller.
+// so remove items + header from cloud explicitly. App state is updated by caller.
 export async function deleteBillFromCloud(id) {
   if (!isSupabaseConfigured || !supabase || !id) return;
   const { error: itemErr } = await supabase.from('bill_items').delete().eq('bill_id', id);

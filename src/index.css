@@ -32,7 +32,7 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; overflow-x: clip; }
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -40,6 +40,8 @@ body {
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
+  overflow-x: clip;
+  max-width: 100vw;
 }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: 0; }
 p { margin: 0; }
@@ -61,11 +63,12 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
 }
 
 /* ---------- shell ---------- */
-.app { min-height: 100vh; }
-.shell { display: block; min-height: 100vh; }
-.main-col { min-width: 0; display: flex; flex-direction: column; min-height: 100vh; }
-.page { flex: 1; padding: 16px 14px 130px; }
-.container { max-width: 1180px; margin: 0 auto; }
+.app { min-height: 100vh; min-height: 100dvh; max-width: 100vw; overflow-x: clip; }
+.shell { display: block; min-height: 100vh; min-height: 100dvh; max-width: 100%; overflow-x: clip; }
+.main-col { min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.page { flex: 1; padding: 16px 14px 130px; min-width: 0; max-width: 100%; }
+.container { max-width: 1180px; width: 100%; max-width: min(1180px, 100%); margin: 0 auto; min-width: 0; }
+img { max-width: 100%; }
 .foot { display: none; }
 .rail { display: none; }
 
@@ -77,8 +80,8 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
   border-bottom: 1px solid var(--line);
 }
 .topbar-in {
-  max-width: 1180px; margin: 0 auto;
-  display: flex; align-items: center; gap: 12px;
+  max-width: 1180px; max-width: min(1180px, 100%); margin: 0 auto; box-sizing: border-box;
+  display: flex; align-items: center; gap: 12px; min-width: 0;
   padding: 10px 14px;
 }
 .brand-mark {
@@ -102,24 +105,25 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
 .date-chip b { color: var(--ink); font-weight: 600; }
 
 /* bottom nav — light */
-.bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); }
+.bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding-bottom: env(safe-area-inset-bottom); width: 100%; max-width: 100vw; box-sizing: border-box; }
 .bottomnav-in {
   margin: 0 10px calc(10px + env(safe-area-inset-bottom));
+  max-width: calc(100vw - 20px); box-sizing: border-box; overflow: hidden;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: 18px; box-shadow: var(--sh-pop);
-  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 6px 4px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px 4px; align-items: stretch;
 }
 .bottomnav-in button {
   border: 0; background: transparent; color: var(--muted);
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
-  padding: 8px 0 7px; border-radius: 12px; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px 2px 7px; border-radius: 12px; min-width: 0; width: 100%; max-width: 100%;
+  min-height: 56px; box-sizing: border-box;
 }
-.bottomnav-in button span { font-size: 9px; font-weight: 600; }
+.bottomnav-in button .bnav-ic { position: relative; display: inline-flex; align-items: center; justify-content: center; height: 22px; flex-shrink: 0; }
+.bottomnav-in button .bnav-label { font-size: 10.5px; line-height: 1.25; font-weight: 600; max-width: 100%; width: 100%; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bottomnav-in button.on { background: var(--brown-tint); color: var(--brown-dark); }
-.bnav-ic { position: relative; display: inline-flex; }
-.bottomnav-in button.fab .fab-dot { position: relative; }
 .bnav-badge {
   position: absolute; top: -6px; right: -10px;
   min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px;
@@ -128,18 +132,15 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
   border: 2px solid #fff; font-variant-numeric: tabular-nums;
   pointer-events: none;
 }
-.bottomnav-in button .bnav-badge,
-.bottomnav-in button.fab .bnav-badge { color: #fff; font-size: 10.5px; }
-.bottomnav-in button.fab { position: relative; }
+/* legacy .fab selectors — เก็บไว้กัน class เก่าค้าง แต่ render แบบเดียวกับปุ่มปกติ (ไม่มีวงลอย) */
+.bottomnav-in button.fab { position: static; }
 .bottomnav-in button.fab .fab-dot {
-  width: 44px; height: 44px; border-radius: 14px; margin-top: -20px;
-  background: var(--brown); color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  border: 3px solid #fff;
-  box-shadow: 0 8px 18px -8px rgba(176, 136, 95, 0.45);
+  position: relative; width: auto; height: 22px; margin-top: 0;
+  background: transparent; color: inherit; border: 0; border-radius: 0; box-shadow: none;
+  display: inline-flex; align-items: center; justify-content: center;
 }
-.bottomnav-in button.fab.on .fab-dot { background: var(--brown-dark); }
-.bottomnav-in button.fab span { color: var(--brown-dark); font-weight: 700; }
+.bottomnav-in button.fab.on .fab-dot { background: transparent; }
+.bottomnav-in button.fab span { color: inherit; font-weight: inherit; }
 
 /* ---------- page head ---------- */
 .pagehead { margin: 4px 0 14px; }
@@ -167,6 +168,7 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
   border-radius: var(--r-lg);
   box-shadow: var(--sh-card);
   padding: 16px; margin-bottom: 12px;
+  min-width: 0; max-width: 100%; overflow-wrap: break-word;
 }
 .card:last-child { margin-bottom: 0; }
 .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
@@ -351,7 +353,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 
 /* ---------- POS ---------- */
 .steps {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; overflow: hidden;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
   box-shadow: var(--sh-card); padding: 10px; margin-bottom: 12px;
 }
@@ -639,7 +641,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
   background: #fff; border: 1px solid var(--line);
   border-radius: 22px 22px 0 0; width: 100%; max-width: 500px;
   padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
-  max-height: 92vh; overflow-y: auto;
+  max-height: 92vh; max-height: 92dvh; overflow-y: auto;
   animation: sheet 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   box-shadow: var(--sh-pop);
   position: relative;
@@ -674,7 +676,7 @@ label.filebtn {
 .filebtn:active { transform: scale(0.99); background: var(--brown-tint-2); }
 
 /* loading — light */
-.loading-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+.loading-screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
 .loading-card { text-align: center; color: var(--ink); }
 .loading-mark { width: 62px; height: 62px; margin: 0 auto 15px; border-radius: 18px; background: var(--brown-950); display: flex; align-items: center; justify-content: center; color: #efe0cd; }
 .loading-card h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
@@ -733,8 +735,8 @@ label.filebtn {
   .search-wrap .input { padding-left: 38px; }
   .topbar-in { padding: 10px 16px; }
   .brand-name { font-size: 18px; }
-  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 4px 2px; }
-  .bottomnav-in button { padding: 6px 0 5px; }
+  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 6px 4px; }
+  .bottomnav-in button { padding: 8px 2px 7px; min-height: 56px; }
   .modal { padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); }
   .gate-card { padding: 26px 20px 20px; }
   .gate-title { font-size: 28px; }
@@ -927,7 +929,7 @@ label.filebtn {
   .bottomnav { display: none; }
   .rail {
     display: flex; flex-direction: column; flex-shrink: 0;
-    position: sticky; top: 0; height: 100vh; width: 242px; padding: 14px 0 14px 14px;
+    position: sticky; top: 0; height: 100vh; height: 100dvh; width: 242px; padding: 14px 0 14px 14px;
     background: var(--bg);
   }
   .rail-in {
@@ -1013,7 +1015,7 @@ label.filebtn {
   .modal { max-width: 520px; }
 }
 /* ---------- role gate ---------- */
-.gate-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
+.gate-screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
 .gate-card {
   width: 100%; max-width: 430px; background: #fff;
   border: 1px solid var(--line); border-radius: 22px;
@@ -1425,17 +1427,18 @@ label.filebtn {
 .addon-price { font-size: 14px; font-weight: 700; color: var(--brown-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* รายการ — การ์ดใหญ่แตะง่าย (ชื่อ 2 บรรทัดจบ + ราคาแยกบรรทัด กันตัดคำไทยกลางคำ) */
-.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; min-width: 0; max-width: 100%; }
 .cat-card {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: 72px; height: 100%; padding: 12px 12px 12px 14px; border-radius: 14px; width: 100%;
+  max-width: 100%; min-width: 0; overflow: hidden;
   background: var(--surface); border: 1.5px solid var(--line); text-align: left;
 }
 .cat-card:active { transform: scale(0.98); border-color: var(--brown); }
 .cat-card.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
-.cat-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cat-card-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 3px; }
 .cat-card-main b {
-  font-size: 14.5px; font-weight: 700; line-height: 1.4;
+  font-size: 14.5px; font-weight: 700; line-height: 1.4; max-width: 100%;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   overflow-wrap: break-word; word-break: normal; line-break: loose;
   min-height: 2.8em;
@@ -1444,7 +1447,9 @@ label.filebtn {
 /* ชื่ออังกฤษ sub ใต้ชื่อไทย — บรรทัดเดียว ellipsis ไม่ดันการ์ดสูง */
 .cat-en {
   display: block; font-size: 11.5px; font-weight: 500; line-height: 1.35; color: var(--muted);
+  max-width: 100%; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 .cat-durs {
   display: block; font-size: 12px; line-height: 1.5; color: var(--muted);
@@ -1452,11 +1457,13 @@ label.filebtn {
 }
 .cat-price {
   display: block; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: var(--brown-dark);
-  white-space: nowrap; font-variant-numeric: tabular-nums;
+  max-width: 100%; min-width: 0;
+  white-space: normal; overflow-wrap: anywhere; word-break: keep-all;
+  font-variant-numeric: tabular-nums;
   border-top: 1px solid var(--line-soft); padding-top: 5px; margin-top: 3px;
 }
 .cat-card-arrow {
-  width: 32px; height: 32px; flex-shrink: 0;
+  width: 32px; height: 32px; flex-shrink: 0; align-self: center;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: 22px; font-weight: 300; color: var(--faint); line-height: 1;
   background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px;
@@ -1516,4 +1523,28 @@ label.filebtn {
   .print-only { display: block !important; }
   .stmt-tbl thead { display: table-header-group; }
   .stmt-tbl tr { page-break-inside: avoid; }
+}
+
+/* ---------- FIX มือถือล้นแนวนอน POS ขั้น 1 (ต้องอยู่ท้ายสุด ชนะกฎ base .cat-grid 2 คอลัมน์) ---------- */
+@media (max-width: 719px) {
+  .page { padding-left: 14px; padding-right: 14px; padding-bottom: 170px; }
+  .container { padding: 0; max-width: 100%; }
+  /* การ์ดเลือกรายการ: คอลัมน์เดียวบนมือถือ กันชื่ออังกฤษยาวดันล้น */
+  .cat-grid { grid-template-columns: 1fr; gap: 10px; max-width: 100%; }
+  .cat-card { min-height: 0; height: auto; min-width: 0; max-width: 100%; overflow: hidden; }
+  .cat-card-main { min-width: 0; max-width: 100%; }
+  .cat-card-main b { min-height: 0; }
+  .cat-en { max-width: 100%; }
+  .cat-price { white-space: normal; overflow-wrap: anywhere; }
+  .cat-card-arrow { align-self: center; }
+  /* stepnav ลอยเหนือ BottomNav + ไม่ทับการ์ดใบสุดท้าย */
+  .stepnav { bottom: calc(96px + env(safe-area-inset-bottom)); margin-bottom: 8px; }
+  .stepnav .btn { min-height: 44px; }
+  .card .cat-grid:last-child { margin-bottom: 2px; }
+  /* แถว tline: ราคาไม่ดันชื่อล้นบนจอแคบ */
+  .tline { min-width: 0; max-width: 100%; }
+  .tline .tt { min-width: 0; }
+  .tline .num { flex-shrink: 0; max-width: 38%; white-space: normal; text-align: right; overflow-wrap: anywhere; }
+  /* BottomNav พอดีจอ 360px */
+  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); }
 }

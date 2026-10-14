@@ -78,18 +78,15 @@ export function BottomNav({ active, items, onNavigate, badges }) {
           const isActive = active === item.key;
           const count = badges?.[item.key] || 0;
           const badge = count > 0 ? <span className="bnav-badge">{count > 99 ? '99+' : count}</span> : null;
-          if (isActive) {
-            return (
-              <button key={item.key} onClick={() => onNavigate(item.key)} className="fab on" aria-current="page">
-                <span className="fab-dot"><Icon size={20} strokeWidth={1.9} />{badge}</span>
-                <span>{item.short}</span>
-              </button>
-            );
-          }
           return (
-            <button key={item.key} onClick={() => onNavigate(item.key)}>
+            <button
+              key={item.key}
+              onClick={() => onNavigate(item.key)}
+              className={isActive ? 'on' : ''}
+              {...(isActive ? { 'aria-current': 'page' } : {})}
+            >
               <span className="bnav-ic"><Icon size={20} strokeWidth={1.9} />{badge}</span>
-              <span>{item.short}</span>
+              <span className="bnav-label">{item.short}</span>
             </button>
           );
         })}

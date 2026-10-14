@@ -1,12 +1,11 @@
 // Monthly Excel export (CSV with BOM — opens correctly in Excel with Thai text).
-import { buildMonthReport, fmtDay, fmtTime } from '../components/MonthStatement';
+import { buildMonthReport, fmtDNum, fmtTime } from '../components/MonthStatement';
 
 const cell = (v) => {
   const s = String(v ?? '');
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const num = (n) => Math.round(n || 0);
-const dt = (l) => `${fmtDay(l.date)}${l.ts ? ` ${fmtTime(l.ts)}` : ''}`;
 
 export function downloadMonthExcel(data, month) {
   const r = buildMonthReport(data, month);
@@ -23,13 +22,13 @@ export function downloadMonthExcel(data, month) {
   L.push(['สรุปรายวัน']);
   L.push(['วันที่', 'บิล', 'รายได้', 'รายจ่าย', 'สุทธิ']);
   r.dayRows.forEach((d) => L.push([
-    fmtDay(d.date), d.bills.size, num(d.income),
+    fmtDNum(d.date), d.bills.size, num(d.income),
     num(r.expByDay[d.date] || 0), num(d.income - (r.expByDay[d.date] || 0) - d.comm),
   ]));
   L.push([]);
   L.push(['รายการขายรายตัว']);
-  L.push(['วันที่–เวลา', 'บริการ', 'หมอ', 'ราคา', 'ค่าแรง', 'สุทธิ']);
-  r.lines.forEach((l) => L.push([dt(l), l.service, l.therapist, num(l.price), num(l.comm), num(l.net)]));
+  L.push(['วันที่', 'เวลา', 'บริการ', 'หมอ', 'ราคา', 'ค่าแรง', 'สุทธิ']);
+  r.lines.forEach((l) => L.push([fmtDNum(l.date), fmtTime(l.ts), l.service, l.therapist, num(l.price), num(l.comm), num(l.net)]));
   L.push(['รวมทั้งเดือน', '', '', num(r.income), num(r.regComm + r.extComm), num(r.income - r.regComm - r.extComm)]);
   L.push([]);
   L.push(['ช่องทางชำระ']);
@@ -43,7 +42,7 @@ export function downloadMonthExcel(data, month) {
   L.push(['รายการรายจ่าย']);
   L.push(['วันที่', 'รายการ', 'วิธีจ่าย', 'ยอด']);
   r.expenses.forEach((e) => L.push([
-    fmtDay(String(e.date || '').slice(0, 10)),
+    fmtDNum(String(e.date || '').slice(0, 10)),
     e.notes && e.notes !== e.item ? `${e.item} · ${e.notes}` : (e.item || ''),
     e.method || '', num(e.amount),
   ]));
