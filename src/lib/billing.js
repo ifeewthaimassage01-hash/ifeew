@@ -46,39 +46,6 @@ export function commBaht(s) {
   return Math.round((s.price || 0) * (s.flatRate || 0));
 }
 
-export const tierRates = [
-  { min: 0, max: 30000, rate: 0.30 },
-  { min: 30001, max: 50000, rate: 0.35 },
-  { min: 50001, max: 80000, rate: 0.40 },
-  { min: 80001, max: Infinity, rate: 0.45 },
-];
-
-// ขอบเขตแบบ <= max ต่อเนื่องกัน: ≤30k → 30%, 30k–50k → 35%, 50k–80k → 40%, >80k → 45%
-const TIERS = tierRates.map((t, i) => ({
-  max: t.max,
-  rate: t.rate,
-  label: i === 0 ? '≤ 30k → 30%' : t.max === Infinity ? '> 80k → 45%' : `${Math.round(tierRates[i - 1].max / 1000)}–${Math.round(t.max / 1000)}k → ${Math.round(t.rate * 100)}%`,
-}));
-
-export function tieredComm(total) {
-  let comm = 0;
-  for (let i = 0; i < TIERS.length; i++) {
-    const prev = i === 0 ? 0 : TIERS[i - 1].max;
-    const range = Math.min(TIERS[i].max, total) - prev;
-    if (range > 0) comm += range * TIERS[i].rate;
-    if (total <= TIERS[i].max) break;
-  }
-  return comm;
-}
-
-// ขอบ rate ปัจจุบันต้องตรงกับตารางขั้น (ใช้ <= max เดียวกัน ไม่มีช่องว่างที่ 30k/50k/80k พอดี)
-export function tierRateOf(total) {
-  for (const t of TIERS) {
-    if (total <= t.max) return t.rate;
-  }
-  return TIERS[TIERS.length - 1].rate;
-}
-
 /* ลำดับหมวดบริการ (รายการ) — source of truth คือ data.serviceCategoryOrder
  * (sync ผ่าน app_settings key 'service_category_order', ดู cloudSync.js)
  * tolerant ข้อมูลเก่า: ชื่อไหนหลุดจาก order ที่เซฟให้ต่อท้ายตามตัวอักษรไทย,

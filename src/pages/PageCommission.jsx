@@ -2,21 +2,20 @@ import { useState } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DateRange, inDateRange } from '../components/ui';
 import { bkkToday } from '../utils/bkk';
-import { svcLabel, commBaht, freelanceDisplayName, tieredComm, tierRateOf, isFreelance } from '../lib/billing';
+import { svcLabel, commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 
 export default function PageCommission({ data, saveData, role }) {
   const isStaff = role === 'staff';
   const [historyFor, setHistoryFor] = useState(null);
-  // M3: viewTab แยกจากโหมดคำนวณจริง — สลับแท็บดูข้อมูลต้องไม่เขียนทับ commissionSettings.mode ใน DB
+  // M3: viewTab เป็น state ดูข้อมูลอย่างเดียว ไม่เขียนทับ commissionSettings ใน DB
   const [viewTab, setViewTab] = useState('regular'); // regular | freelance | rates
   const todayStr = bkkToday();
   const [dr, setDr] = useState({ from: todayStr, to: todayStr });
   const therapists = data.therapists || [];
   const bills = (data.bills || []).filter((b) => b.status === 'paid' && inDateRange(b.date || b.createdAt, dr.from, dr.to));
-  const settings = data.commissionSettings || { mode: 'flat' };
 
   const stats = {};
-  therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, tieredCommission: 0, rate: 0.30, total: 0, services: {}, svcDetail: {}, history: [] }; });
+  therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, total: 0, services: {}, svcDetail: {}, history: [] }; });
   let freelanceTotal = 0;
   let freelanceJobs = 0;
   let freelanceComm = 0;
@@ -67,17 +66,15 @@ export default function PageCommission({ data, saveData, role }) {
     if (extBillIds.has(bill.id)) freelanceFuel += bill.fuel || 0;
   });
   therapists.forEach((t) => {
-    const s = stats[t.id];    s.tieredCommission = Math.round(tieredComm(s.totalSales));
-    s.rate = tierRateOf(s.totalSales);
-    s.total = Math.round(settings.mode === 'tier' ? s.tieredCommission : s.flatCommission);
+    const s = stats[t.id];
+    // ร้านใช้แบบคงที่/ครั้งอย่างเดียว (ไม่มี tier) — total = flatCommission เสมอ
+    s.total = Math.round(s.flatCommission);
   });
 
   const ranked = [...therapists].sort((a, b) => stats[b.id].totalSales - stats[a.id].totalSales);
   const sumSalesPaid = Object.values(stats).reduce((s, t) => s + t.totalSales, 0);
   const sumSales = sumSalesPaid + freelanceTotal;
   const sumComm = Object.values(stats).reduce((s, t) => s + t.total, 0);
-  const changeMode = (mode) => saveData({ ...data, commissionSettings: { ...data.commissionSettings, mode } });
-  // โหมดคำนวณจริง (flat | tier) — เปลี่ยนผ่าน select ด้านล่างเท่านั้น ไม่ผูกกับแท็บมุมมอง
 
   // บิลที่เปิดอยู่ไม่นำมาคำนวณค่าแรงล่วงหน้า (กันยอดจ่ายจริงเพี้ยน) — ดูได้ที่หน้าบิลที่เปิดอยู่
 
@@ -263,16 +260,6 @@ export default function PageCommission({ data, saveData, role }) {
         <button onClick={() => setViewTab('freelance')} className={viewTab === 'freelance' ? 'on' : ''}>หมอวิ่ง</button>
         <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
       </div>
-
-      {!isStaff && (
-      <div className="field" style={{ marginTop: 10 }}>
-        <label>วิธีคำนวณค่าแรงหมอประจำ (มีผลจริงกับยอดที่จ่าย)</label>
-        <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <button onClick={() => changeMode('flat')} className={settings.mode !== 'tier' ? 'on' : ''} type="button">คงที่/ครั้ง (flat)</button>
-          <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''} type="button">ขั้นบันไดยอดขาย (tier)</button>
-        </div>
-      </div>
-      )}
 
       <DateRange from={dr.from} to={dr.to} onChange={setDr} />
 

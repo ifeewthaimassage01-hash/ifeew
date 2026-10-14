@@ -375,13 +375,18 @@ export default function PageManage({ data, saveData }) {
     if (!st) return;
     if (e.cancelable) e.preventDefault();
     const over = countAbove(e.clientY, st.list);
-    // ลากชิดขอบบน/ล่างของลิสต์ = auto-scroll เบาๆ (throttle กันกระตุก)
+    // auto-scroll เบาๆ ชิดขอบลิสต์ (throttle กันกระตุก) แล้วค่อยวัดตำแหน่งกล่องผีใหม่
     const el = listRef.current;
     const now = Date.now();
     if (el && now - (st.scrollAt || 0) > 60) {
       const r = el.getBoundingClientRect();
       if (e.clientY < r.top + 64) { el.scrollTop -= 14; st.scrollAt = now; }
       else if (e.clientY > r.bottom - 64) { el.scrollTop += 14; st.scrollAt = now; }
+    }
+    if (el) {
+      const lr = el.getBoundingClientRect();
+      const rawGy = e.clientY - lr.top + el.scrollTop - st.grab;
+      st.gy = Math.max(-8, Math.min(rawGy, el.scrollHeight - 40));
     }
     if (over !== st.over) {
       st.over = over;
@@ -421,21 +426,25 @@ export default function PageManage({ data, saveData }) {
 
   // เริ่มลากจาก handle ⋮⋮ — snapshot รายการอื่นไว้ แล้วฟังต่อที่ window
   // (handle มี touch-action: none เลยไม่ scroll เพี้ยนตั้งแต่แตะ)
+  // ตำแหน่งกล่องผี (gy) คิดเทียบกับกล่องลิสต์ ไม่ใช่เทียบจอ — บนมือถือพิกัดนิ้วกับ fixed-viewport เหลื่อมกัน
   const onGripDown = (e, cat) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
-    const wrap = listRef.current?.getBoundingClientRect();
+    const listEl = listRef.current;
+    const lrect = listEl?.getBoundingClientRect();
     const row = rowRefs.current[cat]?.getBoundingClientRect();
     const list = draft.filter((c) => c !== cat);
+    const grab = row ? e.clientY - row.top : 32;
+    // กล่องผีอยู่ใน .ord-list (absolute) จึงคิดเทียบกับลิสต์ + กันล้นขอบ
+    const rawGy = e.clientY - (lrect?.top || 0) + (listEl?.scrollTop || 0) - grab;
     const st = {
       cat,
       list,
       y: e.clientY,
       over: countAbove(e.clientY, list),
       h: row?.height || 64,
-      grab: row ? e.clientY - row.top : 32,
-      left: (wrap?.left || 0) + 8,
-      width: Math.max(0, (wrap?.width || 0) - 16),
+      grab,
+      gy: listEl ? Math.max(-8, Math.min(rawGy, listEl.scrollHeight - 40)) : rawGy,
       scrollAt: 0,
     };
     dragRef.current = st;
@@ -730,14 +739,14 @@ export default function PageManage({ data, saveData }) {
               order.forEach((c, k) => pushRow(c, k));
               return nodes;
             })()}
+            {drag && (
+              <div className="ord-ghost" style={{ top: drag.gy }} aria-hidden="true">
+                <GripVertical size={18} />
+                <b>{drag.cat}</b>
+                <span className="ord-pos num">{drag.over + 1}</span>
+              </div>
+            )}
           </div>
-          {drag && (
-            <div className="ord-ghost" style={{ top: drag.y - drag.grab, left: drag.left, width: drag.width }} aria-hidden="true">
-              <GripVertical size={18} />
-              <b>{drag.cat}</b>
-              <span className="ord-pos num">{drag.over + 1}</span>
-            </div>
-          )}
           <div className="modal-row">
             <button onClick={closeOrder} className="btn btn-ghost">ยกเลิก</button>
             <button onClick={saveOrder} className="btn btn-primary"><CheckCircle2 size={16} /> บันทึกลำดับ</button>
