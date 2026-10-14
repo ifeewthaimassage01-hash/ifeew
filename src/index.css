@@ -810,6 +810,9 @@ label.filebtn {
   .cat-grid { grid-template-columns: 1fr; gap: 10px; }
   .cat-card { min-height: 0; height: auto; padding: 12px 12px 12px 14px; }
   .cat-card-main b { font-size: 14.5px; min-height: 0; }
+  /* มือถือ: ปุ่ม header เหลือแต่ไอคอน ไม่โชว์ข้อความ */
+  .btn .btn-t { display: none; }
+  .btn:has(.btn-t) { padding: 9px 11px !important; }
   .cat-card-arrow { width: 34px; height: 34px; }
   .dur-grid { grid-template-columns: 1fr; gap: 8px; }
   .dur-card { flex-direction: row; justify-content: space-between; min-height: 46px; padding: 9px 12px; }

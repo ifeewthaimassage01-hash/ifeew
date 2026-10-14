@@ -1,10 +1,9 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
-import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, defaultCategoryEnMap } from '../data/defaults';
 import { commBaht, categoryEn, serviceCategoryOrder } from '../lib/billing';
 import { bkkNow } from '../utils/bkk';
-import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, pruneServicesFromCloud, syncState } from '../data/cloudSync';
+import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, syncState } from '../data/cloudSync';
 
 // ลบใน cloud ไม่สำเร็จ = ของจะโผล่กลับมาตอนโหลดใหม่ จึงต้องเตือนให้รู้
 // คืน true ถ้าลบสำเร็จ / false ถ้าล้ม (caller ใช้ตัดสินใจ rollback — ไม่ saveData ต่อ)
@@ -447,26 +446,6 @@ export default function PageManage({ data, saveData }) {
     window.addEventListener('pointercancel', onDragCancelCb);
   };
 
-  const resetServices = async () => {
-    const ok = await confirmDialog({ title: 'รีเซ็ตบริการเป็นค่าเริ่มต้น?', message: 'นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · บิลเก่าไม่หาย', confirmLabel: 'รีเซ็ตเลย' });
-    if (!ok) return;
-    const nextServices = DEFAULT_SERVICES.map((s) => ({ ...s }));
-    const nextCats = [...DEFAULT_CATEGORIES];
-    await deleteCloudFirst(
-      () => pruneServicesFromCloud(nextServices.map((s) => s.id), nextCats),
-      'บริการเก่า',
-      () => saveData({
-        ...data,
-        services: nextServices,
-        serviceCategories: nextCats,
-        serviceCategoryEn: defaultCategoryEnMap(),
-        serviceCategoryOrder: [...DEFAULT_CATEGORIES],
-        auditLog: pushAudit(data, 'รีเซ็ตบริการ', 'กลับเป็นค่าเริ่มต้นร้าน', `${DEFAULT_SERVICES.length} รายการ`),
-      }),
-      { title: 'รีเซ็ตบริการแล้ว', message: `นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · รวม ${DEFAULT_SERVICES.length} รายการ` },
-    );
-  };
-
   /* ---------- บริการเสริม ---------- */
   const openAddA = () => { setEditingA(null); setAForm({ name: '', minutes: '30', price: '', active: true }); setErr(''); setShowA(true); };
   const openEditA = (a) => { setEditingA(a); setAForm({ name: a.name, minutes: String(a.minutes ?? 30), price: String(a.price ?? ''), active: a.active !== false }); setErr(''); setShowA(true); };
@@ -587,7 +566,7 @@ export default function PageManage({ data, saveData }) {
 
       {tab === 'staff' && (
         <Card>
-          <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddT}><Plus size={15} /> เพิ่มพนักงาน</button>} />
+          <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddT} title="เพิ่มพนักงาน" aria-label="เพิ่มพนักงาน"><Plus size={15} /> <span className="btn-t">เพิ่มพนักงาน</span></button>} />
           {therapists.map((t) => (
             <div key={t.id} className="mrow">
               <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.name || '?').charAt(0)}</span>
@@ -613,9 +592,8 @@ export default function PageManage({ data, saveData }) {
             title="รายการ + ราคาต่อชม"
             hint="1 รายการ = หลายช่วงเวลา"
             right={<span style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={cats.length < 2} title="ลากสลับลำดับรายการ"><ArrowUpDown size={15} /> จัดลำดับ</button>
-              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={resetServices} title="กลับเป็นค่าเริ่มต้นร้าน"><RotateCcw size={15} /> รีเซ็ต</button>
-              <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC}><Plus size={15} /> เพิ่มรายการ</button>
+              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={cats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
+              <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC} title="เพิ่มรายการ" aria-label="เพิ่มรายการ"><Plus size={15} /> <span className="btn-t">เพิ่มรายการ</span></button>
             </span>}
           />
           <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา · กด <b>จัดลำดับ</b> เพื่อลากสลับที่ — POS แสดงตามลำดับนี้</p>
@@ -654,7 +632,7 @@ export default function PageManage({ data, saveData }) {
           <CardHead
             title="บริการเสริม"
             hint="POS ขั้นระยะเวลา · +เงิน +เวลา"
-            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddA}><Plus size={15} /> เพิ่มเสริม</button>}
+            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddA} title="เพิ่มบริการเสริม" aria-label="เพิ่มบริการเสริม"><Plus size={15} /> <span className="btn-t">เพิ่มเสริม</span></button>}
           />
           <p className="muted" style={{ marginBottom: 8 }}>เช่น ประคบสมุนไพร +30 นาที ฿ 350 · เลือกได้หลายอย่างต่อลูกค้า 1 คน</p>
           {addons.map((a) => (
@@ -678,7 +656,7 @@ export default function PageManage({ data, saveData }) {
           <CardHead
             title="โปรโมชันส่วนลด"
             hint="POS + แก้ไขบิล · เลือกแทนกรอกมือ"
-            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP}><Plus size={15} /> เพิ่มโปร</button>}
+            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP} title="เพิ่มโปรโมชัน" aria-label="เพิ่มโปรโมชัน"><Plus size={15} /> <span className="btn-t">เพิ่มโปร</span></button>}
           />
           <p className="muted" style={{ marginBottom: 8 }}>เช่น โปรวันเกิด −฿ 500 · โปร 10 ครั้ง −฿ 300 · แตะ 1 โปรต่อ 1 บิล</p>
           {promos.map((p) => (
@@ -764,7 +742,6 @@ export default function PageManage({ data, saveData }) {
             <button onClick={closeOrder} className="btn btn-ghost">ยกเลิก</button>
             <button onClick={saveOrder} className="btn btn-primary"><CheckCircle2 size={16} /> บันทึกลำดับ</button>
           </div>
-          {!orderDirty && <p className="muted center" style={{ marginTop: 8 }}>ยังไม่เปลี่ยนลำดับ — ลากหรือกด ↑/↓ ก่อน</p>}
         </Modal>
       )}
 
