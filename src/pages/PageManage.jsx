@@ -1,9 +1,37 @@
-import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X } from 'lucide-react';
+import { useState, useMemo, useRef, useCallback } from 'react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, defaultCategoryEnMap } from '../data/defaults';
-import { commBaht, categoryEn } from '../lib/billing';
+import { commBaht, categoryEn, serviceCategoryOrder } from '../lib/billing';
 import { bkkNow } from '../utils/bkk';
+import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, pruneServicesFromCloud, syncState } from '../data/cloudSync';
+
+// ลบใน cloud ไม่สำเร็จ = ของจะโผล่กลับมาตอนโหลดใหม่ จึงต้องเตือนให้รู้
+// คืน true ถ้าลบสำเร็จ / false ถ้าล้ม (caller ใช้ตัดสินใจ rollback — ไม่ saveData ต่อ)
+async function mustDeleteCloud(fn, label) {
+  try {
+    await fn();
+    return true;
+  } catch {
+    alertDialog({ title: `ลบในเครื่องแล้ว แต่ลบใน cloud ไม่สำเร็จ`, message: `${label} อาจโผล่กลับมา — เช็กเน็ตแล้วลบอีกครั้ง` });
+    return false;
+  }
+}
+
+// C4-delrace: ลบ cloud ก่อน (กัน realtime ทับด้วย syncState.pending) แล้วค่อย saveData local —
+// ล้มให้ rollback (คง state เดิม) + คง alert เดิมผ่าน mustDeleteCloud
+async function deleteCloudFirst(deleteFn, label, applyLocal, successMsg) {
+  syncState.pending += 1;
+  try {
+    const ok = await mustDeleteCloud(deleteFn, label);
+    if (!ok) return; // rollback: ไม่แตะ state เดิม
+    applyLocal();
+    if (successMsg) alertDialog(successMsg);
+  } finally {
+    syncState.pending -= 1;
+    syncState.lastDone = Date.now();
+  }
+}
 
 function nextId(prefix, list) {
   let max = 0;
@@ -64,13 +92,28 @@ export default function PageManage({ data, saveData }) {
   const [editingP, setEditingP] = useState(null);
   const [pForm, setPForm] = useState({ name: '', amount: '', active: true });
 
+  // มุมมองย่อย "จัดลำดับ": ลากวางใน modal เก็บเป็น draft แล้วกดบันทึกครั้งเดียว (data model เดิม serviceCategoryOrder)
+  const [showOrder, setShowOrder] = useState(false);
+  const [draft, setDraft] = useState([]);
+  const [drag, setDrag] = useState(null); // { cat, y, over, h, grab, left, width } หรือ null
+  const listRef = useRef(null);
+  const rowRefs = useRef({});
+  const dragRef = useRef(null);
+
+  // ลำดับแสดงผล = order ที่เซฟไว้ (serviceCategoryOrder) ชื่อหลุดต่อท้ายตามตัวอักษร — ไม่ใช่ลำดับตัวอักษรจาก cloud
+  const orderedCats = useMemo(
+    () => serviceCategoryOrder(data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cats, data.serviceCategoryOrder, services],
+  );
+
   const catRows = useMemo(() => {
-    return cats.map((c) => {
+    return orderedCats.map((c) => {
       const rows = services.filter((s) => s.category === c);
       const timed = rows.filter((s) => s.duration != null).sort((a, b) => a.duration - b.duration);
       return { name: c, en: categoryEn(c, data.serviceCategoryEn), rows, timed, hourly: hourlyOf(rows) };
     });
-  }, [cats, services, data.serviceCategoryEn]);
+  }, [orderedCats, services, data.serviceCategoryEn]);
 
   /* ---------- therapists (เดิม) ---------- */
   const openAddT = () => { setEditingT(null); setTForm(EMPTY_THERAPIST); setErr(''); setShowT(true); };
@@ -109,12 +152,16 @@ export default function PageManage({ data, saveData }) {
   const deleteT = async (t) => {
     const ok = await confirmDialog({ title: `ลบ ${t.name}?`, message: 'ประวัติบิลเดิมยังเก็บชื่อไว้', confirmLabel: 'ลบเลย', danger: true });
     if (!ok) return;
-    saveData({
-      ...data,
-      therapists: therapists.filter((x) => x.id !== t.id),
-      auditLog: pushAudit(data, 'ลบพนักงาน', `${t.id} · ${t.name}`, 'ลบออก'),
-    });
-    alertDialog({ title: `ลบ ${t.name} แล้ว` });
+    await deleteCloudFirst(
+      () => deleteTherapistFromCloud(t.id),
+      `พนักงาน “${t.name}”`,
+      () => saveData({
+        ...data,
+        therapists: therapists.filter((x) => x.id !== t.id),
+        auditLog: pushAudit(data, 'ลบพนักงาน', `${t.id} · ${t.name}`, 'ลบออก'),
+      }),
+      { title: `ลบ ${t.name} แล้ว` },
+    );
   };
 
   /* ---------- รายการ + ราคาต่อชม ---------- */
@@ -201,7 +248,7 @@ export default function PageManage({ data, saveData }) {
       if (found) {
         nextServices = nextServices.map((s) => (s.id === found.id ? { ...s, price, flatRate, flatAmount } : s));
       } else {
-        nextServices.push({ id: nextId('S', nextServices), category: name, price, duration: d, flatRate, flatAmount, tierCategory: found?.tierCategory || 'other' });
+        nextServices.push({ id: nextId('S', nextServices), category: name, price, duration: d, flatRate, flatAmount, tierCategory: 'other' });
       }
     });
 
@@ -219,43 +266,205 @@ export default function PageManage({ data, saveData }) {
       delete nextEn[name];
     }
 
+    // ลำดับหมวด: เปลี่ยนชื่อย้ายที่เดิม, เพิ่มใหม่ต่อท้าย, แก้ไขไม่ย้าย — sync ผ่าน app_settings (serviceCategoryOrder)
+    const curOrder = serviceCategoryOrder(data);
+    let nextOrder;
+    if (editingCat && name !== editingCat) nextOrder = curOrder.map((c) => (c === editingCat ? name : c));
+    else if (!curOrder.includes(name)) nextOrder = [...curOrder, name];
+    else nextOrder = [...curOrder];
+    nextCats.forEach((c) => { if (!nextOrder.includes(c)) nextOrder.push(c); });
+    nextOrder = nextOrder.filter((c) => nextCats.includes(c));
+
     saveData({
       ...data,
       services: nextServices,
-      serviceCategories: nextCats,
+      serviceCategories: nextOrder,
       serviceCategoryEn: nextEn,
+      serviceCategoryOrder: nextOrder,
       auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ')),
     });
+    // เปลี่ยนชื่อ: ลบแถวชื่อเก่าใน cloud (upsert ลบให้ไม่ได้ ไม่งั้นชื่อเก่าโผล่กลับมาซ้ำ)
+    const renamedFrom = editingCat && name !== editingCat ? editingCat : null;
     setShowC(false);
     alertDialog({ title: `${editingCat ? 'แก้ไข' : 'เพิ่ม'}รายการ ${name} แล้ว`, message: durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ') });
+    if (renamedFrom) mustDeleteCloud(() => deleteCategoryFromCloud(renamedFrom, []), `ชื่อเก่า “${renamedFrom}”`);
   };
 
   const deleteC = async (cat) => {
     const ok = await confirmDialog({ title: `ลบรายการ ${cat}?`, message: 'ราคาในช่วงเวลานี้จะหายทั้งหมด · บิลเก่าไม่หาย', confirmLabel: 'ลบเลย', danger: true });
     if (!ok) return;
+    const removedIds = services.filter((s) => s.category === cat).map((s) => s.id);
     const nextEn = { ...(data.serviceCategoryEn || {}) };
     delete nextEn[cat];
-    saveData({
-      ...data,
-      services: services.filter((s) => s.category !== cat),
-      serviceCategories: cats.filter((c) => c !== cat),
-      serviceCategoryEn: nextEn,
-      auditLog: pushAudit(data, 'ลบรายการ', cat, 'ลบออก'),
+    const nextOrder = serviceCategoryOrder(data).filter((c) => c !== cat);
+    await deleteCloudFirst(
+      () => deleteCategoryFromCloud(cat, removedIds),
+      `รายการ “${cat}”`,
+      () => saveData({
+        ...data,
+        services: services.filter((s) => s.category !== cat),
+        serviceCategories: nextOrder,
+        serviceCategoryEn: nextEn,
+        serviceCategoryOrder: nextOrder,
+        auditLog: pushAudit(data, 'ลบรายการ', cat, 'ลบออก'),
+      }),
+      { title: `ลบรายการ ${cat} แล้ว` },
+    );
+  };
+
+  /* ---------- จัดลำดับแบบลากวาง (modal ย่อย, Pointer Events ล้วน — ไม่ใช้ lib ภายนอก) ---------- */
+  const openOrder = () => {
+    rowRefs.current = {};
+    dragRef.current = null;
+    setDrag(null);
+    setDraft([...orderedCats]);
+    setShowOrder(true);
+  };
+
+  // ↑/↓ ในมุมมองจัดลำดับ = ขยับ draft เฉยๆ (ยังไม่เซฟ — รอกด "บันทึกลำดับ" ทีเดียว)
+  const moveDraft = (cat, dir) => {
+    setDraft((d) => {
+      const i = d.indexOf(cat);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= d.length) return d;
+      const next = [...d];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
     });
-    alertDialog({ title: `ลบรายการ ${cat} แล้ว` });
+  };
+
+  const orderDirty = showOrder && (draft.length !== orderedCats.length || draft.some((c, i) => c !== orderedCats[i]));
+
+  // บันทึกครั้งเดียวแบบชัดๆ (ไม่ใช่ auto-save): เขียน serviceCategories + serviceCategoryOrder ชุดเดียวกัน — POS อ่านผ่าน serviceCategoryOrder เดิม
+  const saveOrder = () => {
+    detachDragListeners();
+    if (orderDirty) {
+      saveData({
+        ...data,
+        serviceCategories: [...draft],
+        serviceCategoryOrder: [...draft],
+        auditLog: pushAudit(data, 'จัดลำดับรายการ (ลากวาง)', draft.map((c, i) => `${i + 1}.${c}`).join(' · '), `${draft.length} รายการ`),
+      });
+    }
+    dragRef.current = null;
+    setDrag(null);
+    setShowOrder(false);
+  };
+
+  const closeOrder = () => {
+    detachDragListeners();
+    dragRef.current = null;
+    setDrag(null);
+    setShowOrder(false);
+  };
+
+  // นับแถวอ้างอิง (ไม่รวมตัวที่ลาก) ที่จุดกึ่งกลางอยู่เหนือปลายนิ้ว = ตำแหน่งที่จะวาง (0..n)
+  const countAbove = (clientY, others) => {
+    let n = 0;
+    for (const c of others) {
+      const r = rowRefs.current[c]?.getBoundingClientRect();
+      if (r && clientY > r.top + r.height / 2) n += 1;
+    }
+    return n;
+  };
+
+  // ฟัง move/up ที่ window ระดับเดียว — ไม่พึ่ง pointer capture หรือ element ใต้ปลายนิ้ว
+  // (capture หลุด / handler บนแถวโดน re-render ฆ่าระหว่างลาก คือสาเหตุที่ลากได้ไม่สุด)
+  // callbacks พวกนี้stable (useCallback ว่าง) ใช้ได้กับ add/removeEventListener ทุก render
+  const onDragMoveCb = useCallback((e) => {
+    const st = dragRef.current;
+    if (!st) return;
+    if (e.cancelable) e.preventDefault();
+    const over = countAbove(e.clientY, st.list);
+    // ลากชิดขอบบน/ล่างของลิสต์ = auto-scroll เบาๆ (throttle กันกระตุก)
+    const el = listRef.current;
+    const now = Date.now();
+    if (el && now - (st.scrollAt || 0) > 60) {
+      const r = el.getBoundingClientRect();
+      if (e.clientY < r.top + 64) { el.scrollTop -= 14; st.scrollAt = now; }
+      else if (e.clientY > r.bottom - 64) { el.scrollTop += 14; st.scrollAt = now; }
+    }
+    if (over !== st.over) {
+      st.over = over;
+      try { navigator.vibrate?.(8); } catch { /* ข้าม */ }
+    }
+    st.y = e.clientY;
+    setDrag({ ...st });
+  }, []);
+
+  // วาง = ย้ายลง draft (ยังไม่เซฟ รอกดบันทึก)
+  const onDragEndCb = useCallback(() => {
+    const st = dragRef.current;
+    detachDragListeners();
+    dragRef.current = null;
+    setDrag(null);
+    if (!st) return;
+    const at = Math.max(0, Math.min(st.over, st.list.length));
+    setDraft((d) => {
+      const next = d.filter((c) => c !== st.cat);
+      next.splice(Math.max(0, Math.min(at, next.length)), 0, st.cat);
+      return next;
+    });
+  }, []);
+
+  // ลากถูกยกเลิกกลางคัน (เช่น สายเรียกเข้า) = ทิ้ง ไม่ย้าย
+  const onDragCancelCb = useCallback(() => {
+    detachDragListeners();
+    dragRef.current = null;
+    setDrag(null);
+  }, []);
+
+  function detachDragListeners() {
+    window.removeEventListener('pointermove', onDragMoveCb);
+    window.removeEventListener('pointerup', onDragEndCb);
+    window.removeEventListener('pointercancel', onDragCancelCb);
+  }
+
+  // เริ่มลากจาก handle ⋮⋮ — snapshot รายการอื่นไว้ แล้วฟังต่อที่ window
+  // (handle มี touch-action: none เลยไม่ scroll เพี้ยนตั้งแต่แตะ)
+  const onGripDown = (e, cat) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const wrap = listRef.current?.getBoundingClientRect();
+    const row = rowRefs.current[cat]?.getBoundingClientRect();
+    const list = draft.filter((c) => c !== cat);
+    const st = {
+      cat,
+      list,
+      y: e.clientY,
+      over: countAbove(e.clientY, list),
+      h: row?.height || 64,
+      grab: row ? e.clientY - row.top : 32,
+      left: (wrap?.left || 0) + 8,
+      width: Math.max(0, (wrap?.width || 0) - 16),
+      scrollAt: 0,
+    };
+    dragRef.current = st;
+    setDrag({ ...st });
+    try { navigator.vibrate?.(10); } catch { /* ไม่รองรับก็ข้าม */ }
+    window.addEventListener('pointermove', onDragMoveCb, { passive: false });
+    window.addEventListener('pointerup', onDragEndCb);
+    window.addEventListener('pointercancel', onDragCancelCb);
   };
 
   const resetServices = async () => {
     const ok = await confirmDialog({ title: 'รีเซ็ตบริการเป็นค่าเริ่มต้น?', message: 'นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · บิลเก่าไม่หาย', confirmLabel: 'รีเซ็ตเลย' });
     if (!ok) return;
-    saveData({
-      ...data,
-      services: DEFAULT_SERVICES.map((s) => ({ ...s })),
-      serviceCategories: [...DEFAULT_CATEGORIES],
-      serviceCategoryEn: defaultCategoryEnMap(),
-      auditLog: pushAudit(data, 'รีเซ็ตบริการ', 'กลับเป็นค่าเริ่มต้นร้าน', `${DEFAULT_SERVICES.length} รายการ`),
-    });
-    alertDialog({ title: 'รีเซ็ตบริการแล้ว', message: `นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · รวม ${DEFAULT_SERVICES.length} รายการ` });
+    const nextServices = DEFAULT_SERVICES.map((s) => ({ ...s }));
+    const nextCats = [...DEFAULT_CATEGORIES];
+    await deleteCloudFirst(
+      () => pruneServicesFromCloud(nextServices.map((s) => s.id), nextCats),
+      'บริการเก่า',
+      () => saveData({
+        ...data,
+        services: nextServices,
+        serviceCategories: nextCats,
+        serviceCategoryEn: defaultCategoryEnMap(),
+        serviceCategoryOrder: [...DEFAULT_CATEGORIES],
+        auditLog: pushAudit(data, 'รีเซ็ตบริการ', 'กลับเป็นค่าเริ่มต้นร้าน', `${DEFAULT_SERVICES.length} รายการ`),
+      }),
+      { title: 'รีเซ็ตบริการแล้ว', message: `นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · รวม ${DEFAULT_SERVICES.length} รายการ` },
+    );
   };
 
   /* ---------- บริการเสริม ---------- */
@@ -298,12 +507,16 @@ export default function PageManage({ data, saveData }) {
   const deleteA = async (a) => {
     const ok = await confirmDialog({ title: `ลบ ${a.name}?`, message: 'บิลเก่าไม่หาย', confirmLabel: 'ลบเลย', danger: true });
     if (!ok) return;
-    saveData({
-      ...data,
-      addons: addons.filter((x) => x.id !== a.id),
-      auditLog: pushAudit(data, 'ลบบริการเสริม', `${a.id} · ${a.name}`, 'ลบออก'),
-    });
-    alertDialog({ title: `ลบ ${a.name} แล้ว` });
+    await deleteCloudFirst(
+      () => deleteAddonFromCloud(a.id),
+      `บริการเสริม “${a.name}”`,
+      () => saveData({
+        ...data,
+        addons: addons.filter((x) => x.id !== a.id),
+        auditLog: pushAudit(data, 'ลบบริการเสริม', `${a.id} · ${a.name}`, 'ลบออก'),
+      }),
+      { title: `ลบ ${a.name} แล้ว` },
+    );
   };
 
   /* ---------- promotions ---------- */
@@ -345,12 +558,16 @@ export default function PageManage({ data, saveData }) {
   const deleteP = async (p) => {
     const ok = await confirmDialog({ title: `ลบ ${p.name}?`, message: 'บิลเก่าไม่หาย', confirmLabel: 'ลบเลย', danger: true });
     if (!ok) return;
-    saveData({
-      ...data,
-      promotions: promos.filter((x) => x.id !== p.id),
-      auditLog: pushAudit(data, 'ลบโปรโมชัน', `${p.id} · ${p.name}`, 'ลบออก'),
-    });
-    alertDialog({ title: `ลบ ${p.name} แล้ว` });
+    await deleteCloudFirst(
+      () => deletePromoFromCloud(p.id),
+      `โปรโมชัน “${p.name}”`,
+      () => saveData({
+        ...data,
+        promotions: promos.filter((x) => x.id !== p.id),
+        auditLog: pushAudit(data, 'ลบโปรโมชัน', `${p.id} · ${p.name}`, 'ลบออก'),
+      }),
+      { title: `ลบ ${p.name} แล้ว` },
+    );
   };
 
   // ช่วงเวลาในฟอร์ม = เฉพาะที่ผู้ใช้เพิ่มแล้ว เรียงน้อยไปมาก (ไม่โชว์ล่วงหน้า)
@@ -396,12 +613,13 @@ export default function PageManage({ data, saveData }) {
             title="รายการ + ราคาต่อชม"
             hint="1 รายการ = หลายช่วงเวลา"
             right={<span style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={cats.length < 2} title="ลากสลับลำดับรายการ"><ArrowUpDown size={15} /> จัดลำดับ</button>
               <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={resetServices} title="กลับเป็นค่าเริ่มต้นร้าน"><RotateCcw size={15} /> รีเซ็ต</button>
               <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC}><Plus size={15} /> เพิ่มรายการ</button>
             </span>}
           />
-          <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา</p>
-          {catRows.map(({ name, en, timed, hourly }) => (
+          <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา · กด <b>จัดลำดับ</b> เพื่อลากสลับที่ — POS แสดงตามลำดับนี้</p>
+          {catRows.map(({ name, en, timed, hourly }, idx) => (
             <div key={name} className="mcat-card">
               <div className="mcat-head">
                 <b className="mcat-name">{name}{en ? <small className="muted"> ({en})</small> : null}</b>
@@ -476,6 +694,78 @@ export default function PageManage({ data, saveData }) {
           ))}
           {promos.length === 0 && <EmptyState title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
         </Card>
+      )}
+
+      {showOrder && (
+        <Modal onClose={closeOrder}>
+          <button className="modal-x" onClick={closeOrder} aria-label="ปิด (ยกเลิก ไม่บันทึก)"><X size={16} /></button>
+          <h3>จัดลำดับรายการ</h3>
+          <p className="muted" style={{ marginTop: 4 }}>กดค้างที่ <GripVertical size={13} style={{ verticalAlign: -2 }} /> แล้วลากสลับที่ · หรือใช้ ↑/↓ · ปิด = ยกเลิก · กด <b>บันทึกลำดับ</b> POS ถึงเปลี่ยนตาม</p>
+          <div ref={listRef} className={`ord-list${drag ? ' ord-live' : ''}`} role="list" aria-label="ลำดับหมวดบริการ">
+            {(() => {
+              // ลำดับพรีวิวขณะลาก: เสียบแถวที่ลากไว้ตรงตำแหน่งที่จะวาง (แถวนั้นซ่อนไว้แต่ไม่ถอดออกจาก DOM
+              // เพื่อไม่ให้ pointer capture หลุด — นั่นคือสาเหตุที่ลากไม่ได้)
+              const order = drag
+                ? (() => { const o = draft.filter((c) => c !== drag.cat); o.splice(Math.max(0, Math.min(drag.over, o.length)), 0, drag.cat); return o; })()
+                : draft;
+              const nodes = [];
+              const pushRow = (c, k) => {
+                const i = draft.indexOf(c);
+                const hidden = drag?.cat === c;
+                const en = categoryEn(c, data.serviceCategoryEn);
+                const n = services.filter((s) => s.category === c && s.duration != null).length;
+                nodes.push(
+                  <div
+                    key={c}
+                    ref={(el) => { if (el) rowRefs.current[c] = el; else delete rowRefs.current[c]; }}
+                    className={`ord-row${hidden ? ' ord-drag-src' : ''}`}
+                    role="listitem"
+                    aria-posinset={k + 1}
+                    aria-setsize={draft.length}
+                    aria-label={`ลำดับที่ ${k + 1} ${c}`}
+                    tabIndex={0}
+                    onKeyDown={(ev) => {
+                      if (ev.target !== ev.currentTarget) return;
+                      if (ev.key === 'ArrowUp') { ev.preventDefault(); moveDraft(c, -1); }
+                      else if (ev.key === 'ArrowDown') { ev.preventDefault(); moveDraft(c, 1); }
+                    }}
+                  >
+                    <span className="ord-pos num">{k + 1}</span>
+                    <span
+                      className="ord-grip"
+                      aria-label={`กดค้างแล้วลาก ${c} เพื่อย้ายลำดับ`}
+                      title="กดค้างแล้วลาก"
+                      onPointerDown={(ev) => onGripDown(ev, c)}
+                      onContextMenu={(ev) => ev.preventDefault()}
+                    ><GripVertical size={18} /></span>
+                    <span className="ord-grow">
+                      <b>{c}{en ? <small className="muted"> ({en})</small> : null}</b>
+                      <small className="muted" style={{ display: 'block' }}>{n} ช่วงเวลา</small>
+                    </span>
+                    <span className="ord-btns">
+                      <button className="icon-btn" onClick={() => moveDraft(c, -1)} disabled={i === 0} aria-label={`ย้าย ${c} ขึ้น`} title="ย้ายขึ้น"><ChevronUp size={15} /></button>
+                      <button className="icon-btn" onClick={() => moveDraft(c, 1)} disabled={i === draft.length - 1} aria-label={`ย้าย ${c} ลง`} title="ย้ายลง"><ChevronDown size={15} /></button>
+                    </span>
+                  </div>,
+                );
+              };
+              order.forEach((c, k) => pushRow(c, k));
+              return nodes;
+            })()}
+          </div>
+          {drag && (
+            <div className="ord-ghost" style={{ top: drag.y - drag.grab, left: drag.left, width: drag.width }} aria-hidden="true">
+              <GripVertical size={18} />
+              <b>{drag.cat}</b>
+              <span className="ord-pos num">{drag.over + 1}</span>
+            </div>
+          )}
+          <div className="modal-row">
+            <button onClick={closeOrder} className="btn btn-ghost">ยกเลิก</button>
+            <button onClick={saveOrder} className="btn btn-primary"><CheckCircle2 size={16} /> บันทึกลำดับ</button>
+          </div>
+          {!orderDirty && <p className="muted center" style={{ marginTop: 8 }}>ยังไม่เปลี่ยนลำดับ — ลากหรือกด ↑/↓ ก่อน</p>}
+        </Modal>
       )}
 
       {showT && (

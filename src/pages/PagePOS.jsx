@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, Fuel } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
-import { chainTimes, categoryEn } from '../lib/billing';
+import { chainTimes, categoryEn, serviceCategoryOrder } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
 import { bkkNow, bkkMinutes } from '../utils/bkk';
 
@@ -76,6 +76,8 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
     if (e.key === 'Escape') { e.preventDefault(); setOpen(false); btnRef.current?.focus(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Home') { e.preventDefault(); setHi(0); itemRefs.current[0]?.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'End') { e.preventDefault(); const n = options.length - 1; setHi(n); itemRefs.current[n]?.scrollIntoView({ block: 'nearest' }); }
     else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (options[hi]) pick(options[hi].v); }
     else if (e.key === 'Tab') setOpen(false);
   };
@@ -104,12 +106,14 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
           className="dropdown-menu time-menu"
           role="listbox"
           aria-label={label}
+          aria-activedescendant={options[hi] ? `${menuId}-opt-${hi}` : undefined}
           tabIndex={-1}
           onKeyDown={onMenuKey}
         >
           {options.map((o, i) => (
             <button
               key={o.v}
+              id={`${menuId}-opt-${i}`}
               ref={(el) => { itemRefs.current[i] = el; }}
               type="button"
               role="option"
@@ -178,12 +182,16 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   };
 
   const [err, setErr] = useState('');
+  // M7: กันกดเปิดบิลซ้ำ (ดับเบิลแตะสร้างบิลคู่)
+  const [creating, setCreating] = useState(false);
 
-  // รายการที่จองได้ = มีบริการแบบมีระยะเวลา
+  // รายการที่จองได้ = มีบริการแบบมีระยะเวลา — เรียงตามลำดับที่จัดในจัดการร้าน (serviceCategoryOrder)
   const bookableCats = useMemo(() => {
-    const base = data.serviceCategories?.length ? data.serviceCategories : [...new Set(services.map((s) => s.category))];
+    const base = (data.serviceCategories?.length || data.serviceCategoryOrder?.length)
+      ? serviceCategoryOrder(data)
+      : [...new Set(services.map((s) => s.category))];
     return base.filter((c) => services.some((s) => s.category === c && s.duration != null));
-  }, [services, data.serviceCategories]);
+  }, [services, data.serviceCategories, data.serviceCategoryOrder]);
 
   const visibleCats = bookableCats;
 
@@ -360,6 +368,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติผู้จัดการ, สถานะ open
   const openDraftBill = () => {
+    if (creating) return;
     if (pickedServices.length === 0) { setErr('เพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
     if (!activeTherapistId) { setErr('เลือกหมอนวดก่อนเปิดบิล'); return; }
     if (selectedStartTime == null || timeError) { setErr('เลือกเวลาเริ่มให้ถูกต้องก่อนเปิดบิล'); return; }
@@ -368,7 +377,10 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   };
 
   const openBill = async () => {
-    const id = generateBillId();
+    if (creating) return;
+    setCreating(true);
+    try {
+    const id = generateBillId(data.bills);
     const stamp = bkkNow();
     const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
     const endMin = times.length ? times[times.length - 1].end : selectedStartTime;
@@ -410,6 +422,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       message: `${newBill.items.map((i) => i.serviceName).join(' · ')} · ${activeTherapistName} · ฿ ${total.toLocaleString()}`,
     });
     if (onNavigate) onNavigate('bills');
+    } finally {
+      setCreating(false);
+    }
   };
 
   return (
@@ -701,8 +716,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   </button>
                 )}
               </div>
-              <button className="btn btn-primary btn-block mt4" onClick={openDraftBill}>
-                <ReceiptText size={18} /> เปิดบิลไว้ก่อน · ฿ {total.toLocaleString()}
+              <button className="btn btn-primary btn-block mt4" onClick={openDraftBill} disabled={creating} aria-busy={creating}>
+                <ReceiptText size={18} /> {creating ? 'กำลังเปิดบิล…' : `เปิดบิลไว้ก่อน · ฿ ${total.toLocaleString()}`}
               </button>
               <p className="muted mt8 fs115 center">ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลังที่หน้าบิล เพิ่มบริการระหว่างนวดได้ที่นั่น</p>
             </Card>

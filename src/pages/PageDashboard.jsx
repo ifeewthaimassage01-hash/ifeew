@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange } from '../components/ui';
-import { commBaht } from '../lib/billing';
+import { commBaht, isFreelance } from '../lib/billing';
 import { bkkToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
@@ -23,11 +23,8 @@ export default function PageDashboard({ data }) {
   const [dr, setDr] = useState({ from: today, to: today });
   const [stmtMonth, setStmtMonth] = useState(() => today.slice(0, 7));
   const paidBills = (data.bills || []).filter((b) => b.status === 'paid');
-  const totalSales = paidBills.reduce((s, b) => s + billTotal(b), 0);
-  const totalExpenses = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
 
-  // แยกยอดหมอประจำ / หมอวิ่ง (เฉพาะบิลชำระแล้ว) — หมอวิ่ง = ไม่อยู่ในรายชื่อพนักงาน
-  const staffIds = new Set((data.therapists || []).map((t) => t.id));
+  // แยกยอดหมอประจำ / หมอวิ่ง (เฉพาะบิลชำระแล้ว) — M4: เช็กมาตรฐานที่เดียว (isFreelance)
   const calcSplit = (bills) => {
     let regSales = 0, regComm = 0, extSales = 0, extComm = 0;
     bills.forEach((b) => billRows(b).forEach((itm) => {
@@ -36,13 +33,11 @@ export default function PageDashboard({ data }) {
       const qty = itm.qty || 1;
       const svc = (data.services || []).find((x) => x.id === itm.serviceId);
       const comm = svc ? commBaht(svc) * qty : 0;
-      if (tid && staffIds.has(String(tid))) { regSales += net; regComm += comm; }
+      if (!isFreelance(tid, data.therapists)) { regSales += net; regComm += comm; }
       else { extSales += net; extComm += comm; }
     }));
     return { regSales, regComm, extSales, extComm };
   };
-  const all = calcSplit(paidBills);
-  const freelanceTotal = all.extComm;
 
   const rangeBills = paidBills.filter((b) => inDateRange(b.date, dr.from, dr.to));
   const rangeSplit = calcSplit(rangeBills);
@@ -53,10 +48,6 @@ export default function PageDashboard({ data }) {
   const fuelToday = rangeBills.reduce((s, b) => s + (b.fuel || 0), 0);
   const expenseAllToday = expenseToday + freelanceToday + fuelToday;
   const netToday = dayTotal - expenseAllToday - rangeSplit.regComm;
-
-  // รายจ่ายทั้งหมด = รายจ่าย + ค่าแรงหมอประจำ + ค่าแรงหมอวิ่ง + ค่าน้ำมัน (สูตรเดียวกับยอดรายวัน/รายเดือน)
-  const fuelAll = paidBills.reduce((s, b) => s + (b.fuel || 0), 0);
-  const expenseGrand = totalExpenses + all.regComm + freelanceTotal + fuelAll;
   // M4: ช่องทางชำระสร้างจากข้อมูลจริง (dynamic) — รองรับวิธีจ่ายใหม่โดยไม่ต้อง hardcode
   const paySum = {};
   rangeBills.forEach((b) => {

@@ -17,7 +17,12 @@ export function resolveImageUrl(ref) {
   if (!ref) return null;
   const s = String(ref).trim();
   if (/^https?:\/\//i.test(s) || s.startsWith('data:')) return s;
-  return null; // legacy filename-only: no remote URL
+  // legacy ชื่อไฟล์ล้วน (เช่น slip.jpg) ไม่มี URL ให้เปิด — คืน null ให้ caller โชว์เป็นข้อความแทน
+  // ยกเว้น Cloudinary public ID แบบมีโฟลเดอร์ (เช่น ifeew-pos/main/slips/abc123) ประกอบ URL ได้
+  if (cloudName && s.includes('/') && /^[A-Za-z0-9_\-/]+$/.test(s)) {
+    return `https://res.cloudinary.com/${cloudName}/image/upload/${s}`;
+  }
+  return null;
 }
 
 function validateFile(file) {

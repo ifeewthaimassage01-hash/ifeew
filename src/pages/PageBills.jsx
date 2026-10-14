@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
-import { deleteBillFromCloud } from '../data/cloudSync';
-import { commBaht, freelanceDisplayName, svcLabel } from '../lib/billing';
+import { deleteBillFromCloud, syncState } from '../data/cloudSync';
+import { commBaht, freelanceDisplayName, svcLabel, isFreelance } from '../lib/billing';
+import { getManagerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
@@ -15,21 +16,24 @@ function Dropdown({ icon: Icon, label, value, options, onChange }) {
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    // M8-aria: ESC ปิดเมนู
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('keydown', onKey); };
   }, []);
 
   return (
     <div className={`dropdown${open ? ' open' : ''}`} ref={ref}>
-      <button className="dropdown-btn" onClick={() => setOpen(!open)} type="button">
+      <button className="dropdown-btn" onClick={() => setOpen(!open)} type="button" aria-haspopup="listbox" aria-expanded={open}>
         {Icon && <Icon size={15} className="dd-icon" />}
         <span className="dd-label">{current?.l || label}</span>
         <ChevronDown size={14} className="dd-caret" />
       </button>
       {open && (
-        <div className="dropdown-menu">
+        <div className="dropdown-menu" role="listbox">
           {options.map((o) => (
-            <button key={o.v} className={`dropdown-item${value === o.v ? ' on' : ''}`} onClick={() => { onChange(o.v); setOpen(false); }}>
+            <button key={o.v} role="option" aria-selected={value === o.v} className={`dropdown-item${value === o.v ? ' on' : ''}`} onClick={() => { onChange(o.v); setOpen(false); }}>
               {o.l}
               {value === o.v && <Check size={14} className="dd-check" />}
             </button>
@@ -50,9 +54,8 @@ const rowNet = (i) => i.net ?? i.price ?? 0;
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
-// C2: รหัสผู้จัดการ — อ่านจาก env ก่อน (default ชั่วคราวสำหรับร้านเดิม)
+// C2: รหัสผู้จัดการ — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
 // TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
-const MANAGER_PASS = import.meta.env.VITE_MANAGER_PASS ?? '123123';
 
 // ไฟล์แนบอาจเป็น PDF — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
 function isPdfUrl(url) {
@@ -89,11 +92,11 @@ export default function PageBills({ data, saveData, role }) {
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
   // ชื่อบริการของแถว: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
-  // (บิลเก่าบางใบเซฟแค่ serviceId อย่างเดียว) — ไม่โชว์รหัสดิบอย่าง S13 ใน UI
+  // (บิลเก่าบางใบเซฟแค่ serviceId อย่างเดียว) — M5: หาไม่เจอคืน 'บริการที่ลบแล้ว' ไม่โชว์รหัสดิบอย่าง S13
   const serviceDisplay = (it) => {
     if (it.serviceName) return it.serviceName;
     const svc = (data.services || []).find((x) => x.id === it.serviceId);
-    return svc ? svcLabel(svc) : (it.serviceId || '—');
+    return svc ? svcLabel(svc) : 'บริการที่ลบแล้ว';
   };
 
   // ชื่อหมอของบิล: ใช้ชื่อที่เซฟไว้ก่อน ถ้าไม่มีค่อยค้นจากรหัสในรายชื่อพนักงานปัจจุบัน
@@ -116,7 +119,7 @@ export default function PageBills({ data, saveData, role }) {
   };
 
   const confirmVoid = () => {
-    if (authPass !== MANAGER_PASS) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
+    if (authPass !== getManagerPass()) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -132,6 +135,8 @@ export default function PageBills({ data, saveData, role }) {
   };
 
   // ลบถาวร — เจ้าของร้านเท่านั้น (พนักงานไม่เห็นปุ่ม)
+  // C4-delrace: ลบ cloud ก่อน (กัน realtime ทับด้วย syncState.pending) แล้วค่อยลบ local —
+  // ถ้าลบ cloud ล้มให้ rollback (ไม่แตะ state เดิม) + คง alert เดิม
   const deleteBill = async (b) => {
     if (role === 'staff') return;
     const ok = await confirmDialog({
@@ -140,7 +145,7 @@ export default function PageBills({ data, saveData, role }) {
       confirmLabel: 'ลบถาวร', danger: true,
     });
     if (!ok) return;
-    saveData({
+    const next = {
       ...data,
       bills: (data.bills || []).filter((x) => x.id !== b.id),
       auditLog: [...(data.auditLog || []), {
@@ -148,12 +153,20 @@ export default function PageBills({ data, saveData, role }) {
         action: 'ลบบิลถาวร', detail: `${b.id} · ${b.customer || 'ลูกค้าหน้าร้าน'} · ฿ ${billTotal(b).toLocaleString()}`,
         oldValue: b.status || '-', newValue: 'deleted', approvedBy: 'เจ้าของร้าน',
       }],
-    });
+    };
+    syncState.pending += 1;
     try {
-      await deleteBillFromCloud(b.id);
-    } catch (e) {
-      alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });
-      return;
+      try {
+        await deleteBillFromCloud(b.id);
+      } catch (e) {
+        // rollback: ไม่ saveData คง state เดิมไว้ + แจ้งเหมือนเดิม
+        alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });
+        return;
+      }
+      saveData(next);
+    } finally {
+      syncState.pending -= 1;
+      syncState.lastDone = Date.now();
     }
     setDetailBill(null);
     alertDialog({ title: 'ลบบิลแล้ว', message: `ลบ ${b.id} ออกจากระบบแล้ว` });
@@ -256,7 +269,7 @@ export default function PageBills({ data, saveData, role }) {
               const rows = billRows(b);
               const paid = b.status === 'paid';
               const docName = therapistDisplay(b);
-              const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
+              const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
               const commTotal = rows.reduce((s, it) => {
                 const svc = (data.services || []).find((x) => x.id === it.serviceId);
                 return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
@@ -327,7 +340,7 @@ export default function PageBills({ data, saveData, role }) {
           {billRows(detailBill).map((it, i) => (
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
-              <span className="tt"><b>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {freelanceDisplayName(it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId || '—')}{String(it.therapistId || detailBill.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}</small></span>
+              <span className="tt"><b>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {freelanceDisplayName(it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId || '—')}{isFreelance(it.therapistId || detailBill.therapistId, data.therapists) ? ' (หมอวิ่ง)' : ''}</small></span>
               <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿ {(it.net || 0).toLocaleString()}</b>
             </div>
           ))}

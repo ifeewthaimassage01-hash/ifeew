@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, TriangleAlert, X } from 'lucide-react';
 import { bkkToday } from '../utils/bkk';
 
@@ -133,9 +133,33 @@ export function fmtRange(from, to) {
 }
 
 export function Modal({ children, onClose }) {
+  const boxRef = useRef(null);
+  const prevRef = useRef(null);
+  useEffect(() => {
+    prevRef.current = document.activeElement;
+    const box = boxRef.current;
+    box?.querySelector('button, input, select, textarea')?.focus?.();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose?.(); }
+      else if (e.key === 'Tab' && box) {
+        const f = [...box.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')]
+          .filter((el) => !el.disabled);
+        if (f.length === 0) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (prevRef.current?.focus) prevRef.current.focus();
+    };
+  }, [onClose]);
   return (
     <div className="modal-ov" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div ref={boxRef} className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         {children}
       </div>
     </div>
@@ -162,8 +186,15 @@ export function confirmDialog({ title, message, confirmLabel = 'ยืนยั�
 
 export function DialogHost() {
   const [stack, setStack] = useState([]);
+  const prevFocus = useRef(null);
+  const topRef = useRef(null);
   useEffect(() => {
-    const onDialog = (e) => setStack((prev) => [...prev, e.detail]);
+    const onDialog = (e) => {
+      setStack((prev) => {
+        if (prev.length === 0) prevFocus.current = document.activeElement;
+        return [...prev, e.detail];
+      });
+    };
     window.addEventListener('ifeew-dialog', onDialog);
     return () => window.removeEventListener('ifeew-dialog', onDialog);
   }, []);
@@ -171,6 +202,39 @@ export function DialogHost() {
     setStack((prev) => prev.filter((x) => x.id !== d.id));
     d.resolve(value);
   };
+  // C5: บอก App ว่ามี modal เปิดอยู่กี่ใบ — App ข้าม realtime reload กันทับ wizard
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: stack.length } }));
+    if (stack.length === 0) {
+      if (prevFocus.current?.focus) prevFocus.current.focus();
+      prevFocus.current = null;
+    }
+  }, [stack.length]);
+  // C2: ESC ปิดใบบนสุด + โฟกัสปุ่มแรก + trap Tab ในใบบนสุด
+  useEffect(() => {
+    if (stack.length === 0) return undefined;
+    const top = stack[stack.length - 1];
+    const t = setTimeout(() => {
+      topRef.current?.querySelector('.modal-row .btn, .modal-x')?.focus?.();
+    }, 0);
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        close(top, top.cancel ? false : true);
+      } else if (e.key === 'Tab' && topRef.current) {
+        const f = [...topRef.current.querySelectorAll('button')]
+          .filter((el) => !el.disabled);
+        if (f.length === 0) return;
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => { clearTimeout(t); document.removeEventListener('keydown', onKey, true); };
+  }, [stack.length]);
   if (stack.length === 0) return null;
   // M8: render คิว dialog ครบทุกใบ (ซ้อนกันได้) + ปุ่มยกเลิกชัดเจนสำหรับ confirm
   return (
@@ -182,7 +246,7 @@ export function DialogHost() {
           style={{ zIndex: 1000 + i }}
           onClick={() => { if (d.cancel) close(d, false); }}
         >
-          <div className="modal dialog-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+          <div className="modal dialog-modal" ref={i === stack.length - 1 ? topRef : undefined} onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true" aria-label={d.title}>
             {d.cancel && <button className="modal-x" onClick={() => close(d, false)} aria-label="ปิด"><X size={16} /></button>}
             <div className={`dialog-ic${d.danger ? ' danger' : ''}`}>
               {d.danger ? <TriangleAlert size={26} /> : <CheckCircle2 size={26} />}

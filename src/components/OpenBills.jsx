@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
-import { commBaht, freelanceDisplayName } from '../lib/billing';
+import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
+import { getManagerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 
 const billRows = (b) => b.items || b.customers || [];
@@ -13,10 +14,9 @@ const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i),
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
 
-// C2: รหัสผู้จัดการ — อ่านจาก env ก่อน (default ชั่วคราวสำหรับร้านเดิม)
+// C2: รหัสผู้จัดการ — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
 // TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
-// ห้าม hardcode รหัสซ้ำหลายไฟล์ — ใช้ค่าจากตัวแปรนี้ที่เดียว
-const MANAGER_PASS = import.meta.env.VITE_MANAGER_PASS ?? '123123';
+// ห้าม hardcode รหัสซ้ำหลายไฟล์ — ใช้ค่าจาก lib/auth.js ที่เดียว
 
 // id แถวบริการ: ใช้ UUID (string) เพื่อไม่ชนกันหลังลบ/เพิ่ม; fallback เป็น int จาก Date.now()
 function newRowId() {
@@ -55,13 +55,13 @@ function itemTimeText(it) {
 }
 
 /* ใบเสร็จ: รายการ (แตะขยายได้) + โปร + ยอดรวม */
-function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expandedKey, onToggle, onRemove }) {
+function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, total, expandedKey, onToggle, onRemove }) {
   const [deletingKey, setDeletingKey] = useState(null);
   const nameOf = (it) => {
     if (it.serviceName) return it.serviceName;
     const svc = (services || []).find((s) => s.id === it.serviceId);
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
-    return it.serviceId;
+    return 'บริการที่ลบแล้ว';
   };
   const commOf = (it) => {
     const svc = (services || []).find((s) => s.id === it.serviceId);
@@ -73,7 +73,7 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
       {items.map((it, idx) => {
         const key = it._key ?? idx;
         const open = expandedKey === key;
-        const isRun = String(it.therapistId || '').startsWith('EXT-');
+        const isRun = isFreelance(it.therapistId, therapists);
         return (
           <div key={key} className="rcpt-card">
             <div className="rcpt-top">
@@ -94,7 +94,7 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
                     }
                   }}
                   disabled={deletingKey === key}
-                  aria-label="ลบรายการ"
+                  aria-label={`ลบรายการ ${nameOf(it)}`}
                   className="icon-btn danger rcpt-del"
                 >
                   <Trash2 size={15} />
@@ -165,11 +165,12 @@ export default function OpenBillsSection({ data, saveData, role }) {
     const t = (data.therapists || []).find((x) => x.id === tid);
     return t ? t.name : freelanceDisplayName(tid || '—');
   };
+  // M5: หาไม่เจอคืน 'บริการที่ลบแล้ว' ไม่โชว์รหัสดิบ
   const serviceNameOf = (it) => {
     if (it.serviceName) return it.serviceName;
     const svc = (data.services || []).find((x) => x.id === it.serviceId);
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
-    return it.serviceId || '—';
+    return 'บริการที่ลบแล้ว';
   };
   if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) {
     return (
@@ -184,7 +185,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setEditDiscount(b.discount ? String(b.discount) : '');
     setEditPromoId(promosActive.find((p) => b.promotion && p.name === b.promotion)?.id || '');
     setEditPay(b.paymentMethod || 'เงินสด');
-    setEditItems(billRows(b).map((it, i) => ({ ...it, _key: `${Date.now()}-${i}` })));
+    setEditItems(billRows(b).map((it) => ({ ...it, _key: newRowId() })));
     setAddSvcId(''); setEditErr('');
     setExpandedKey(null); setShowAddSvc(false);
   };
@@ -222,7 +223,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ? `${svc.category} ${svc.duration < 60 ? `${svc.duration} นาที` : svc.duration % 60 === 0 ? `${svc.duration / 60} ชม` : `${Math.floor(svc.duration / 60)} ชม ${svc.duration % 60} นาที`}`
       : svc.category;
     setEditItems([...editItems, {
-      _key: `${Date.now()}`, serviceId: svc.id, serviceName: label, category: svc.category,
+      _key: newRowId(), serviceId: svc.id, serviceName: label, category: svc.category,
       therapistId, therapistName, qty: 1, price: svc.price, discount: 0, net: svc.price,
       duration: mins, totalMinutes: mins,
       startTime: startMin != null ? minutesToTime(startMin) : '',
@@ -352,7 +353,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr('');
   };
 
-  const confirmVoid = () => {    if (authPass !== MANAGER_PASS) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
+  const confirmVoid = () => {    if (authPass !== getManagerPass()) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -376,7 +377,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           {openBills.map((b) => {
             const rows = billRows(b);
             const docName = therapistNameOf(b, rows);
-            const docExtra = String(b.therapistId || rows[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : '';
+            const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
             return (
             <div key={b.id} className="ob-card">
               <div className="ob-head">
@@ -434,6 +435,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <ReceiptCard
             items={editItems}
             services={data.services}
+            therapists={data.therapists}
             subtotal={editSubtotal}
             disc={editDisc}
             discLabel={promosActive.find((p) => p.id === editPromoId)?.name || editTarget.promotion || ''}
@@ -461,7 +463,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
               </div>
               <p className="muted" style={{ marginTop: 6 }}>
                 หมอ: <b>{freelanceDisplayName(editItems[0]?.therapistName || editItems[0]?.therapistId || '—')}</b>
-                {String(editItems[0]?.therapistId || '').startsWith('EXT-') ? ' (หมอวิ่ง)' : ''}
+                {isFreelance(editItems[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : ''}
                 {' · '}<button type="button" className="mini-link" onClick={() => { setShowAddSvc(false); setAddSvcId(''); }}>ย่อกลับ</button>
               </p>
             </div>
@@ -489,6 +491,14 @@ export default function OpenBillsSection({ data, saveData, role }) {
           )}
 
           
+          <div className="field"><label>ช่องทางชำระ</label>
+            <div className="pay-seg">
+              {payMethods.map((m) => (
+                <button key={m} type="button" className={editPay === m ? 'on' : ''} onClick={() => setEditPay(m)}>{m}</button>
+              ))}
+            </div>
+          </div>
+
           <div className="modal-cta">
             <button onClick={saveEdit} className="btn btn-ghost" style={{ width: '100%' }}>บันทึก</button>
             <button onClick={saveEditAndCheckout} className="btn btn-primary" style={{ width: '100%' }}>เช็คบิล · ฿ {editTotal.toLocaleString()}</button>
@@ -510,6 +520,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <ReceiptCard
             items={billRows(checkoutTarget)}
             services={data.services}
+            therapists={data.therapists}
             subtotal={billRows(checkoutTarget).reduce((s, i) => s + (i.net ?? i.price ?? 0), 0)}
             disc={checkoutTarget.discount || 0}
             discLabel={checkoutTarget.promotion || ''}

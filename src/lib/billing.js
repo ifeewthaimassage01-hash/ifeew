@@ -31,6 +31,14 @@ export function freelanceDisplayName(tid) {
   return s || 'ไม่ระบุ';
 }
 
+// M4: ตัวเช็กหมอวิ่งมาตรฐานที่เดียว — หมอวิ่ง = รหัสไม่อยู่ในทะเบียนพนักงานปัจจุบัน
+// (แทนที่การเช็ก 3 แบบ: staffIds.has / stats[tid] / startsWith('EXT-'))
+// tid ว่าง/ไม่ระบุ → ถือเป็นหมอวิ่ง (ตรงพฤติกรรมเดิมของ Dashboard/MonthStatement)
+export function isFreelance(tid, therapists) {
+  if (tid == null || tid === '') return true;
+  return !(therapists || []).some((t) => String(t.id) === String(tid));
+}
+
 // ค่าแรงคงที่ (บาท) ของแถวบริการ — ใช้ flatAmount ถ้ามี ไม่งั้นคำนวณจาก flatRate เดิม
 export function commBaht(s) {
   if (!s) return 0;
@@ -69,6 +77,32 @@ export function tierRateOf(total) {
     if (total <= t.max) return t.rate;
   }
   return TIERS[TIERS.length - 1].rate;
+}
+
+/* ลำดับหมวดบริการ (รายการ) — source of truth คือ data.serviceCategoryOrder
+ * (sync ผ่าน app_settings key 'service_category_order', ดู cloudSync.js)
+ * tolerant ข้อมูลเก่า: ชื่อไหนหลุดจาก order ที่เซฟให้ต่อท้ายตามตัวอักษรไทย,
+ * ถ้าไม่มี order เลยคืนตามตัวอักษร (ตรงพฤติกรรมเดิมที่ cloud .order('name'))
+ * คืนเฉพาะชื่อที่มีอยู่จริง (ตัดชื่อผีใน order ทิ้ง) — ไม่ลบข้อมูลใดๆ */
+export function serviceCategoryOrder(data) {
+  const d = data || {};
+  const rawCats = Array.isArray(d.serviceCategories) ? d.serviceCategories : [];
+  const base = rawCats.length
+    ? [...new Set(rawCats.filter((c) => typeof c === 'string' && c))]
+    : [...new Set((d.services || []).map((s) => s && s.category).filter(Boolean))];
+  const raw = Array.isArray(d.serviceCategoryOrder) ? d.serviceCategoryOrder : [];
+  const byTh = (a, b) => String(a).localeCompare(String(b), 'th');
+  if (raw.length === 0) return [...base].sort(byTh);
+  const inBase = new Set(base);
+  const seen = new Set();
+  const ordered = [];
+  for (const c of raw) {
+    if (typeof c !== 'string' || !c || seen.has(c) || !inBase.has(c)) continue;
+    seen.add(c);
+    ordered.push(c);
+  }
+  const missing = base.filter((c) => !seen.has(c)).sort(byTh);
+  return [...ordered, ...missing];
 }
 
 /* คืนชื่ออังกฤษของหมวดไทย — ใช้ค่าที่ร้านตั้งเอง (overrides) ก่อน แล้วค่อย fallback map กลาง */

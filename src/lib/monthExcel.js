@@ -29,7 +29,8 @@ export function downloadMonthExcel(data, month) {
   L.push(['รายการขายรายตัว']);
   L.push(['วันที่', 'เวลา', 'บริการ', 'หมอ', 'ราคา', 'ค่าแรง', 'สุทธิ']);
   r.lines.forEach((l) => L.push([fmtDNum(l.date), fmtTime(l.ts), l.service, l.therapist, num(l.price), num(l.comm), num(l.net)]));
-  L.push(['รวมทั้งเดือน', '', '', num(r.income), num(r.regComm + r.extComm), num(r.income - r.regComm - r.extComm)]);
+  // M3: แถวรวมต้องตรงนิยาม net = income − expenseSum − extComm − fuelSum − regComm (ใช้ r.net ที่คำนวณแล้ว)
+  L.push(['รวมทั้งเดือน', '', '', '', num(r.income), num(r.regComm + r.extComm), num(r.net)]);
   L.push([]);
   L.push(['ช่องทางชำระ']);
   L.push(['ช่องทาง', 'บิล', 'ยอด']);

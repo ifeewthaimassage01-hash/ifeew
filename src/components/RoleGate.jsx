@@ -1,21 +1,43 @@
 import { useState } from 'react';
 import { Flower2, UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
+import { getOwnerPass } from '../lib/auth';
 
-// รหัสผ่านเจ้าของร้าน — อ่านจาก env เป็นหลัก (ตั้งค่าใน .env ด้วย VITE_OWNER_PASS)
+// รหัสผ่านเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (C6)
 // หมายเหตุ: การเช็กฝั่ง client กันได้แค่ระดับ UI ควรย้ายไปตรวจฝั่ง server / Supabase RLS ต่อ
-export const OWNER_PASS = import.meta.env.VITE_OWNER_PASS ?? '123123';
+// เต็มรูปต้อง server auth — sessionStorage ปลอมได้ จึงมีแค่อายุ 12 ชม. กันเครื่องค้าง
+export const OWNER_PASS = getOwnerPass();
 const ROLE_KEY = 'ifeew_role';
+// C3-role: อายุ session เจ้าของร้าน 12 ชม. (staff ไม่มีหมดอายุ คงเดิม)
+const ROLE_EXP_KEY = 'ifeew_role_exp';
+const OWNER_TTL_MS = 12 * 60 * 60 * 1000;
 
 export function saveRole(role) {
-  try { sessionStorage.setItem(ROLE_KEY, role); } catch { /* ignore */ }
+  try {
+    sessionStorage.setItem(ROLE_KEY, role);
+    if (role === 'owner') sessionStorage.setItem(ROLE_EXP_KEY, String(Date.now() + OWNER_TTL_MS));
+    else sessionStorage.removeItem(ROLE_EXP_KEY);
+  } catch { /* ignore */ }
 }
 
 export function clearRole() {
   try {
     sessionStorage.removeItem(ROLE_KEY);
+    sessionStorage.removeItem(ROLE_EXP_KEY);
     sessionStorage.removeItem('ifeew_mgr_ok');
   } catch { /* ignore */ }
+}
+
+// หมดอายุหรือยัง — App ควรเรียกตอนโหลด role แล้วเด้งกลับหน้าเลือกบทบาทถ้าหมด
+// (staff คืน false เสมอ) — NOTE: App.jsx อ่าน sessionStorage เองโดยตรง จึงต้องเพิ่ม
+// การเรียกตัวนี้ฝั่ง App (ไฟล์นอกขอบเขตที่แตะได้) + เต็มรูปต้อง server auth
+export function isOwnerSessionExpired() {
+  try {
+    if (sessionStorage.getItem(ROLE_KEY) !== 'owner') return false;
+    const exp = Number(sessionStorage.getItem(ROLE_EXP_KEY) || 0);
+    if (!Number.isFinite(exp) || exp <= 0) return true; // owner เก่าที่ไม่มีเวลาหมดอายุ = หมดแล้ว
+    return Date.now() > exp;
+  } catch { return false; }
 }
 
 export default function RoleGate({ onSelect }) {
@@ -25,7 +47,7 @@ export default function RoleGate({ onSelect }) {
 
   const submitOwner = (e) => {
     e.preventDefault();
-    if (pass === OWNER_PASS) {
+    if (pass === getOwnerPass()) {
       setErr('');
       onSelect('owner');
     } else {

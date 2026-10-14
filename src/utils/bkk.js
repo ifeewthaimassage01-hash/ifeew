@@ -32,10 +32,11 @@ export function bkkToday(offset = 0) {
   return `${tp.y}-${tp.m}-${tp.d}`;
 }
 
-/** เวลาปัจจุบันไทย YYYY-MM-DDTHH:mm:ss (ไม่มี offset) — ใช้เก็บ bill.date/createdAt/timestamp */
+/** เวลาปัจจุบันไทย ISO พร้อม offset +07:00 — ใช้เก็บ bill.date/paidAt/timestamp (timestamptz)
+ * (ของเดิมส่ง wall-time ไม่มี offset ทำให้ Postgres ตีความเป็น UTC แล้วเพี้ยน 7 ชม.) */
 export function bkkNow() {
   const p = parts();
-  return `${p.y}-${p.m}-${p.d}T${p.H}:${p.M}:${p.S}`;
+  return `${p.y}-${p.m}-${p.d}T${p.H}:${p.M}:${p.S}+07:00`;
 }
 
 /** ปี ค.ศ. ไทย (สำหรับ footer) */
@@ -50,8 +51,8 @@ export function bkkMinutes() {
 }
 
 /**
- * แสดงผลวันที่/เวลาเป็นไทย — รับทั้ง ISO มี Z และ wall-time ไม่มี offset
- * (wall-time ไม่มี offset ถือว่าเป็นเวลาไทยอยู่แล้ว)
+ * แสดงผลวันที่/เวลาเป็นไทย — รับทั้ง ISO มี Z/offset และ wall-time ไม่มี offset
+ * (wall-time ไม่มี offset ถือว่าเป็นเวลาไทยอยู่แล้ว; bkkNow() รุ่นใหม่ส่ง +07:00 มาให้ตรง timestamptz)
  */
 export function fmtBkk(dateStr, opts) {
   if (!dateStr) return '—';

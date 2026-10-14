@@ -3,16 +3,9 @@ import { Plus, Upload, CheckCircle2, Receipt, ExternalLink, Loader2 } from 'luci
 import { Card, CardHead, EmptyState, alertDialog } from '../components/ui';
 import { bkkToday, bkkNow } from '../utils/bkk';
 import { uploadReceipt, resolveImageUrl, isCloudinaryConfigured } from '../lib/images';
+import { nextExpenseId } from '../lib/ids';
 
-// M7: รันเลข E001 แบบไม่ชนหลังลบ — สแกนหาเลขสูงสุดที่มีอยู่แล้ว +1 (แบบเดียวกับ PageManage nextId)
-function nextExpenseId(list) {
-  let max = 0;
-  (list || []).forEach((x) => {
-    const m = String(x.id || '').match(/^E(\d+)$/);
-    if (m) max = Math.max(max, Number(m[1]));
-  });
-  return `E${String(max + 1).padStart(3, '0')}`;
-}
+// M8-ids: รหัสค่าใช้จ่ายมาตรฐานที่เดียว (lib/ids.js) — ลบตัว local ทิ้ง
 
 // ไฟล์แนบอาจเป็น PDF — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
 function isPdfUrl(url) {
@@ -43,15 +36,17 @@ export default function PageExpenses({ data, saveData, role }) {
     }
   };
   const expenses = [...(data.expenses || [])].reverse();
-  const monthTotal = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
+  const grandTotal = (data.expenses || []).reduce((s, e) => s + e.amount, 0);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.amount) { setErr('กรอกจำนวนเงินก่อนบันทึก'); return; }
+    // M2: รับเฉพาะจำนวนเงิน > 0 ที่ finite (กัน 0/ติดลบ/NaN/Infinity)
+    const amt = Number(form.amount);
+    if (!Number.isFinite(amt) || amt <= 0) { setErr('กรอกจำนวนเงินให้ถูกต้อง (ต้องมากกว่า 0)'); return; }
     if (!form.notes.trim()) { setErr('กรอกหมายเหตุว่าใช้จ่ายอะไร'); return; }
     setErr('');
     const label = form.notes.trim();
-    const newExpense = { id: nextExpenseId(data.expenses), ...form, item: label, category: 'ทั่วไป', amount: Number(form.amount) };
+    const newExpense = { id: nextExpenseId(data.expenses), ...form, item: label, category: 'ทั่วไป', amount: amt };
     saveData({
       ...data,
       expenses: [...(data.expenses || []), newExpense],
@@ -71,7 +66,7 @@ export default function PageExpenses({ data, saveData, role }) {
       <div className="kpi-grid">
         <div className="kpi dark span2">
           <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
-          <div className="kpi-value">฿ {monthTotal.toLocaleString()}</div>
+          <div className="kpi-value">฿ {grandTotal.toLocaleString()}</div>
           <div className="kpi-sub">{(data.expenses || []).length} รายการ</div>
         </div>
       </div>

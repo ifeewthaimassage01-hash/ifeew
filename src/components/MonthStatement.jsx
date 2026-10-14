@@ -1,6 +1,6 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { commBaht, freelanceDisplayName } from '../lib/billing';
+import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 import { formatDuration } from './ui';
 import { bkkToday } from '../utils/bkk';
 
@@ -40,7 +40,8 @@ export function fmtDNum(iso) {
 export function buildMonthReport(data, month) {
   const therapists = data.therapists || [];
   const services = data.services || [];
-  const staffIds = new Set(therapists.map((t) => t.id));
+  // M4: เช็กหมอประจำมาตรฐานที่เดียว (isFreelance)
+  const isStaff = (tid) => !isFreelance(tid, therapists);
   const nameOf = (tid, fallback) => {
     const t = therapists.find((x) => x.id === tid);
     if (t) return t.name;
@@ -50,18 +51,18 @@ export function buildMonthReport(data, month) {
     const svc = services.find((x) => x.id === it.serviceId);
     return svc ? commBaht(svc) * (it.qty || 1) : 0;
   };
-  const isStaff = (tid) => tid && staffIds.has(String(tid));
 
   // ชื่อบริการ: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
+  // M5: หาไม่เจอคืน 'บริการที่ลบแล้ว' ไม่โชว์รหัสดิบ
   const serviceDisplay = (it) => {
     if (it.serviceName) return it.serviceName;
     const svc = services.find((x) => x.id === it.serviceId);
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
-    return it.serviceId || '—';
+    return 'บริการที่ลบแล้ว';
   };
 
   const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && String(b.date || '').slice(0, 7) === month);
-  const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 10).slice(0, 7) === month);
+  const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 7) === month);
 
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
   const expenseSum = expenses.reduce((s, e) => s + (e.amount || 0), 0);
@@ -78,12 +79,15 @@ export function buildMonthReport(data, month) {
       // ปันส่วนลดท้ายบิลลง line ตามสัดส่วนราคา (กันยอดรวม lines เกิน income จริง)
       const share = subtotal > 0 ? gross / subtotal : (rows.length > 0 ? 1 / rows.length : 0);
       const price = Math.max(0, gross - disc * share);
-      const comm = commOf(it);
+      // M3: ปัน comm ตามสัดส่วนราคาหลังหักส่วนลด + floor net>=0 (กัน price-comm ติดลบ)
+      const fullComm = commOf(it);
+      const comm = gross > 0 ? (fullComm * price) / gross : 0;
+      const net = Math.max(0, price - comm);
       lines.push({
         ts: b.date || '', date: String(b.date || '').slice(0, 10),
         service: serviceDisplay(it),
         therapist: it.therapistName || b.therapistName || nameOf(tid),
-        price, comm, net: price - comm, staff: isStaff(tid),
+        price, comm, net, staff: isStaff(tid),
       });
     });
   });

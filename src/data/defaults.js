@@ -1,5 +1,6 @@
 // ค่าเริ่มต้นของร้าน (ใช้ปุ่มรีเซ็ตในหน้าจัดการร้าน) — ไม่เปลี่ยนค่า
-export const serviceTypes = [
+// canonical คือ DEFAULT_* ตัวเดียว; ชื่อเก่า (serviceTypes/addonTypes/...) เป็น alias ชี้ก้อนเดียวกัน (กัน import เก่าพัง)
+export const DEFAULT_SERVICES = [
   // นวดไทย — แยกตามชั่วโมงให้ชัดเจน (1 ชม / 1.5 ชม / 2 ชม)
   { id: 'S01', category: 'นวดไทย', price: 350, duration: 60, flatRate: 0.40, tierCategory: 'massage' },
   { id: 'S02', category: 'นวดไทย', price: 500, duration: 90, flatRate: 0.40, tierCategory: 'massage' },
@@ -19,21 +20,21 @@ export const serviceTypes = [
 ];
 
 // บริการเสริม (add-on) — เลือกเพิ่มใน POS ขั้นระยะเวลาได้หลายอย่าง
-export const addonTypes = [
+export const DEFAULT_ADDONS = [
   { id: 'A01', name: 'ประคบสมุนไพร', minutes: 30, price: 350, active: true },
   { id: 'A02', name: 'ศีรษะและไหล่', minutes: 20, price: 250, active: true },
 ];
-export const DEFAULT_ADDONS = addonTypes;
+export const addonTypes = DEFAULT_ADDONS;
 
 // โปรโมชันส่วนลดท้ายบิล — เลือกใน POS / หน้าแก้ไขบิล แทนการกรอกมือ
-export const promoTypes = [
+export const DEFAULT_PROMOTIONS = [
   { id: 'P01', name: 'โปรวันเกิด', amount: 500, active: true },
   { id: 'P02', name: 'โปร 10 ครั้ง', amount: 300, active: true },
 ];
-export const DEFAULT_PROMOTIONS = promoTypes;
+export const promoTypes = DEFAULT_PROMOTIONS;
 
 // ค่าเริ่มต้นสำหรับปุ่มรีเซ็ตในหน้าจัดการร้าน
-export const DEFAULT_SERVICES = serviceTypes;
+export const serviceTypes = DEFAULT_SERVICES;
 export const DEFAULT_CATEGORIES = [
   'นวดไทย', 'นวดน้ำมัน', 'นวดเท้า', 'อโรมา/สปา', 'ขัดผิว', 'แพ็กเกจ/คอร์ส', 'ขายสินค้า', 'รายได้อื่น ๆ', 'ทิป (Tip)'
 ];
@@ -60,6 +61,4 @@ export function defaultCategoryEnMap() {
   return m;
 }
 
-export const categories = [
-  'นวดไทย', 'นวดน้ำมัน', 'นวดเท้า', 'อโรมา/สปา', 'ขัดผิว', 'แพ็กเกจ/คอร์ส', 'ขายสินค้า', 'รายได้อื่น ๆ', 'ทิป (Tip)'
-];
+export const categories = DEFAULT_CATEGORIES;

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } fro
 import { Flower2, TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
-import RoleGate, { saveRole, clearRole } from './components/RoleGate';
+import RoleGate, { saveRole, clearRole, isOwnerSessionExpired } from './components/RoleGate';
 import { loadCloudData, scheduleSync, cloudStatus, syncState, subscribeSyncStatus, retrySync } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { subscribePosTables } from './lib/realtime';
@@ -30,10 +30,16 @@ const PAGES = {
 };
 
 // อ่าน role ที่เก็บไว้ — คืนค่าเฉพาะที่ถูกต้อง กันค่าแปลกปลอมใน storage
+// owner หมดอายุ 12 ชม. (isOwnerSessionExpired) → เด้งกลับหน้าเลือกบทบาท
 function loadRole() {
   try {
     const r = sessionStorage.getItem(ROLE_KEY);
-    return VALID_ROLES.includes(r) ? r : null;
+    if (!VALID_ROLES.includes(r)) return null;
+    if (r === 'owner' && isOwnerSessionExpired()) {
+      sessionStorage.removeItem(ROLE_KEY);
+      return null;
+    }
+    return r;
   } catch { return null; }
 }
 
@@ -62,7 +68,15 @@ export default function App() {
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [syncErr, setSyncErr] = useState('');
   const dataRef = useRef(null);
-  dataRef.current = data;
+  // minor: อัปเดต ref ใน effect (ไม่ assign ระหว่าง render)
+  useEffect(() => { dataRef.current = data; }, [data]);
+  // C5: นับ modal ที่เปิดอยู่ — realtime reload ข้ามตอนมี modal กันทับ wizard/dialog
+  const modalOpenRef = useRef(0);
+  useEffect(() => {
+    const onModal = (e) => { modalOpenRef.current = e.detail?.open || 0; };
+    window.addEventListener('ifeew-modal', onModal);
+    return () => window.removeEventListener('ifeew-modal', onModal);
+  }, []);
 
   // ฟังสถานะเน็ต + สถานะ sync (เน็ตกลับเมื่อไร sync ทันที)
   useEffect(() => {
@@ -123,9 +137,11 @@ export default function App() {
     let timer = null;
     const reload = async () => {
       if (cancelled) return;
+      if (modalOpenRef.current > 0) return;
       if (syncState.pending > 0 || Date.now() - syncState.lastDone < 2000) return;
       try {
-        const cloud = await loadCloudData();
+        // quiet: reload เบื้องหลังล้มไม่ขึ้น banner แดง (ข้อมูลปัจจุบันยังดีอยู่)
+        const cloud = await loadCloudData({ quiet: true });
         if (!cancelled && cloud) {
           setData(cloud);
           setCloudMode(cloudStatus.mode);
@@ -209,17 +225,21 @@ export default function App() {
           <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} />
           <main className="page">
             <div className="container">
-              {!online && (
-                <div className="err-banner" role="alert">
-                  <WifiOff size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span>ไม่มีเน็ต — ข้อมูลที่บันทึกจะยังไม่ขึ้น cloud จนกว่าเน็ตจะกลับ (กลับมาแล้วระบบจะ sync ให้เอง)</span>
-                </div>
-              )}
-              {online && syncErr && (
-                <div className="err-banner" role="alert">
-                  <TriangleAlert size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ flex: 1 }}>อัปโหลดขึ้น cloud ไม่สำเร็จ — {syncErr}</span>
-                  <button type="button" className="btn btn-ghost btn-sm" style={{ flexShrink: 0 }} onClick={() => { if (data) retrySync(data).catch(() => {}); }}>ลองอีกครั้ง</button>
+              {/* M2: banner รวมอันเดียว (offline ชนะ) + sticky ไม่ดัน wizard */}
+              {(!online || syncErr) && (
+                <div className="err-banner net-banner" role="alert">
+                  {!online ? (
+                    <>
+                      <WifiOff size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span>ไม่มีเน็ต — ข้อมูลที่บันทึกจะยังไม่ขึ้น cloud จนกว่าเน็ตจะกลับ (กลับมาแล้วระบบจะ sync ให้เอง)</span>
+                    </>
+                  ) : (
+                    <>
+                      <TriangleAlert size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ flex: 1 }}>อัปโหลดขึ้น cloud ไม่สำเร็จ — {syncErr}</span>
+                      <button type="button" className="btn btn-ghost btn-sm net-retry" style={{ flexShrink: 0 }} onClick={() => { if (data) retrySync(data).catch(() => {}); }}>ลองอีกครั้ง</button>
+                    </>
+                  )}
                 </div>
               )}
               <div className="rise" key={activePage}>

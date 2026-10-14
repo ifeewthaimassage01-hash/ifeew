@@ -9,7 +9,7 @@ export const NAV_ITEMS = [
   { label: 'POS', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
   { label: 'บิล', short: 'บิล', sub: 'เปิดอยู่ · ประวัติ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
   { label: 'รายจ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
-  { label: 'จัดการร้าน', short: 'จัดการร้าน', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
+  { label: 'จัดการร้าน', short: 'จัดการ', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
   { label: 'ค่าแรง', short: 'ค่าแรง', sub: 'หมอประจำ · หมอวิ่ง', icon: Calculator, key: 'commission', roles: ['owner', 'staff'] },
 ];
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DateRange, inDateRange } from '../components/ui';
 import { bkkToday } from '../utils/bkk';
-import { svcLabel, commBaht, freelanceDisplayName, tieredComm, tierRateOf } from '../lib/billing';
+import { svcLabel, commBaht, freelanceDisplayName, tieredComm, tierRateOf, isFreelance } from '../lib/billing';
 
 export default function PageCommission({ data, saveData, role }) {
   const isStaff = role === 'staff';
@@ -27,8 +27,8 @@ export default function PageCommission({ data, saveData, role }) {
   bills.forEach((bill) => {
     (bill.items || bill.customers || []).forEach((itm) => {
       const tid = itm.therapistId || bill.therapistId;
-      const s = stats[tid];
-      if (!s) {
+      // M4: เช็กหมอวิ่งมาตรฐานที่เดียว (isFreelance) — ไม่พึ่ง prefix EXT- / stats โดยตรง
+      if (isFreelance(tid, therapists)) {
         const key = tid ? String(tid) : 'ไม่ระบุ';
         const net = itm.net ?? itm.price ?? 0;
         const qty = itm.qty || 1;
@@ -41,18 +41,19 @@ export default function PageCommission({ data, saveData, role }) {
         freelanceById[key].total += net;
         return;
       }
-      const svc = (data.services || []).find((x) => x.id === itm.serviceId);
-      if (!svc) return;
+      // M1: นับ net/jobs หมอประจำก่อนเช็ก svc — บริการถูกลบเหลือแค่ comm=0 (freelance ทำแบบนี้อยู่แล้ว)
+      const s = stats[tid];
       const net = itm.net ?? itm.price ?? 0;
       const qty = itm.qty || 1;
-      const comm = commBaht(svc) * qty;
       s.totalSales += net;
       s.jobs += qty;
       regBillIds.add(bill.id);
+      const svc = (data.services || []).find((x) => x.id === itm.serviceId);
+      const comm = svc ? commBaht(svc) * qty : 0;
       // โหมด Flat: หมอประจำ (บาท) ต่อครั้งที่นวด
       s.flatCommission += comm;
       // นับว่านวดอะไรไปบ้าง + เก็บประวัติ
-      const label = svcLabel(svc);
+      const label = svc ? svcLabel(svc) : (itm.serviceName || itm.serviceId || 'บริการที่ลบแล้ว');
       s.services[label] = (s.services[label] || 0) + qty;
       if (!s.svcDetail[label]) s.svcDetail[label] = { qty: 0, sales: 0, comm: 0 };
       s.svcDetail[label].qty += qty;
@@ -78,27 +79,7 @@ export default function PageCommission({ data, saveData, role }) {
   const changeMode = (mode) => saveData({ ...data, commissionSettings: { ...data.commissionSettings, mode } });
   // โหมดคำนวณจริง (flat | tier) — เปลี่ยนผ่าน select ด้านล่างเท่านั้น ไม่ผูกกับแท็บมุมมอง
 
-  // บิลที่เปิดอยู่ (ยังไม่เช็คบิล) — ค่าแรงโดยประมาณ รอจ่ายจริงตอนเช็คบิล
-  const openBills = (data.bills || []).filter((b) => b.status === 'open');
-  const pending = { sales: 0, comm: 0, count: openBills.length };
-  if (settings.mode === 'flat') {
-    openBills.forEach((bill) => {
-      (bill.items || bill.customers || []).forEach((itm) => {
-        const net = itm.net ?? itm.price ?? 0;
-        pending.sales += net;
-        if (!String(itm.therapistId || bill.therapistId || '').startsWith('EXT-')) {
-          const svc = (data.services || []).find((x) => x.id === itm.serviceId);
-          if (svc) pending.comm += commBaht(svc) * (itm.qty || 1);
-        }
-      });
-    });
-  } else {
-    // Tier: ค่าแรงส่วนเพิ่ม = tier(ยอดรวมบิลเปิดอยู่) − tier(ยอดชำระแล้ว)
-    openBills.forEach((bill) => {
-      (bill.items || bill.customers || []).forEach((itm) => { pending.sales += itm.net ?? itm.price ?? 0; });
-    });
-    pending.comm = Math.round(tieredComm(sumSalesPaid + pending.sales) - tieredComm(sumSalesPaid));
-  }
+  // บิลที่เปิดอยู่ไม่นำมาคำนวณค่าแรงล่วงหน้า (กันยอดจ่ายจริงเพี้ยน) — ดูได้ที่หน้าบิลที่เปิดอยู่
 
   // ---- หน้าใหม่: ประวัติการนวดรายคน ----
   if (historyFor && stats[historyFor.id]) {
