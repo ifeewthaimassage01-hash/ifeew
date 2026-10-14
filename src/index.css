@@ -29,31 +29,9 @@
   --sh-pop: 0 16px 40px -16px rgba(100, 81, 62, 0.15);
   --font-body: 'Kanit', system-ui, sans-serif;
   --font-display: 'Kanit', system-ui, sans-serif;
-  /* legacy aliases (inline styles in pages) */
-  --paper: #faf8f3;
-  --card: #ffffff;
-  --pine-950: #64513e;
-  --pine-900: #64513e;
-  --pine-700: #b0885f;
-  --pine-600: #b0885f;
-  --sage-100: #f3e9db;
-  --sage-50: #f9f3ea;
-  --cream: #ffffff;
-  --sand: #f1ebe0;
-  --gold: #b0885f;
-  --brass: #b0885f;
-  --bronze: #8d7d6d;
-  --warm: #8d7d6d;
-  --rose: #bcae9f;
-  --deep: #64513e;
-  --dark: #64513e;
-  --mist: #f3e9db;
-  --light: #f9f3ea;
-  --green: #b0885f;
 }
 
-* { box-sizing: border-box; scrollbar-width: none; -ms-overflow-style: none; -webkit-tap-highlight-color: transparent; }
-*::-webkit-scrollbar { display: none; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
@@ -71,6 +49,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 }
 input, select, textarea { font-family: inherit; }
 ::selection { background: var(--brown); color: #fff; }
+
+/* ---------- iOS: กัน Safari จับเบอร์/วันที่/ราคาเป็นลิงก์ฟ้า ---------- */
+a[x-apple-data-detectors] {
+  color: inherit !important; text-decoration: none !important;
+  -webkit-text-fill-color: inherit !important;
+}
+a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
+.num, .cat-price, .grand-total, .dur-price, .tline .num {
+  -webkit-text-fill-color: currentColor;
+}
 
 /* ---------- shell ---------- */
 .app { min-height: 100vh; }
@@ -121,7 +109,7 @@ input, select, textarea { font-family: inherit; }
   backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: 18px; box-shadow: var(--sh-pop);
-  display: grid; grid-template-columns: repeat(6, 1fr); padding: 6px 4px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 6px 4px;
 }
 .bottomnav-in button {
   border: 0; background: transparent; color: var(--muted);
@@ -296,10 +284,6 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .card-eye:hover { background: var(--brown-tint); color: var(--brown-dark); border-color: var(--brown); }
 .mcard-bot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .mcard-btns { display: flex; gap: 6px; flex-shrink: 0; }
-@media (max-width: 719px) {
-  .mcard-cta { flex-direction: column; align-items: stretch; }
-  .mcard-btns > * { flex: 1; }
-}
 
 /* ---------- open-bill card (minimal) ---------- */
 .ob-card { border: 1px solid var(--line-soft); border-radius: 14px; padding: 14px; margin-bottom: 10px; background: #fff; }
@@ -321,14 +305,10 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .ob-sum .muted { display: block; font-size: 12px; margin-top: 2px; white-space: nowrap; }
 .ob-btns { display: flex; gap: 6px; flex-shrink: 0; }
 .ob-btns .btn, .ob-btns .btn-soft-danger { padding: 8px 14px; font-size: 12.5px; }
-@media (max-width: 719px) {
-  .ob-total { flex-direction: column; align-items: stretch; }
-  .ob-btns > * { flex: 1; }
-}
 .big-price { font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
 
-/* เช็คบ็อกซ์ค่าน้ำมันหมอวิ่ง — การ์ดไฮไลต์ตอนติ๊ก */
-.fuel-check { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 11px 12px; border-radius: 12px; border: 1.5px dashed var(--line); cursor: pointer; transition: border-color 0.15s, background 0.15s; user-select: none; }
+/* เช็คบ็อกซ์ค่าน้ำมันหมอวิ่ง — การ์ดไฮไลต์ตอนติ๊ก (render เป็น <button>) */
+.fuel-check { display: flex; align-items: center; gap: 10px; width: 100%; font: inherit; color: inherit; text-align: left; background: none; margin-top: 10px; padding: 11px 12px; border-radius: 12px; border: 1.5px dashed var(--line); cursor: pointer; transition: border-color 0.15s, background 0.15s; user-select: none; }
 .fuel-check.on { border-style: solid; border-color: #d9bd93; background: var(--brown-tint); }
 .fuel-ic { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: var(--surface-2); color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .fuel-check.on .fuel-ic { background: var(--brown); color: #fff; }
@@ -704,6 +684,32 @@ label.filebtn {
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 1s linear infinite; }
 
+/* ---------- utilities (แทน inline style ใน JSX) ---------- */
+.btn.btn-block { width: 100%; }
+.btn.btn-sm { padding: 7px 12px; font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.center { text-align: center; }
+.mt0 { margin-top: 0; }
+.mt4 { margin-top: 4px; }
+.mt6 { margin-top: 6px; }
+.mt8 { margin-top: 8px; }
+.mt12 { margin-top: 12px; }
+.mb0 { margin-bottom: 0; }
+.mb8 { margin-bottom: 8px; }
+.ml8 { margin-left: 8px; }
+.fs11 { font-size: 11px; }
+.fs115 { font-size: 11.5px; }
+.fg1 { flex: 1; }
+.fg09 { flex: 0.9; }
+.fg11 { flex: 1.1; }
+.fg16 { flex: 1.6; }
+.eic { flex-shrink: 0; margin-top: 2px; }
+.gate-form { margin-top: 18px; text-align: left; }
+.preset-btn.on { background: var(--brown-950); color: #fff; border-color: var(--brown-950); }
+.dropdown-item.hi { background: var(--surface-2); }
+.summary-box .r.grand { font-size: 15px; }
+.summary-box .grand-total { font-size: 24px; }
+
 /* ---------- responsive ---------- */
 @media (max-width: 719px) {
   .page { padding: 12px 16px 140px; }
@@ -847,6 +853,61 @@ label.filebtn {
   .gate-foot { font-size: 10.5px; margin-top: 16px; }
   .gate-role-hint { margin-top: 14px; }
   .gate-role-hint span { font-size: 12px; color: var(--faint); }
+  /* --- รวม @media (max-width:719px) ที่เคยกระจาย 3 จุดไว้ที่นี่จุดเดียว --- */
+  .mcard-cta { flex-direction: column; align-items: stretch; }
+  .mcard-btns > * { flex: 1; }
+  .ob-total { flex-direction: column; align-items: stretch; }
+  .ob-btns > * { flex: 1; }
+  /* ซ่อน scrollbar เฉพาะมือถือ (desktop ใช้ scrollbar ปกติ) */
+  * { scrollbar-width: none; -ms-overflow-style: none; }
+  *::-webkit-scrollbar { display: none !important; }
+  /* --- POS mobile (ย้ายมาจากบล็อกท้ายไฟล์) --- */
+  .page { padding: 14px 20px 150px; }
+  .steps { padding: 10px; position: sticky; top: 59px; z-index: 20; }
+  .step { gap: 8px; padding: 4px; }
+  .step:not(.cur) { display: none; }
+  .step.cur { flex: 1; }
+  .step .st b { font-size: 14px; }
+  .step .st small { font-size: 11px; }
+  .step-link { display: none; }
+  .prod-grid { grid-template-columns: 1fr; gap: 10px; }
+  .cat-grid { grid-template-columns: 1fr; gap: 10px; }
+  .cat-card { min-height: 0; height: auto; padding: 12px 12px 12px 14px; }
+  .cat-card-main b { font-size: 14.5px; min-height: 0; }
+  .cat-card-arrow { width: 34px; height: 34px; }
+  .svc-list { min-height: 58px; padding: 10px 12px; border-radius: 12px; }
+  .svc-list-main b { font-size: 14px; }
+  .svc-list-price { font-size: 17px; }
+  .dur-grid { grid-template-columns: 1fr; gap: 8px; }
+  .dur-card { flex-direction: row; justify-content: space-between; min-height: 46px; padding: 9px 12px; }
+  .dur-label { font-size: 13.5px; }
+  .dur-price { font-size: 15px; }
+  .thera-scroll { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: visible; padding: 2px; }
+  .thera-scroll .thera { min-width: 0; min-height: 92px; padding: 8px 6px; }
+  .thera-ava { width: 38px; height: 38px; font-size: 18px; }
+  .timepick-btn { min-height: 84px; }
+  .timepick-btn .timepick-val { font-size: 27px; }
+  .tend-box.full { font-size: 14px; }
+  .stepnav {
+    position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 25;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+    padding: 10px; margin-top: 14px; box-shadow: var(--sh-pop);
+  }
+  .stepnav .btn { padding: 10px; font-size: 13px; }
+  .stepnav-3 { gap: 6px; }
+  .stepnav-3 .btn { padding: 10px 6px; font-size: 12.5px; min-width: 0; }
+  .pay-grid { grid-template-columns: 1fr; gap: 8px; }
+  .pay-card { min-height: 44px; font-size: 13.5px; justify-content: center; padding: 10px; }
+  .tline { padding: 8px 0; }
+  .tline .tt b { font-size: 13.5px; white-space: normal; }
+  .qty button { width: 30px; height: 30px; }
+}
+
+/* จอเล็กมาก — ลดฟอนต์การ์ดบริการกันล้น */
+@media (max-width: 359px) {
+  .cat-card-main b { font-size: 13.5px; }
+  .cat-durs { font-size: 11.5px; }
+  .cat-price { font-size: 13px; }
 }
 
 @media (min-width: 720px) {
@@ -859,7 +920,6 @@ label.filebtn {
   .modal-ov { align-items: center; padding: 18px; }
   .modal { border-radius: 20px; padding: 26px; }
   .btn { width: auto; }
-  .btn-block { width: 100%; }
 }
 
 @media (min-width: 1080px) {
@@ -934,6 +994,23 @@ label.filebtn {
 }
 @media (max-width: 1079px) {
   .show-desktop { display: none !important; }
+}
+
+/* ---------- tablet 768–1024: ไม่มี rail (rail เริ่ม 1080) จึงจัด topbar + content ไม่ให้โล่ง ---------- */
+@media (min-width: 768px) and (max-width: 1079px) {
+  .page { padding: 20px 20px 130px; }
+  .container { max-width: 780px; }
+  /* ช่วงนี้ topbar ยังแสดงอยู่ — โชว์วันที่ให้แถบไม่โล่ง */
+  .topbar .date-chip.show-desktop { display: block !important; }
+  .topbar-in { max-width: 780px; }
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .kpi-grid > .kpi { grid-column: span 2; }
+  .kpi-grid > .kpi.span2 { grid-column: span 4; }
+  .cat-grid { grid-template-columns: 1fr 1fr; }
+  .prod-grid { grid-template-columns: repeat(3, 1fr); }
+  .svc-grid { grid-template-columns: 1fr 1fr; }
+  .bottomnav-in { max-width: 780px; margin-left: auto; margin-right: auto; }
+  .modal { max-width: 520px; }
 }
 /* ---------- role gate ---------- */
 .gate-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
@@ -1347,62 +1424,44 @@ label.filebtn {
 .addon-main small { font-size: 11.5px; color: var(--muted); }
 .addon-price { font-size: 14px; font-weight: 700; color: var(--brown-dark); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
-/* รายการ — การ์ดใหญ่แตะง่าย */
-.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* รายการ — การ์ดใหญ่แตะง่าย (ชื่อ 2 บรรทัดจบ + ราคาแยกบรรทัด กันตัดคำไทยกลางคำ) */
+.cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: stretch; }
 .cat-card {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  min-height: 66px; padding: 12px 14px; border-radius: 14px; width: 100%;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 72px; height: 100%; padding: 12px 12px 12px 14px; border-radius: 14px; width: 100%;
   background: var(--surface); border: 1.5px solid var(--line); text-align: left;
 }
 .cat-card:active { transform: scale(0.98); border-color: var(--brown); }
 .cat-card.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
-.cat-card.on .cat-card-arrow { color: var(--brown-dark); font-size: 18px; font-weight: 700; }
-.cat-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.cat-card-main b { font-size: 15px; font-weight: 700; }
-.cat-card-main small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.cat-card-arrow { font-size: 22px; font-weight: 300; color: var(--faint); line-height: 1; }
-
-/* มือถือ: การ์ดใหญ่เต็มจอ ปุ่มใหญ่ ชิดขอบพอดี */
-@media (max-width: 719px) {
-  .page { padding: 14px 20px 150px; }
-  .steps { padding: 10px; position: sticky; top: 59px; z-index: 20; }
-  .step { gap: 8px; padding: 4px; }
-  .step:not(.cur) { display: none; }
-  .step.cur { flex: 1; }
-  .step .st b { font-size: 14px; }
-  .step .st small { font-size: 11px; }
-  .step-link { display: none; }
-  .prod-grid { grid-template-columns: 1fr; gap: 10px; }
-  .cat-grid { grid-template-columns: 1fr; gap: 10px; }
-  .cat-card { min-height: 60px; padding: 10px 12px; }
-  .cat-card-main b { font-size: 14px; }
-  .svc-list { min-height: 58px; padding: 10px 12px; border-radius: 12px; }
-  .svc-list-main b { font-size: 14px; }
-  .svc-list-price { font-size: 17px; }
-  .dur-grid { grid-template-columns: 1fr; gap: 8px; }
-  .dur-card { flex-direction: row; justify-content: space-between; min-height: 46px; padding: 9px 12px; }
-  .dur-label { font-size: 13.5px; }
-  .dur-price { font-size: 15px; }
-  .thera-scroll { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow: visible; padding: 2px; }
-  .thera-scroll .thera { min-width: 0; min-height: 92px; padding: 8px 6px; }
-  .thera-ava { width: 38px; height: 38px; font-size: 18px; }
-  .timepick-btn { min-height: 84px; }
-  .timepick-btn .timepick-val { font-size: 27px; }
-  .tend-box.full { font-size: 14px; }
-  .stepnav {
-    position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 25;
-    background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
-    padding: 10px; margin-top: 14px; box-shadow: var(--sh-pop);
-  }
-  .stepnav .btn { padding: 10px; font-size: 13px; }
-  .stepnav-3 { gap: 6px; }
-  .stepnav-3 .btn { padding: 10px 6px; font-size: 12.5px; min-width: 0; }
-  .pay-grid { grid-template-columns: 1fr; gap: 8px; }
-  .pay-card { min-height: 44px; font-size: 13.5px; justify-content: center; padding: 10px; }
-  .tline { padding: 8px 0; }
-  .tline .tt b { font-size: 13.5px; white-space: normal; }
-  .qty button { width: 30px; height: 30px; }
+.cat-card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cat-card-main b {
+  font-size: 14.5px; font-weight: 700; line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: break-word; word-break: normal; line-break: loose;
+  min-height: 2.8em;
 }
+.cat-card-main small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* ชื่ออังกฤษ sub ใต้ชื่อไทย — บรรทัดเดียว ellipsis ไม่ดันการ์ดสูง */
+.cat-en {
+  display: block; font-size: 11.5px; font-weight: 500; line-height: 1.35; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cat-durs {
+  display: block; font-size: 12px; line-height: 1.5; color: var(--muted);
+  overflow-wrap: break-word; word-break: keep-all; line-break: loose;
+}
+.cat-price {
+  display: block; font-size: 13.5px; font-weight: 700; line-height: 1.4; color: var(--brown-dark);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--line-soft); padding-top: 5px; margin-top: 3px;
+}
+.cat-card-arrow {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 300; color: var(--faint); line-height: 1;
+  background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px;
+}
+.cat-card.on .cat-card-arrow { color: var(--brown-dark); border-color: #e7d6c3; background: var(--brown-tint); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none ! important; }

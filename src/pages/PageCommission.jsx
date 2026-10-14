@@ -2,18 +2,13 @@ import { useState } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DateRange, inDateRange } from '../components/ui';
 import { bkkToday } from '../utils/bkk';
-import { svcLabel, commBaht, freelanceDisplayName } from '../data/demoData';
-
-const TIERS = [
-  { max: 30000, rate: 0.30, label: '≤ 30k → 30%' },
-  { max: 50000, rate: 0.35, label: '30–50k → 35%' },
-  { max: 80000, rate: 0.40, label: '50–80k → 40%' },
-  { max: Infinity, rate: 0.45, label: '> 80k → 45%' },
-];
+import { svcLabel, commBaht, freelanceDisplayName, tieredComm, tierRateOf } from '../lib/billing';
 
 export default function PageCommission({ data, saveData, role }) {
   const isStaff = role === 'staff';
   const [historyFor, setHistoryFor] = useState(null);
+  // M3: viewTab แยกจากโหมดคำนวณจริง — สลับแท็บดูข้อมูลต้องไม่เขียนทับ commissionSettings.mode ใน DB
+  const [viewTab, setViewTab] = useState('regular'); // regular | freelance | rates
   const todayStr = bkkToday();
   const [dr, setDr] = useState({ from: todayStr, to: todayStr });
   const therapists = data.therapists || [];
@@ -71,15 +66,8 @@ export default function PageCommission({ data, saveData, role }) {
     if (extBillIds.has(bill.id)) freelanceFuel += bill.fuel || 0;
   });
   therapists.forEach((t) => {
-    const s = stats[t.id];    let comm = 0;
-    for (let i = 0; i < TIERS.length; i++) {
-      const prev = i === 0 ? 0 : TIERS[i - 1].max;
-      const range = Math.min(TIERS[i].max, s.totalSales) - prev;
-      if (range > 0) comm += range * TIERS[i].rate;
-      if (s.totalSales <= TIERS[i].max) break;
-    }
-    s.tieredCommission = Math.round(comm);
-    s.rate = s.totalSales > 80000 ? 0.45 : s.totalSales > 50000 ? 0.40 : s.totalSales > 30000 ? 0.35 : 0.30;
+    const s = stats[t.id];    s.tieredCommission = Math.round(tieredComm(s.totalSales));
+    s.rate = tierRateOf(s.totalSales);
     s.total = Math.round(settings.mode === 'tier' ? s.tieredCommission : s.flatCommission);
   });
 
@@ -88,6 +76,7 @@ export default function PageCommission({ data, saveData, role }) {
   const sumSales = sumSalesPaid + freelanceTotal;
   const sumComm = Object.values(stats).reduce((s, t) => s + t.total, 0);
   const changeMode = (mode) => saveData({ ...data, commissionSettings: { ...data.commissionSettings, mode } });
+  // โหมดคำนวณจริง (flat | tier) — เปลี่ยนผ่าน select ด้านล่างเท่านั้น ไม่ผูกกับแท็บมุมมอง
 
   // บิลที่เปิดอยู่ (ยังไม่เช็คบิล) — ค่าแรงโดยประมาณ รอจ่ายจริงตอนเช็คบิล
   const openBills = (data.bills || []).filter((b) => b.status === 'open');
@@ -108,17 +97,7 @@ export default function PageCommission({ data, saveData, role }) {
     openBills.forEach((bill) => {
       (bill.items || bill.customers || []).forEach((itm) => { pending.sales += itm.net ?? itm.price ?? 0; });
     });
-    const tiered = (total) => {
-      let comm = 0;
-      for (let i = 0; i < TIERS.length; i++) {
-        const prev = i === 0 ? 0 : TIERS[i - 1].max;
-        const range = Math.min(TIERS[i].max, total) - prev;
-        if (range > 0) comm += range * TIERS[i].rate;
-        if (total <= TIERS[i].max) break;
-      }
-      return comm;
-    };
-    pending.comm = Math.round(tiered(sumSalesPaid + pending.sales) - tiered(sumSalesPaid));
+    pending.comm = Math.round(tieredComm(sumSalesPaid + pending.sales) - tieredComm(sumSalesPaid));
   }
 
   // ---- หน้าใหม่: ประวัติการนวดรายคน ----
@@ -209,14 +188,14 @@ export default function PageCommission({ data, saveData, role }) {
   }
 
   // ---- แทบที่ 3: เรทค่าแรงตามบริการ (อ้างอิง) ----
-  if (settings.mode === 'rates') {
+  if (viewTab === 'rates') {
     const priced = (data.services || []).filter((s) => s.price > 0);
     return (
       <div>
         <div className="seg cols3">
-          <button onClick={() => changeMode('flat')} className={settings.mode === 'flat' ? 'on' : ''}>หมอประจำ</button>
-          <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''}>หมอวิ่ง</button>
-          <button onClick={() => changeMode('rates')} className={settings.mode === 'rates' ? 'on' : ''}>ราคาบริการ</button>
+          <button onClick={() => setViewTab('regular')} className={viewTab === 'regular' ? 'on' : ''}>หมอประจำ</button>
+          <button onClick={() => setViewTab('freelance')} className={viewTab === 'freelance' ? 'on' : ''}>หมอวิ่ง</button>
+          <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
         </div>
 
         <Card>
@@ -232,14 +211,14 @@ export default function PageCommission({ data, saveData, role }) {
     );
   }
   // ---- หน้าหมอวิ่ง: ว่างจนกว่าจะมีงานหมอวิ่ง (ไม่มีประวัติรายคน) ----
-  if (settings.mode === 'tier') {
+  if (viewTab === 'freelance') {
     const freelanceList = Object.entries(freelanceById).sort((a, b) => b[1].total - a[1].total);
     return (
       <div>
         <div className="seg cols3">
-          <button onClick={() => changeMode('flat')} className={settings.mode === 'flat' ? 'on' : ''}>หมอประจำ</button>
-          <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''}>หมอวิ่ง</button>
-          <button onClick={() => changeMode('rates')} className={settings.mode === 'rates' ? 'on' : ''}>ราคาบริการ</button>
+          <button onClick={() => setViewTab('regular')} className={viewTab === 'regular' ? 'on' : ''}>หมอประจำ</button>
+          <button onClick={() => setViewTab('freelance')} className={viewTab === 'freelance' ? 'on' : ''}>หมอวิ่ง</button>
+          <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
         </div>
 
         <DateRange from={dr.from} to={dr.to} onChange={setDr} />
@@ -299,10 +278,20 @@ export default function PageCommission({ data, saveData, role }) {
   return (
     <div>
       <div className="seg cols3">
-        <button onClick={() => changeMode('flat')} className={settings.mode === 'flat' ? 'on' : ''}>หมอประจำ</button>
-        <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''}>หมอวิ่ง</button>
-        <button onClick={() => changeMode('rates')} className={settings.mode === 'rates' ? 'on' : ''}>ราคาบริการ</button>
+        <button onClick={() => setViewTab('regular')} className={viewTab === 'regular' ? 'on' : ''}>หมอประจำ</button>
+        <button onClick={() => setViewTab('freelance')} className={viewTab === 'freelance' ? 'on' : ''}>หมอวิ่ง</button>
+        <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
       </div>
+
+      {!isStaff && (
+      <div className="field" style={{ marginTop: 10 }}>
+        <label>วิธีคำนวณค่าแรงหมอประจำ (มีผลจริงกับยอดที่จ่าย)</label>
+        <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <button onClick={() => changeMode('flat')} className={settings.mode !== 'tier' ? 'on' : ''} type="button">คงที่/ครั้ง (flat)</button>
+          <button onClick={() => changeMode('tier')} className={settings.mode === 'tier' ? 'on' : ''} type="button">ขั้นบันไดยอดขาย (tier)</button>
+        </div>
+      </div>
+      )}
 
       <DateRange from={dr.from} to={dr.to} onChange={setDr} />
 

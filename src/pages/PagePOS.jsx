@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useId } from 'react';
 import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, Fuel } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
-import { generateBillId, chainTimes } from '../data/demoData';
+import { chainTimes, categoryEn } from '../lib/billing';
+import { generateBillId } from '../lib/ids';
 import { bkkNow, bkkMinutes } from '../utils/bkk';
 
 const BREAK_MINUTES = 15;
@@ -33,10 +34,16 @@ const OPEN_MIN = 12 * 60;
 const CLOSE_MIN = 23 * 60;
 const GRID_STEP = 15;
 
-/* Dropdown เวลาใบใหญ่ — ตัวเลขใหญ่ + ป้ายชั่วโมง/นาที เข้าธีมร้าน */
+/* Dropdown เวลาใบใหญ่ — ตัวเลขใหญ่ + ป้ายชั่วโมง/นาที เข้าธีมร้าน
+   รองรับคีย์บอร์ด: ↓/↑ เปิดเมนู, Esc ปิด, ลูกศรเลื่อน + Enter เลือก */
 function TimeDropdown({ value, options, onChange, label, sub }) {
   const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
   const ref = useRef(null);
+  const btnRef = useRef(null);
+  const menuRef = useRef(null);
+  const itemRefs = useRef([]);
+  const menuId = useId();
   const current = options.find((o) => o.v === value);
 
   useEffect(() => {
@@ -45,19 +52,75 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // เปิดเมนูทีไร ไฮไลต์ค่าปัจจุบัน + ย้ายโฟกัสเข้าเมนูเพื่อกดลูกศรต่อได้เลย
+  useEffect(() => {
+    if (open) {
+      setHi(Math.max(0, options.findIndex((o) => o.v === value)));
+      menuRef.current?.focus();
+    }
+  }, [open, options, value]);
+
+  const pick = (v) => {
+    onChange(v);
+    setOpen(false);
+    btnRef.current?.focus();
+  };
+
+  const move = (d) => {
+    const n = Math.min(options.length - 1, Math.max(0, hi + d));
+    setHi(n);
+    itemRefs.current[n]?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const onMenuKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); setOpen(false); btnRef.current?.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (options[hi]) pick(options[hi].v); }
+    else if (e.key === 'Tab') setOpen(false);
+  };
+
   return (
     <div className={`dropdown timepick-dd${open ? ' open' : ''}`} ref={ref}>
-      <button className="dropdown-btn timepick-btn" onClick={() => setOpen(!open)} type="button" aria-label={label}>
+      <button
+        ref={btnRef}
+        className="dropdown-btn timepick-btn"
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => { if (!open && (e.key === 'ArrowDown' || e.key === 'Enter')) { e.preventDefault(); setOpen(true); } }}
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={menuId}
+      >
         <span className="timepick-val">{current?.l ?? '--'}</span>
         <span className="timepick-sub">{sub}</span>
-        <ChevronDown size={16} className="dd-caret" />
+        <ChevronDown size={16} strokeWidth={1.9} className="dd-caret" aria-hidden="true" />
       </button>
       {open && (
-        <div className="dropdown-menu time-menu">
-          {options.map((o) => (
-            <button key={o.v} type="button" className={`dropdown-item${value === o.v ? ' on' : ''}`} onClick={() => { onChange(o.v); setOpen(false); }}>
+        <div
+          ref={menuRef}
+          id={menuId}
+          className="dropdown-menu time-menu"
+          role="listbox"
+          aria-label={label}
+          tabIndex={-1}
+          onKeyDown={onMenuKey}
+        >
+          {options.map((o, i) => (
+            <button
+              key={o.v}
+              ref={(el) => { itemRefs.current[i] = el; }}
+              type="button"
+              role="option"
+              aria-selected={value === o.v}
+              className={`dropdown-item${value === o.v ? ' on' : ''}${hi === i ? ' hi' : ''}`}
+              onClick={() => pick(o.v)}
+              onMouseEnter={() => setHi(i)}
+              onFocus={() => setHi(i)}
+            >
               {o.l}
-              {value === o.v && <Check size={14} className="dd-check" />}
+              {value === o.v && <Check size={14} strokeWidth={1.9} className="dd-check" aria-hidden="true" />}
             </button>
           ))}
         </div>
@@ -102,8 +165,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
-  // Step 5
-  const [paymentMethod] = useState('เงินสด');
+  // Step 5 — วิธีชำระค่าเริ่มต้นของบิลใหม่ (เปลี่ยนตอนเช็คบิลได้ที่หน้าบิล)
+  const paymentMethod = 'เงินสด';
   const [discount, setDiscount] = useState('');
   const [promoId, setPromoId] = useState('');
   const promosActive = (data.promotions || []).filter((p) => p.active !== false);
@@ -208,19 +271,17 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     return null;
   };
 
-  // เข้าขั้น 4 แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย
-  const snapGuard = useMemo(() => ({ doneFor: null }), []);
+  // เข้าขั้น 4 แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย (กันกดซ้ำด้วย ref)
+  const snapGuard = useRef({ doneFor: null });
   useEffect(() => {
     if (step !== 4 || pickedServices.length === 0 || selectedStartTime == null) return;
     if (!timeError) return;
     const key = `${activeTherapistId}-${selectedStartTime}-${billMinutes}`;
-    if (snapGuard.doneFor === key) return;
-    snapGuard.doneFor = key;
+    if (snapGuard.current.doneFor === key) return;
+    snapGuard.current.doneFor = key;
     const next = nextFreeFrom(selectedStartTime);
-    // eslint-disable-next-line no-use-before-define
     if (next != null) setSelectedStartTime(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, pickedServices.length, selectedStartTime, timeError, activeTherapistId, billMinutes, bookedSlots]);
 
   const subtotal = pickedServices.reduce((s, p) => s + p.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
@@ -353,7 +414,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   return (
     <div>
-      {err && <div className="err-banner"><TriangleAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} /> {err}</div>}
+      {err && <div className="err-banner"><TriangleAlert size={16} strokeWidth={1.9} className="eic" /> {err}</div>}
 
       <div className="steps">
         {[
@@ -385,9 +446,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                     <small>{formatDuration(p.minutes)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
                   </span>
                   <span className="qty">
-                    <button onClick={() => removePickedService(p.key)} aria-label="ลบ"><Trash2 size={13} /></button>
+                    <button onClick={() => removePickedService(p.key)} aria-label={`ลบบริการ ${p.serviceName}`}><Trash2 size={14} strokeWidth={1.9} /></button>
                   </span>
-                  <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
+                  <b className="num">฿ {p.price.toLocaleString()}</b>
                 </div>
               ))}
             </Card>
@@ -402,12 +463,13 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               const min = Math.min(...prices);
               const max = Math.max(...prices);
               return (
-                <button key={c} className={`cat-card${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
+                <button key={c} type="button" aria-pressed={selectedCategory === c} className={`cat-card${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
                   <span className="cat-card-main">
                     <b>{c}</b>
-                    <small>{durs.map((d) => formatDuration(d.duration)).join(' · ')} · ฿ {min.toLocaleString()}{max !== min ? `–${max.toLocaleString()}` : ''}</small>
+                    {categoryEn(c, data.serviceCategoryEn) ? <small className="cat-en">{categoryEn(c, data.serviceCategoryEn)}</small> : null}
+                    <span className="cat-price num">฿ {min.toLocaleString()}{max !== min ? ` – ${max.toLocaleString()}` : ''}</span>
                   </span>
-                  <span className="cat-card-arrow">{selectedCategory === c ? '✓' : '›'}</span>
+                  <span className="cat-card-arrow" aria-hidden="true">{selectedCategory === c ? '✓' : '›'}</span>
                 </button>
               );
             })}
@@ -437,7 +499,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               ))}
             </div>
           {addonsActive.length > 0 && (
-            <div className="field" style={{ marginTop: 12 }}>
+            <div className="field mt12">
               <label>บริการเสริม (หลายอย่างได้ · +เงิน +เวลา)</label>
               <div className="addon-list">
                 {addonsActive.map((a) => {
@@ -454,8 +516,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             </div>
           )}
           <div className="stepnav">
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { resetServicePick(); setStep(1); }}>← กลับ</button>
-            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={addPickedService} disabled={!selectedDuration}>ถัดไป →</button>
+            <button className="btn btn-ghost fg1" onClick={() => { resetServicePick(); setStep(1); }}>← กลับ</button>
+            <button className="btn btn-primary fg16" onClick={addPickedService} disabled={!selectedDuration}>ถัดไป →</button>
           </div>
         </Card>
       )}
@@ -485,7 +547,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 })}
               </div>
             ) : (
-              <div className="field" style={{ marginBottom: 0 }}>
+              <div className="field mb0">
                 <div className="search-wrap">
                   <Search size={16} />
                   <input
@@ -495,12 +557,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                     className="input"
                   />
                 </div>
-                <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พิมพ์ชื่อแล้วกดถัดไปได้เลย ไม่ต้องเพิ่มเข้าทะเบียน</p>
+                <p className="muted mt6 fs11">พิมพ์ชื่อแล้วกดถัดไปได้เลย ไม่ต้องเพิ่มเข้าทะเบียน</p>
               </div>
             )}
           <div className="stepnav">
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(1)}>← กลับ</button>
-            <button className="btn btn-primary" style={{ flex: 1.6 }} onClick={() => setStep(4)} disabled={therapistType === 'visiting' ? !visitingName.trim() : !selectedTherapist}>ถัดไป →</button>
+            <button className="btn btn-ghost fg1" onClick={() => setStep(1)}>← กลับ</button>
+            <button className="btn btn-primary fg16" onClick={() => setStep(4)} disabled={therapistType === 'visiting' ? !visitingName.trim() : !selectedTherapist}>ถัดไป →</button>
           </div>
         </Card>
       )}
@@ -548,18 +610,18 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               <div className="tend-box full">จบ {billEnd != null ? minutesToTime(billEnd) : '—'} · รวม {formatDuration(billMinutes)}</div>
             )}
             {timeError ? (
-              <div className="alert warn" style={{ marginTop: 8 }}>{timeError}
+              <div className="alert warn">{timeError}
                 {(() => {
                   const nf = nextFreeFrom(selectedStartTime ?? nowMinutes());
                   return nf != null ? (
-                    <button type="button" className="preset-btn" style={{ marginLeft: 8 }} onClick={() => setSelectedStartTime(nf)}>
+                    <button type="button" className="preset-btn ml8" onClick={() => setSelectedStartTime(nf)}>
                       ใช้ {minutesToTime(nf)}
                     </button>
                   ) : null;
                 })()}
               </div>
             ) : (
-              <p className="muted" style={{ marginTop: 6, fontSize: 11 }}>พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
+              <p className="muted mt6 fs11">พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
             )}
           </div>
 
@@ -575,11 +637,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           )}
 
           <div className="stepnav stepnav-3">
-            <button className="btn btn-ghost" style={{ flex: 0.9 }} onClick={() => setStep(looping ? 2 : 3)}>← กลับ</button>
-            <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setErr(''); setLooping(true); resetServicePick(); setStep(1); }}>
+            <button className="btn btn-ghost fg09" onClick={() => setStep(looping ? 2 : 3)}>← กลับ</button>
+            <button className="btn btn-ghost fg1" onClick={() => { setErr(''); setLooping(true); resetServicePick(); setStep(1); }}>
               <Plus size={16} /> เพิ่มรายการ
             </button>
-            <button className="btn btn-primary" style={{ flex: 1.1 }} onClick={() => setStep(5)} disabled={!validPick}>
+            <button className="btn btn-primary fg11" onClick={() => setStep(5)} disabled={!validPick}>
               เช็คบิล →
             </button>
           </div>
@@ -593,7 +655,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             <CardHead
               title="รายการในบิล"
               hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
-              right={<button className="btn btn-ghost" style={{ padding: '7px 12px', fontSize: 12 }} onClick={() => setStep(1)}>+ เพิ่มบริการ</button>}
+              right={<button className="btn btn-ghost btn-sm" onClick={() => setStep(1)}>+ เพิ่มบริการ</button>}
             />
             {pickedServices.length === 0 && <EmptyState title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
             {chained.map((p, idx) => (
@@ -604,21 +666,21 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   <small>{minutesToTime(p.start)}–{minutesToTime(p.end)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
                 </span>
                 <span className="qty">
-                  <button onClick={() => removePickedService(p.key)} aria-label="ลบ"><Trash2 size={13} /></button>
+                  <button onClick={() => removePickedService(p.key)} aria-label={`ลบบริการ ${p.serviceName}`}><Trash2 size={14} strokeWidth={1.9} /></button>
                 </span>
-                <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>฿ {p.price.toLocaleString()}</b>
+                <b className="num">฿ {p.price.toLocaleString()}</b>
               </div>
             ))}
           </Card>
 
           {pickedServices.length > 0 && (
             <Card className="pos-side">
-              <div className="field" style={{ marginBottom: 8 }}>
+              <div className="field mb8">
                 <label>โปรโมชันส่วนลด</label>
                 {promosActive.length > 0 ? (
-                  <div className="preset-row" style={{ marginTop: 0 }}>
+                  <div className="preset-row mt0">
                     {promosActive.map((p) => (
-                      <button key={p.id} type="button" className={`preset-btn${promoId === p.id ? ' on' : ''}`} style={promoId === p.id ? { background: 'var(--brown-950)', color: '#fff', borderColor: 'var(--brown-950)' } : null} onClick={() => selectPromo(p)}>{p.name} −฿ {p.amount.toLocaleString()}</button>
+                      <button key={p.id} type="button" className={`preset-btn${promoId === p.id ? ' on' : ''}`} aria-pressed={promoId === p.id} onClick={() => selectPromo(p)}>{p.name} −฿ {p.amount.toLocaleString()}</button>
                     ))}
                     {promoId && <button type="button" className="preset-btn" onClick={() => { setPromoId(''); setDiscount(''); }}>ไม่ใช้โปร</button>}
                   </div>
@@ -630,19 +692,19 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
                 <div className="r"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
                 <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
-                <div className="r" style={{ fontSize: 15 }}><span><b>สุทธิ</b></span><b style={{ fontSize: 24 }}>฿ {total.toLocaleString()}</b></div>
+                <div className="r grand"><span><b>สุทธิ</b></span><b className="grand-total">฿ {total.toLocaleString()}</b></div>
                 {therapistType === 'visiting' && (
-                  <div className={`fuel-check${fuelChecked ? ' on' : ''}`} onClick={() => setFuelChecked(!fuelChecked)} role="switch" aria-checked={fuelChecked} tabIndex={0} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setFuelChecked(!fuelChecked); } }} style={{ cursor: 'pointer' }}>
-                    <span className="fuel-ic"><Fuel size={17} /></span>
+                  <button type="button" className={`fuel-check${fuelChecked ? ' on' : ''}`} onClick={() => setFuelChecked(!fuelChecked)} aria-pressed={fuelChecked} aria-label="ค่าน้ำมันหมอวิ่ง 30 บาทต่อรอบ">
+                    <span className="fuel-ic"><Fuel size={17} strokeWidth={1.9} /></span>
                     <span className="fuel-tx">ค่าน้ำมันหมอวิ่ง <b>+฿ 30/รอบ</b><small className="muted">รายจ่ายร้าน ไม่บวกในบิล</small></span>
-                    <span className={`fuel-toggle${fuelChecked ? ' on' : ''}`}><i /></span>
-                  </div>
+                    <span className={`fuel-toggle${fuelChecked ? ' on' : ''}`} aria-hidden="true"><i /></span>
+                  </button>
                 )}
               </div>
-              <button className="btn btn-primary btn-block" style={{ marginTop: 4 }} onClick={openDraftBill}>
+              <button className="btn btn-primary btn-block mt4" onClick={openDraftBill}>
                 <ReceiptText size={18} /> เปิดบิลไว้ก่อน · ฿ {total.toLocaleString()}
               </button>
-              <p className="muted" style={{ marginTop: 8, fontSize: 11.5, textAlign: 'center' }}>ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลังที่หน้าบิล เพิ่มบริการระหว่างนวดได้ที่นั่น</p>
+              <p className="muted mt8 fs115 center">ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลังที่หน้าบิล เพิ่มบริการระหว่างนวดได้ที่นั่น</p>
             </Card>
           )}
         </div>

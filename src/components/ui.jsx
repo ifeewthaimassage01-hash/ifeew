@@ -11,6 +11,7 @@ export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
           {Icon && <div className="pagehead-icon"><Icon size={22} strokeWidth={1.8} /></div>}
           <div style={{ minWidth: 0 }}>
             <h1 className="h1">{title}</h1>
+            {subtitle && <p className="muted" style={{ margin: '2px 0 0' }}>{subtitle}</p>}
           </div>
         </div>
         {actions && <div className="pagehead-actions">{actions}</div>}
@@ -26,7 +27,10 @@ export function Card({ children, className = '', style }) {
 export function CardHead({ title, hint, right }) {
   return (
     <div className="card-h">
-      <div><h2>{title}</h2></div>
+      <div>
+        <h2>{title}</h2>
+        {hint && <small className="muted" style={{ display: 'block', marginTop: 2 }}>{hint}</small>}
+      </div>
       {right}
     </div>
   );
@@ -168,20 +172,32 @@ export function DialogHost() {
     d.resolve(value);
   };
   if (stack.length === 0) return null;
-  const d = stack[0];
+  // M8: render คิว dialog ครบทุกใบ (ซ้อนกันได้) + ปุ่มยกเลิกชัดเจนสำหรับ confirm
   return (
-    <div className="modal-ov" onClick={() => { if (d.cancel) close(d, false); }}>
-      <div className="modal dialog-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
-        {d.cancel && <button className="modal-x" onClick={() => close(d, false)} aria-label="ปิด"><X size={16} /></button>}
-        <div className={`dialog-ic${d.danger ? ' danger' : ''}`}>
-          {d.danger ? <TriangleAlert size={26} /> : <CheckCircle2 size={26} />}
+    <>
+      {stack.map((d, i) => (
+        <div
+          key={d.id}
+          className="modal-ov"
+          style={{ zIndex: 1000 + i }}
+          onClick={() => { if (d.cancel) close(d, false); }}
+        >
+          <div className="modal dialog-modal" onClick={(e) => e.stopPropagation()} role="alertdialog" aria-modal="true">
+            {d.cancel && <button className="modal-x" onClick={() => close(d, false)} aria-label="ปิด"><X size={16} /></button>}
+            <div className={`dialog-ic${d.danger ? ' danger' : ''}`}>
+              {d.danger ? <TriangleAlert size={26} /> : <CheckCircle2 size={26} />}
+            </div>
+            <h3>{d.title}</h3>
+            {d.message && <p>{d.message}</p>}
+            <div className="modal-row">
+              {d.cancel && (
+                <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => close(d, false)}>ยกเลิก</button>
+              )}
+              <button className={`btn ${d.danger ? 'btn-danger' : 'btn-primary'}`} style={{ flex: 1 }} onClick={() => close(d, true)}>{d.confirmLabel || 'ตกลง'}</button>
+            </div>
+          </div>
         </div>
-        <h3>{d.title}</h3>
-        {d.message && <p>{d.message}</p>}
-        <div className="modal-row">
-          <button className={`btn ${d.danger ? 'btn-danger' : 'btn-primary'}`} style={{ width: '100%' }} onClick={() => close(d, true)}>{d.confirmLabel || 'ตกลง'}</button>
-        </div>
-      </div>
-    </div>
+      ))}
+    </>
   );
 }

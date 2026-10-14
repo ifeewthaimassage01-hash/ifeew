@@ -2,14 +2,35 @@ import { useState } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
-import { commBaht } from '../data/demoData';
+import { commBaht } from '../lib/billing';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
+// สูตรยอดบิลมาตรฐานทั้งแอป: ผลรวม net รายแถว − ส่วนลดท้ายบิล (ต้องตรงกับ total ที่เซฟ)
+// สูตรเดียวกับ PageBills.jsx / PageDashboard.jsx / MonthStatement.jsx
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
+
+// C2: รหัสผู้จัดการ — อ่านจาก env ก่อน (default ชั่วคราวสำหรับร้านเดิม)
+// TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
+// ห้าม hardcode รหัสซ้ำหลายไฟล์ — ใช้ค่าจากตัวแปรนี้ที่เดียว
+const MANAGER_PASS = import.meta.env.VITE_MANAGER_PASS ?? '123123';
+
+// id แถวบริการ: ใช้ UUID (string) เพื่อไม่ชนกันหลังลบ/เพิ่ม; fallback เป็น int จาก Date.now()
+function newRowId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  } catch { /* fallback ด้านล่าง */ }
+  return Date.now() * 1000 + Math.floor(Math.random() * 1000);
+}
+
+// สลิปอาจเป็น PDF (accept="image/*,application/pdf") — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
+function isPdfUrl(url) {
+  const s = String(url || '').split('?')[0].toLowerCase();
+  return s.endsWith('.pdf');
+}
 
 function minutesToTime(m) {
   const h = Math.floor(m / 60);
@@ -35,6 +56,7 @@ function itemTimeText(it) {
 
 /* ใบเสร็จ: รายการ (แตะขยายได้) + โปร + ยอดรวม */
 function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expandedKey, onToggle, onRemove }) {
+  const [deletingKey, setDeletingKey] = useState(null);
   const nameOf = (it) => {
     if (it.serviceName) return it.serviceName;
     const svc = (services || []).find((s) => s.id === it.serviceId);
@@ -62,9 +84,16 @@ function ReceiptCard({ items, services, subtotal, disc, discLabel, total, expand
               {onRemove && (
                 <button
                   onClick={async () => {
-                    const ok = await confirmDialog({ title: 'ลบรายการนี้?', message: nameOf(it), confirmLabel: 'ลบ', danger: true });
-                    if (ok) onRemove(it);
+                    if (deletingKey != null) return;
+                    setDeletingKey(key);
+                    try {
+                      const ok = await confirmDialog({ title: 'ลบรายการนี้?', message: nameOf(it), confirmLabel: 'ลบ', danger: true });
+                      if (ok) onRemove(it);
+                    } finally {
+                      setDeletingKey(null);
+                    }
                   }}
+                  disabled={deletingKey === key}
                   aria-label="ลบรายการ"
                   className="icon-btn danger rcpt-del"
                 >
@@ -201,31 +230,40 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setAddSvcId(''); setEditErr('');
   };
 
+  // C5: schema เดียว — เขียน items อย่างเดียว (อ่านรองรับ customers เก่าผ่าน billRows)
+  // คง field ครบทุกรายการ: id/price/discount/net/startTime/endTime/qty/addons
+  // total ที่เซฟ (= subtotal − disc) ต้องตรงกับ billTotal() เสมอ
   const buildUpdatedBill = () => {
     if (!editTarget) return null;
     const rows = editItems.map(({ _key, ...r }) => ({ ...r }));
     const subtotal = rows.reduce((s, i) => s + (i.net ?? i.price ?? 0), 0);
     const disc = Math.max(0, Math.min(subtotal, Number(editDiscount) || 0));
+    const normalized = rows.map((c) => ({
+      id: c.id || newRowId(),
+      serviceId: c.serviceId,
+      serviceName: c.serviceName,
+      category: c.category,
+      therapistId: c.therapistId,
+      therapistName: c.therapistName,
+      qty: c.qty || 1,
+      price: c.price ?? c.net ?? 0,
+      discount: c.discount || 0,
+      net: c.net ?? c.price ?? 0,
+      duration: c.duration,
+      totalMinutes: c.totalMinutes || c.duration,
+      startTime: c.startTime,
+      endTime: c.endTime,
+      addons: c.addons || [],
+    }));
     return {
-      meta: { rows, subtotal, disc },
+      meta: { rows: normalized, subtotal, disc },
       bill: {
         ...editTarget,
         discount: disc,
         promotion: promosActive.find((p) => p.id === editPromoId)?.name || '',
         paymentMethod: editPay,
         subtotal, total: subtotal - disc,
-        customers: rows.map((c) => ({
-          id: c.id || Date.now() + Math.random(), serviceId: c.serviceId, serviceName: c.serviceName,
-          category: c.category, duration: c.duration, totalMinutes: c.totalMinutes || c.duration,
-          startTime: c.startTime, endTime: c.endTime, therapistId: c.therapistId,
-          therapistName: c.therapistName, price: c.net ?? c.price ?? 0, addons: c.addons || [],
-        })),
-        items: rows.map((c) => ({
-          serviceId: c.serviceId, serviceName: c.serviceName, category: c.category,
-          therapistId: c.therapistId, therapistName: c.therapistName,
-          qty: c.qty || 1, price: c.net ?? c.price ?? 0, discount: 0, net: c.net ?? c.price ?? 0,
-          duration: c.totalMinutes || c.duration, startTime: c.startTime,
-        })),
+        items: normalized,
       },
     };
   };
@@ -285,7 +323,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
       const url = await uploadSlip(file);
       setSlipName(url);
     } catch (e) {
-      console.error(e);
       setSlipErr(e.message || 'อัปโหลดสลิปไม่สำเร็จ');
     } finally {
       setSlipUploading(false);
@@ -314,7 +351,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr('');
   };
 
-  const confirmVoid = () => {    if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
+  const confirmVoid = () => {    if (authPass !== MANAGER_PASS) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -494,11 +531,18 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 <span>{slipUploading ? 'กำลังอัปโหลด…' : slipName ? (resolveImageUrl(slipName) ? 'เปลี่ยนสลิป' : `แนบแล้ว: ${slipName}`) : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
                 <input type="file" accept="image/*,application/pdf" hidden disabled={slipUploading} onChange={(e) => handleSlipFile(e.target.files[0])} />
               </label>
-              {resolveImageUrl(slipName) && (
+              {resolveImageUrl(slipName) && !isPdfUrl(resolveImageUrl(slipName)) && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <img src={resolveImageUrl(slipName)} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <ExternalLink size={13} /> เปิดดูสลิป
+                  </a>
+                </div>
+              )}
+              {resolveImageUrl(slipName) && isPdfUrl(resolveImageUrl(slipName)) && (
+                <div style={{ marginTop: 8 }}>
+                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <ExternalLink size={13} /> เปิดดูสลิป (PDF)
                   </a>
                 </div>
               )}
@@ -519,7 +563,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยผู้จัดการ</p></div>
           </div>
           {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="123123" className="input" /></div>
+          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสผู้จัดการ" className="input" /></div>
           <div className="field"><label>เหตุผลการยกเลิก (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setVoidErr(''); }} placeholder="เช่น ลูกค้าขอเปลี่ยนบริการ…" className="input" rows={3} /></div>
           <div className="modal-row">
             <button onClick={confirmVoid} disabled={!authReason.trim() || !authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>

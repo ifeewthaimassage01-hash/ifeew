@@ -1,6 +1,6 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { commBaht } from '../data/demoData';
+import { commBaht } from '../lib/billing';
 import { formatDuration } from './ui';
 import { bkkToday } from '../utils/bkk';
 
@@ -8,10 +8,13 @@ const rowsOf = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
 const billTotal = (b) => Math.max(0, rowsOf(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 
+// สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
+// โดย income = ผลรวม billTotal (หลังหักส่วนลดท้ายบิลแล้ว)
+// ส่วนลดท้ายบิลปันลงแต่ละ line ตามสัดส่วนราคา เพื่อให้ผลรวม lines = income
 function thaiMonth(ym) {
-  const d = new Date(`${ym}-01T00:00:00`);
+  const d = new Date(`${ym}-01T00:00:00+07:00`);
   if (Number.isNaN(d.getTime())) return ym;
-  return d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('th-TH', { month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok' });
 }
 
 export function fmtDay(iso) {
@@ -61,12 +64,18 @@ export function buildMonthReport(data, month) {
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
   const expenseSum = expenses.reduce((s, e) => s + (e.amount || 0), 0);
 
-  // line items sorted by datetime
+  // line items sorted by datetime — ราคาแต่ละ line หักส่วนลดท้ายบิลตามสัดส่วนแล้ว
   const lines = [];
   paidBills.forEach((b) => {
-    rowsOf(b).forEach((it) => {
+    const rows = rowsOf(b);
+    const subtotal = rows.reduce((s, it) => s + rowNet(it), 0);
+    const disc = Math.max(0, Math.min(subtotal, b.discount || 0));
+    rows.forEach((it) => {
       const tid = it.therapistId || b.therapistId;
-      const price = rowNet(it);
+      const gross = rowNet(it);
+      // ปันส่วนลดท้ายบิลลง line ตามสัดส่วนราคา (กันยอดรวม lines เกิน income จริง)
+      const share = subtotal > 0 ? gross / subtotal : (rows.length > 0 ? 1 / rows.length : 0);
+      const price = Math.max(0, gross - disc * share);
       const comm = commOf(it);
       lines.push({
         ts: b.date || '', date: String(b.date || '').slice(0, 10),

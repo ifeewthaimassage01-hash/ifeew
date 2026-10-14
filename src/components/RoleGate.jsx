@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Flower2, UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
 
-export const OWNER_PASS = '123123';
+// รหัสผ่านเจ้าของร้าน — อ่านจาก env เป็นหลัก (ตั้งค่าใน .env ด้วย VITE_OWNER_PASS)
+// หมายเหตุ: การเช็กฝั่ง client กันได้แค่ระดับ UI ควรย้ายไปตรวจฝั่ง server / Supabase RLS ต่อ
+export const OWNER_PASS = import.meta.env.VITE_OWNER_PASS ?? '123123';
 const ROLE_KEY = 'ifeew_role';
 
 export function saveRole(role) {
@@ -42,18 +44,18 @@ export default function RoleGate({ onSelect }) {
           <>
           <div className="gate-roles">
             <button className="gate-role" onClick={() => onSelect('staff')}>
-              <span className="gate-ric"><UserRound size={22} /></span>
+              <span className="gate-ric"><UserRound size={22} strokeWidth={1.9} /></span>
               <span><b>พนักงาน</b><small>เปิดบิล · ประวัติ · ค่าแรง</small></span>
             </button>
             <button className="gate-role" onClick={() => { setMode('owner'); setErr(''); setPass(''); }}>
-              <span className="gate-ric"><KeyRound size={22} /></span>
+              <span className="gate-ric"><KeyRound size={22} strokeWidth={1.9} /></span>
               <span><b>เจ้าของร้าน</b><small>ภาพรวม · จัดการทั้งหมด</small></span>
             </button>
           </div>
         
           </>
         ) : (
-          <form onSubmit={submitOwner} style={{ marginTop: 18, textAlign: 'left' }}>
+          <form onSubmit={submitOwner} className="gate-form">
             <div className="field">
               <label>รหัสผ่านเจ้าของร้าน</label>
               <input
@@ -62,13 +64,12 @@ export default function RoleGate({ onSelect }) {
                 placeholder="กรอกรหัสผ่าน" className="input"
               />
             </div>
-            {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
+            {err && <div className="err-banner"><TriangleAlert size={15} strokeWidth={1.9} className="eic" /> {err}</div>}
             <button type="submit" className="btn btn-primary btn-block" disabled={!pass}>
-              <KeyRound size={17} /> เข้าสู่ระบบเจ้าของร้าน
+              <KeyRound size={17} strokeWidth={1.9} /> เข้าสู่ระบบเจ้าของร้าน
             </button>
-            <p className="muted" style={{ marginTop: 10, textAlign: 'center' }}>รหัสตัวอย่าง: 123123</p>
-            <button type="button" className="btn btn-ghost btn-block" style={{ marginTop: 8 }} onClick={() => setMode('select')}>
-              <ArrowLeft size={16} /> กลับไปเลือกบทบาท
+            <button type="button" className="btn btn-ghost btn-block mt8" onClick={() => setMode('select')}>
+              <ArrowLeft size={16} strokeWidth={1.9} /> กลับไปเลือกบทบาท
             </button>
           </form>
         )}

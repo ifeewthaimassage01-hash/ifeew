@@ -3,7 +3,7 @@ import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar,
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
 import { deleteBillFromCloud } from '../data/cloudSync';
-import { commBaht } from '../data/demoData';
+import { commBaht } from '../lib/billing';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
@@ -46,8 +46,19 @@ function localDay(offset = 0) {
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
+// สูตรยอดบิลมาตรฐานทั้งแอป (ตรงกับยอด total ที่เซฟใน OpenBills buildUpdatedBill)
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
+
+// C2: รหัสผู้จัดการ — อ่านจาก env ก่อน (default ชั่วคราวสำหรับร้านเดิม)
+// TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
+const MANAGER_PASS = import.meta.env.VITE_MANAGER_PASS ?? '123123';
+
+// ไฟล์แนบอาจเป็น PDF — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
+function isPdfUrl(url) {
+  const s = String(url || '').split('?')[0].toLowerCase();
+  return s.endsWith('.pdf');
+}
 
 export default function PageBills({ data, saveData, role }) {
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสผู้จัดการอยู่แล้ว
@@ -96,7 +107,7 @@ export default function PageBills({ data, saveData, role }) {
   };
 
   const confirmVoid = () => {
-    if (authPass !== '123123') { setVoidErr('รหัสไม่ถูกต้อง (ตัวอย่าง: 123123)'); return; }
+    if (authPass !== MANAGER_PASS) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
@@ -132,7 +143,6 @@ export default function PageBills({ data, saveData, role }) {
     try {
       await deleteBillFromCloud(b.id);
     } catch (e) {
-      console.error(e);
       alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });
       return;
     }
@@ -293,11 +303,13 @@ export default function PageBills({ data, saveData, role }) {
             {detailBill.promotion && <div className="r"><span>โปรโมชัน</span><b>{detailBill.promotion}</b></div>}
             {detailBill.slip && (
               <div className="r"><span>สลิป</span>
-                {resolveImageUrl(detailBill.slip) ? (
+                {resolveImageUrl(detailBill.slip) && !isPdfUrl(resolveImageUrl(detailBill.slip)) ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                    <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู</a>
+                    <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู</a>
                   </span>
+                ) : resolveImageUrl(detailBill.slip) ? (
+                  <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู (PDF)</a>
                 ) : <b>{detailBill.slip}</b>}
               </div>
             )}
@@ -336,7 +348,7 @@ export default function PageBills({ data, saveData, role }) {
             <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยผู้จัดการ</p></div>
           </div>
           {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="123123" className="input" /></div>
+          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสผู้จัดการ" className="input" /></div>
           <div className="field"><label>เหตุผลการยกเลิก (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setVoidErr(''); }} placeholder="เช่น ลูกค้าขอเปลี่ยนบริการ…" className="input" rows={3} /></div>
           <div className="modal-row">
             <button onClick={confirmVoid} disabled={!authReason.trim() || !authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>

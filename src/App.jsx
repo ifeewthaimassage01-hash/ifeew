@@ -1,21 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
 import { Flower2 } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
 import RoleGate, { saveRole, clearRole } from './components/RoleGate';
-import PageDashboard from './pages/PageDashboard';
-import PagePOS from './pages/PagePOS';
-import PageBills from './pages/PageBills';
-import PageExpenses from './pages/PageExpenses';
-import PageCommission from './pages/PageCommission';
-import PageManage from './pages/PageManage';
-import { loadData } from './data/demoData';
+import { loadData } from './data/store';
 import { loadCloudData, scheduleSync, cloudStatus, syncState } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { subscribePosTables } from './lib/realtime';
 import { bkkYear } from './utils/bkk';
 
+// แยก chunk รายหน้า — โหลดเฉพาะหน้าที่เปิด (React.lazy + Suspense)
+const PageDashboard = lazy(() => import('./pages/PageDashboard'));
+const PagePOS = lazy(() => import('./pages/PagePOS'));
+const PageBills = lazy(() => import('./pages/PageBills'));
+const PageExpenses = lazy(() => import('./pages/PageExpenses'));
+const PageCommission = lazy(() => import('./pages/PageCommission'));
+const PageManage = lazy(() => import('./pages/PageManage'));
+
 const ROLE_KEY = 'ifeew_role';
+const VALID_ROLES = ['owner', 'staff'];
 const DEFAULT_PAGE = { owner: 'dashboard', staff: 'pos' };
 
 const PAGES = {
@@ -27,8 +30,25 @@ const PAGES = {
   manage: PageManage,
 };
 
+// อ่าน role ที่เก็บไว้ — คืนค่าเฉพาะที่ถูกต้อง กันค่าแปลกปลอมใน storage
 function loadRole() {
-  try { return sessionStorage.getItem(ROLE_KEY); } catch { return null; }
+  try {
+    const r = sessionStorage.getItem(ROLE_KEY);
+    return VALID_ROLES.includes(r) ? r : null;
+  } catch { return null; }
+}
+
+function LoadingScreen() {
+  return (
+    <div className="loading-screen">
+      <div className="loading-card">
+        <div className="loading-mark"><Flower2 size={30} strokeWidth={1.4} /></div>
+        <h2>I'FEEW</h2>
+        <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage </p>
+        <div className="loadbar"><i /></div>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -39,6 +59,14 @@ export default function App() {
   const [cloudMode, setCloudMode] = useState('local');
   const [cloudError, setCloudError] = useState('');
   const [live, setLive] = useState(false);
+
+  // กัน role แปลกปลอม (เช่น storage ถูกแก้เอง) — ล้างแล้วเด้งกลับหน้าเลือกบทบาท
+  useEffect(() => {
+    if (role && !VALID_ROLES.includes(role)) {
+      clearRole();
+      setRole(null);
+    }
+  }, [role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,8 +100,10 @@ export default function App() {
   // Realtime: reload on other devices' changes (read-only, never writes back).
   // Skips while our own sync is pending/recent so fresh local edits aren't
   // overwritten by stale cloud snapshots.
+  // dep เป็น boolean ล้วน (dataReady) — ไม่ผูกกับ identity ของ object data
+  const dataReady = !!data;
   useEffect(() => {
-    if (!isSupabaseConfigured || !data) return undefined;
+    if (!isSupabaseConfigured || !dataReady) return undefined;
     let cancelled = false;
     let timer = null;
     const reload = async () => {
@@ -95,30 +125,40 @@ export default function App() {
       (status) => { if (!cancelled) setLive(status === 'SUBSCRIBED'); },
     );
     return () => { cancelled = true; clearTimeout(timer); unsub(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSupabaseConfigured && !!data]);
+  }, [dataReady]);
 
-  const saveData = (newData) => {
-    setData({ ...newData });
+  // stable ref — ผู้เรียกส่ง object ก้อนใหม่มาเองอยู่แล้ว ไม่ต้อง spread ซ้ำให้ re-render ฟรี
+  const saveData = useCallback((newData) => {
+    setData(newData);
     if (isSupabaseConfigured) scheduleSync(newData);
-  };
+  }, []);
 
-  const navigate = (key) => {
+  // เปลี่ยนหน้าทีไร scroll กลับบนสุดเสมอ (รวม BottomNav มือถือ)
+  const navigate = useCallback((key) => {
     setActivePage(key);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, []);
 
-  const selectRole = (r) => {
+  const selectRole = useCallback((r) => {
+    if (!VALID_ROLES.includes(r)) return;
     saveRole(r);
     setRole(r);
     setActivePage(DEFAULT_PAGE[r]);
     window.scrollTo({ top: 0 });
-  };
+  }, []);
 
-  const exitRole = () => {
+  const exitRole = useCallback(() => {
     clearRole();
     setRole(null);
-  };
+  }, []);
+
+  const navItems = useMemo(() => NAV_ITEMS.filter((i) => i.roles.includes(role)), [role]);
+  const safeKey = navItems.some((i) => i.key === activePage) ? activePage : navItems[0]?.key;
+  const PageComponent = PAGES[safeKey] || PagePOS;
+  const badges = useMemo(() => {
+    const openCount = (data?.bills || []).filter((b) => b.status === 'open').length;
+    return openCount > 0 ? { bills: openCount } : null;
+  }, [data]);
 
   if (!role) {
     return (
@@ -142,22 +182,8 @@ export default function App() {
   }
 
   if (!data) {
-    return (
-      <div className="loading-screen">
-        <div className="loading-card">
-          <div className="loading-mark"><Flower2 size={30} strokeWidth={1.4} /></div>
-          <h2>I'FEEW</h2>
-          <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage </p>
-          <div className="loadbar"><i /></div>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
-
-  const navItems = NAV_ITEMS.filter((i) => i.roles.includes(role));
-  const PageComponent = PAGES[navItems.some((i) => i.key === activePage) ? activePage : navItems[0].key] || PagePOS;
-  const openCount = (data.bills || []).filter((b) => b.status === 'open').length;
-  const badges = openCount > 0 ? { bills: openCount } : null;
 
   return (
     <div className="app">
@@ -168,7 +194,9 @@ export default function App() {
           <main className="page">
             <div className="container">
               <div className="rise" key={activePage}>
-                <PageComponent data={data} saveData={saveData} onNavigate={navigate} role={role} />
+                <Suspense fallback={<div className="loadbar" role="status" aria-label="กำลังโหลดหน้า"><i /></div>}>
+                  <PageComponent data={data} saveData={saveData} onNavigate={navigate} role={role} />
+                </Suspense>
               </div>
             </div>
           </main>

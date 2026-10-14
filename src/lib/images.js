@@ -13,17 +13,19 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 
 export function resolveImageUrl(ref) {
-  if (!ref) return '';
+  // คืน null เมื่อไม่มี URL ใช้ได้ (เรียกฝั่ง caller เช็ค == null แทน string ว่าง)
+  if (!ref) return null;
   const s = String(ref).trim();
   if (/^https?:\/\//i.test(s) || s.startsWith('data:')) return s;
-  return ''; // legacy filename-only: no remote URL
+  return null; // legacy filename-only: no remote URL
 }
 
 function validateFile(file) {
   if (!file) throw new Error('no-file');
   if (file.size > MAX_BYTES) throw new Error('ไฟล์ใหญ่เกิน 5MB');
-  // allow phone camera types even if mime is empty; Cloudinary will reject if truly invalid
-  if (file.type && !ALLOWED.includes(file.type) && !file.type.startsWith('image/')) {
+  // strict allowlist เท่านั้น — ห้าม image/* ใด ๆ (เช่น image/svg+xml อาจฝังสคริปต์)
+  // ไฟล์จากกล้องมือถือที่ mime ว่าง อนุญาตให้ผ่าน (Cloudinary จะ reject ถ้าไม่ใช่ไฟล์จริง)
+  if (file.type && !ALLOWED.includes(file.type)) {
     throw new Error('รองรับเฉพาะรูปภาพหรือ PDF');
   }
 }
@@ -38,10 +40,22 @@ export async function uploadImage(file, kind = 'receipts') {
   form.append('file', file);
   form.append('upload_preset', uploadPreset);
   form.append('folder', folder);
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
-    method: 'POST',
-    body: form,
-  });
+  // timeout 30 วิ กันค้าง (AbortController)
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 30000);
+  let res;
+  try {
+    res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`, {
+      method: 'POST',
+      body: form,
+      signal: ctl.signal,
+    });
+  } catch (e) {
+    if (e?.name === 'AbortError') throw new Error('อัปโหลดหมดเวลา (30 วิ) ลองใหม่');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     let msg = `อัปโหลดไม่สำเร็จ (${res.status})`;
     try {

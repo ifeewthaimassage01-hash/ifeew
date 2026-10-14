@@ -51,20 +51,22 @@ export async function loadCloudData(fallbackLocal) {
     return null;
   }
   try {
+    // NOTE: .limit(5000)+order กัน payload บวม; ถ้าโตกว่านี้ให้ทำ pagination (range/from-to)
+    // ฝั่ง multi-branch ในอนาคตเติม .eq('branch_id', branchId) ที่ bills/expenses/bill_items
     const [
       therapists, services, cats, addons, promos,
       bills, items, expenses, audit, settings,
     ] = await Promise.all([
-      supabase.from('therapists').select('*'),
-      supabase.from('services').select('*'),
-      supabase.from('service_categories').select('*'),
-      supabase.from('addons').select('*'),
-      supabase.from('promotions').select('*'),
-      supabase.from('bills').select('*').order('created_at', { ascending: true }),
-      supabase.from('bill_items').select('*'),
-      supabase.from('expenses').select('*').order('date', { ascending: true }),
-      supabase.from('audit_log').select('*').order('timestamp', { ascending: true }),
-      supabase.from('app_settings').select('*'),
+      supabase.from('therapists').select('*').order('id').limit(5000),
+      supabase.from('services').select('*').order('id').limit(5000),
+      supabase.from('service_categories').select('*').order('name').limit(5000),
+      supabase.from('addons').select('*').order('id').limit(5000),
+      supabase.from('promotions').select('*').order('id').limit(5000),
+      supabase.from('bills').select('*').order('created_at', { ascending: true }).limit(5000),
+      supabase.from('bill_items').select('*').order('bill_id').limit(5000),
+      supabase.from('expenses').select('*').order('date', { ascending: true }).limit(5000),
+      supabase.from('audit_log').select('*').order('timestamp', { ascending: true }).limit(5000),
+      supabase.from('app_settings').select('*').limit(100),
     ]);
 
     const firstError = [therapists, services, cats, addons, promos, bills, items, expenses, audit, settings]
@@ -125,6 +127,8 @@ export async function loadCloudData(fallbackLocal) {
       cashDrawer: settingsMap.cash_drawer || fallbackLocal?.cashDrawer || {},
       eodStatus: settingsMap.eod_status || fallbackLocal?.eodStatus || {},
       commissionSettings: settingsMap.commission_settings || fallbackLocal?.commissionSettings || { mode: 'flat', flatRates: {} },
+      // ชื่ออังกฤษหมวดบริการ — เก็บใน app_settings JSON, ข้อมูลเก่าไม่มี = {} (fallback map กลาง)
+      serviceCategoryEn: settingsMap.service_category_en || fallbackLocal?.serviceCategoryEn || {},
     };
   } catch (err) {
     console.error('[supabase] load failed:', err);
@@ -164,6 +168,34 @@ async function tolerantUpsert(table, rows, dropKeys) {
   return first;
 }
 
+// รัน fn 1 ครั้ง ถ้าล้มเหลว retry อีก 1 ครั้ง (กันเน็ตสะดุดชั่วคราว)
+async function withRetryOnce(fn) {
+  try {
+    return await fn();
+  } catch (e1) {
+    await new Promise((r) => setTimeout(r, 400));
+    return await fn();
+  }
+}
+
+function toItemRows(b) {
+  const rows = [];
+  for (const it of b.items || b.customers || []) {
+    rows.push({
+      bill_id: b.id,
+      service_id: it.serviceId || null,
+      therapist_id: it.therapistId || null,
+      qty: it.qty || 1,
+      price: it.price || 0,
+      discount: it.discount || 0,
+      net: it.net ?? it.price ?? 0,
+    });
+  }
+  return rows;
+}
+
+const itemFp = (r) => [r.service_id, r.therapist_id, r.qty, r.price, r.discount, r.net].join('|');
+
 export async function syncDataToCloud(d) {
   if (!isSupabaseConfigured || !supabase) return;
   try {
@@ -200,44 +232,65 @@ export async function syncDataToCloud(d) {
         approved_by: a.approvedBy || '',
       }))));
     }
-    if (d.bills) tasks.push(tolerantUpsert('bills', d.bills.map(toBillRow), ['slip_url', 'paid_at', 'branch_id', 'fuel']));
+    if (d.bills) tasks.push(withRetryOnce(() => tolerantUpsert('bills', d.bills.map(toBillRow), ['slip_url', 'paid_at', 'branch_id', 'fuel'])));
     const results = await Promise.all(tasks);
     const err = results.find((r) => r?.error)?.error;
     if (err) throw err;
 
-    // bill_items: replace per bill (simple + correct for POS scale)
+    // bill_items: upsert รายบิล + ลบเฉพาะรายการที่หายไป (ไม่ wipe ทั้งชุด)
+    // เหตุผล: bill_items.id เป็น uuid สุ่มฝั่ง DB จึงไม่มี unique key ให้ upsert ตรง ๆ
+    // เลยใช้ diff ระดับบิล — ข้ามบิลที่ items ไม่เปลี่ยน, บิลที่เปลี่ยนค่อย replace เฉพาะบิลนั้น
+    // (atomic ระดับบิล + retry 1 ครั้ง; ถ้า insert ล้ม บิลอื่นไม่กระทบเหมือน wipe-รวมเดิม)
     if (d.bills) {
       const billIds = d.bills.map((b) => b.id);
       if (billIds.length > 0) {
-        // delete items of these bills then re-insert current snapshot
-        const { error: delErr } = await supabase.from('bill_items').delete().in('bill_id', billIds);
-        if (delErr) throw delErr;
-        const rows = [];
-        for (const b of d.bills) {
-          for (const it of b.items || b.customers || []) {
-            rows.push({
-              bill_id: b.id,
-              service_id: it.serviceId || null,
-              therapist_id: it.therapistId || null,
-              qty: it.qty || 1,
-              price: it.price || 0,
-              discount: it.discount || 0,
-              net: it.net ?? it.price ?? 0,
-            });
-          }
+        const { data: existing, error: selErr } = await withRetryOnce(() =>
+          supabase.from('bill_items').select('*').in('bill_id', billIds).limit(5000),
+        );
+        if (selErr) throw selErr;
+        const existingByBill = {};
+        for (const row of existing || []) {
+          (existingByBill[row.bill_id] ||= []).push(row);
         }
-        if (rows.length > 0) {
-          const { error: insErr } = await supabase.from('bill_items').insert(rows);
-          if (insErr) throw insErr;
+        for (const b of d.bills) {
+          try {
+            const want = toItemRows(b);
+            const have = existingByBill[b.id] || [];
+            // เปรียบเทียบแบบ multiset ผ่าน fingerprint (รองรับแถวซ้ำกัน)
+            const countOf = (arr) => {
+              const m = new Map();
+              for (const r of arr) m.set(itemFp(r), (m.get(itemFp(r)) || 0) + 1);
+              return m;
+            };
+            const w = countOf(want);
+            const h = countOf(have);
+            let same = w.size === h.size;
+            if (same) for (const [k, v] of w) if (h.get(k) !== v) { same = false; break; }
+            if (same) continue; // ไม่เปลี่ยน -> ข้าม ไม่แตะ DB
+            await withRetryOnce(async () => {
+              const { error: delErr } = await supabase.from('bill_items').delete().eq('bill_id', b.id);
+              if (delErr) throw delErr;
+              if (want.length > 0) {
+                const { error: insErr } = await supabase.from('bill_items').insert(want);
+                if (insErr) throw insErr;
+              }
+            });
+          } catch (billErr) {
+            // ไม่ให้บิลเดียวล้มทั้ง sync — เก็บ error ไว้ throw รวมท้าย
+            console.error(`[supabase] bill_items sync failed for ${b.id}:`, billErr);
+            throw billErr;
+          }
         }
       }
     }
 
-    await supabase.from('app_settings').upsert([
+    const { error: settingsErr } = await withRetryOnce(() => supabase.from('app_settings').upsert([
       { key: 'cash_drawer', value: d.cashDrawer || {} },
       { key: 'eod_status', value: d.eodStatus || {} },
       { key: 'commission_settings', value: d.commissionSettings || {} },
-    ], { onConflict: 'key' });
+      { key: 'service_category_en', value: d.serviceCategoryEn || {} },
+    ], { onConflict: 'key' }));
+    if (settingsErr) throw settingsErr;
 
     cloudStatus.mode = 'cloud';
     cloudStatus.lastError = '';

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange } from '../components/ui';
-import { commBaht } from '../data/demoData';
+import { commBaht } from '../lib/billing';
 import { bkkToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
@@ -13,9 +13,9 @@ function localDay(offset = 0) {
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
+// สูตรยอดบิลมาตรฐานทั้งแอป (ตรงกับยอด total ที่เซฟ)
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
-
-const PAY_LABELS = ['เงินสด', 'QR Code / โอนเงิน'];
+// สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
 
 export default function PageDashboard({ data }) {
   const today = localDay(0);
@@ -54,11 +54,16 @@ export default function PageDashboard({ data }) {
   const expenseAllToday = expenseToday + freelanceToday + fuelToday;
   const netToday = dayTotal - expenseAllToday - rangeSplit.regComm;
 
-  // รายจ่ายทั้งหมด = รายจ่าย + ค่าแรงหมอประจำ + ค่าแรงหมอวิ่ง
-  const expenseGrand = totalExpenses + all.regComm + freelanceTotal;
+  // รายจ่ายทั้งหมด = รายจ่าย + ค่าแรงหมอประจำ + ค่าแรงหมอวิ่ง + ค่าน้ำมัน (สูตรเดียวกับยอดรายวัน/รายเดือน)
+  const fuelAll = paidBills.reduce((s, b) => s + (b.fuel || 0), 0);
+  const expenseGrand = totalExpenses + all.regComm + freelanceTotal + fuelAll;
+  // M4: ช่องทางชำระสร้างจากข้อมูลจริง (dynamic) — รองรับวิธีจ่ายใหม่โดยไม่ต้อง hardcode
   const paySum = {};
-  PAY_LABELS.forEach((m) => { paySum[m] = 0; });
-  rangeBills.forEach((b) => { if (paySum[b.paymentMethod] !== undefined) paySum[b.paymentMethod] += billTotal(b); });
+  rangeBills.forEach((b) => {
+    const m = b.paymentMethod || 'ไม่ระบุ';
+    paySum[m] = (paySum[m] || 0) + billTotal(b);
+  });
+  const payLabels = Object.keys(paySum).sort((a, b) => paySum[b] - paySum[a]);
 
   const month = buildMonthReport(data, stmtMonth);
 
@@ -89,7 +94,8 @@ export default function PageDashboard({ data }) {
       <Card>
         <CardHead title="ช่องทางชำระ" hint={`${rangeBills.length} บิล`} />
         <div>
-          {PAY_LABELS.map((m) => {
+          {payLabels.length === 0 && <p className="muted">ยังไม่มีบิลชำระแล้วในช่วงนี้</p>}
+          {payLabels.map((m) => {
             const v = paySum[m] || 0;
             const pct = dayTotal ? Math.max((v / dayTotal) * 100, v > 0 ? 3 : 0) : 0;
             return (

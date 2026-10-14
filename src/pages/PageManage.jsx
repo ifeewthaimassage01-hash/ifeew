@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, RotateCcw, X } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
-import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, commBaht } from '../data/demoData';
+import { DEFAULT_SERVICES, DEFAULT_CATEGORIES, defaultCategoryEnMap } from '../data/defaults';
+import { commBaht, categoryEn } from '../lib/billing';
 import { bkkNow } from '../utils/bkk';
 
 function nextId(prefix, list) {
@@ -43,7 +44,7 @@ export default function PageManage({ data, saveData }) {
   // ฟอร์มรายการ (รวมราคา): ชื่อ + ราคาต่อชม + ราคาและค่าแรง(บาท)แต่ละช่วงเวลา
   const [showC, setShowC] = useState(false);
   const [editingCat, setEditingCat] = useState(null); // null = เพิ่มใหม่
-  const [cForm, setCForm] = useState({ name: '', prices: {}, comms: {} });
+  const [cForm, setCForm] = useState({ name: '', nameEn: '', prices: {}, comms: {} });
   const [customDur, setCustomDur] = useState('');
 
   const therapists = data.therapists || [];
@@ -67,9 +68,9 @@ export default function PageManage({ data, saveData }) {
     return cats.map((c) => {
       const rows = services.filter((s) => s.category === c);
       const timed = rows.filter((s) => s.duration != null).sort((a, b) => a.duration - b.duration);
-      return { name: c, rows, timed, hourly: hourlyOf(rows) };
+      return { name: c, en: categoryEn(c, data.serviceCategoryEn), rows, timed, hourly: hourlyOf(rows) };
     });
-  }, [cats, services]);
+  }, [cats, services, data.serviceCategoryEn]);
 
   /* ---------- therapists (เดิม) ---------- */
   const openAddT = () => { setEditingT(null); setTForm(EMPTY_THERAPIST); setErr(''); setShowT(true); };
@@ -119,7 +120,7 @@ export default function PageManage({ data, saveData }) {
   /* ---------- รายการ + ราคาต่อชม ---------- */
   const openAddC = () => {
     setEditingCat(null);
-    setCForm({ name: '', prices: {}, comms: {} });
+    setCForm({ name: '', nameEn: '', prices: {}, comms: {} });
     setCustomDur('');
     setErr(''); setShowC(true);
   };
@@ -131,7 +132,7 @@ export default function PageManage({ data, saveData }) {
     const comms = {};
     timed.forEach((s) => { prices[s.duration] = String(s.price); comms[s.duration] = String(commBaht(s)); });
     setEditingCat(catName);
-    setCForm({ name: catName, prices, comms });
+    setCForm({ name: catName, nameEn: categoryEn(catName, data.serviceCategoryEn), prices, comms });
     setCustomDur('');
     setErr(''); setShowC(true);
   };
@@ -204,10 +205,25 @@ export default function PageManage({ data, saveData }) {
       }
     });
 
+    // ชื่ออังกฤษ (sub): เปลี่ยนชื่อไทยย้าย key ตาม, ว่าง = ลบ key (fallback map กลาง)
+    const nextEn = { ...(data.serviceCategoryEn || {}) };
+    const enVal = (cForm.nameEn || '').trim();
+    if (editingCat && name !== editingCat) {
+      const oldEn = nextEn[editingCat];
+      delete nextEn[editingCat];
+      if (enVal) nextEn[name] = enVal;
+      else if (oldEn) nextEn[name] = oldEn;
+    } else if (enVal) {
+      nextEn[name] = enVal;
+    } else {
+      delete nextEn[name];
+    }
+
     saveData({
       ...data,
       services: nextServices,
       serviceCategories: nextCats,
+      serviceCategoryEn: nextEn,
       auditLog: pushAudit(data, editingCat ? 'แก้ไขรายการ' : 'เพิ่มรายการ', `${name} · ${durs.length} ช่วงเวลา`, durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ')),
     });
     setShowC(false);
@@ -217,10 +233,13 @@ export default function PageManage({ data, saveData }) {
   const deleteC = async (cat) => {
     const ok = await confirmDialog({ title: `ลบรายการ ${cat}?`, message: 'ราคาในช่วงเวลานี้จะหายทั้งหมด · บิลเก่าไม่หาย', confirmLabel: 'ลบเลย', danger: true });
     if (!ok) return;
+    const nextEn = { ...(data.serviceCategoryEn || {}) };
+    delete nextEn[cat];
     saveData({
       ...data,
       services: services.filter((s) => s.category !== cat),
       serviceCategories: cats.filter((c) => c !== cat),
+      serviceCategoryEn: nextEn,
       auditLog: pushAudit(data, 'ลบรายการ', cat, 'ลบออก'),
     });
     alertDialog({ title: `ลบรายการ ${cat} แล้ว` });
@@ -233,6 +252,7 @@ export default function PageManage({ data, saveData }) {
       ...data,
       services: DEFAULT_SERVICES.map((s) => ({ ...s })),
       serviceCategories: [...DEFAULT_CATEGORIES],
+      serviceCategoryEn: defaultCategoryEnMap(),
       auditLog: pushAudit(data, 'รีเซ็ตบริการ', 'กลับเป็นค่าเริ่มต้นร้าน', `${DEFAULT_SERVICES.length} รายการ`),
     });
     alertDialog({ title: 'รีเซ็ตบริการแล้ว', message: `นวดไทย 1 ชม 350 / 1.5 ชม 500 / 2 ชม 650 · รวม ${DEFAULT_SERVICES.length} รายการ` });
@@ -381,10 +401,10 @@ export default function PageManage({ data, saveData }) {
             </span>}
           />
           <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา</p>
-          {catRows.map(({ name, timed, hourly }) => (
+          {catRows.map(({ name, en, timed, hourly }) => (
             <div key={name} className="mcat-card">
               <div className="mcat-head">
-                <b className="mcat-name">{name}</b>
+                <b className="mcat-name">{name}{en ? <small className="muted"> ({en})</small> : null}</b>
                 <span className="mcat-hourly">฿ {hourly.toLocaleString()}/ชม</span>
                 <span className="mcat-actions">
                   <button className="icon-btn" onClick={() => openEditC(name)} aria-label={`แก้ไข ${name}`}><Pencil size={15} /></button>
@@ -481,6 +501,7 @@ export default function PageManage({ data, saveData }) {
           <h3>{editingCat ? `แก้ไข ${editingCat}` : 'เพิ่มรายการ'}</h3>
           {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
           <div className="field" style={{ marginTop: 12 }}><label>ชื่อรายการ *</label><input value={cForm.name} onChange={(e) => setCForm({ ...cForm, name: e.target.value })} placeholder="เช่น นวดไทย" className="input" /></div>
+          <div className="field"><label>ชื่อภาษาอังกฤษ (sub)</label><input value={cForm.nameEn} onChange={(e) => setCForm({ ...cForm, nameEn: e.target.value })} placeholder="เช่น Thai Massage" className="input" /></div>
           <div className="field"><label>เพิ่มช่วงเวลา (นาที) เช่น 3 ชม = 180</label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input type="number" min="1" value={customDur} onChange={(e) => setCustomDur(e.target.value)} placeholder="นาทีอื่น เช่น 180" className="input" style={{ flex: 1, minWidth: 0 }} />

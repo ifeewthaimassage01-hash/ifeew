@@ -20,10 +20,16 @@ function parts(now = new Date()) {
   };
 }
 
-/** วันที่ไทย YYYY-MM-DD (offset = ±วัน) */
+/** วันที่ไทย YYYY-MM-DD (offset = ±วัน) — คำนวณวันใน TZ Asia/Bangkok โดยตรง
+ * (หา midnight ไทยก่อนแล้วค่อยบวกวัน จึงไม่เพี้ยนใกล้เที่ยงคืนเหมือน Date.now()+offset) */
 export function bkkToday(offset = 0) {
-  const p = parts(new Date(Date.now() + offset * 86400000));
-  return `${p.y}-${p.m}-${p.d}`;
+  const p = parts();
+  // midnight ไทยในรูป UTC instant: Date.UTC(y,m-1,d) คือเที่ยงคืน UTC จึงลบ 7 ชม. ได้ 00:00+07:00
+  const bkkMidnightUtc = Date.UTC(Number(p.y), Number(p.m) - 1, Number(p.d)) - 7 * 3600000;
+  // บวกวันแล้วชี้ไปกลางวัน (+12 ชม.) กันขอบเขต DST/ปัดเศษ แล้วแปลงกลับด้วย parts() (TZ Bangkok)
+  const target = new Date(bkkMidnightUtc + offset * 86400000 + 12 * 3600000);
+  const tp = parts(target);
+  return `${tp.y}-${tp.m}-${tp.d}`;
 }
 
 /** เวลาปัจจุบันไทย YYYY-MM-DDTHH:mm:ss (ไม่มี offset) — ใช้เก็บ bill.date/createdAt/timestamp */

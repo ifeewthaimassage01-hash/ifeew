@@ -4,6 +4,22 @@ import { Card, CardHead, EmptyState, alertDialog } from '../components/ui';
 import { bkkToday, bkkNow } from '../utils/bkk';
 import { uploadReceipt, resolveImageUrl, isCloudinaryConfigured } from '../lib/images';
 
+// M7: รันเลข E001 แบบไม่ชนหลังลบ — สแกนหาเลขสูงสุดที่มีอยู่แล้ว +1 (แบบเดียวกับ PageManage nextId)
+function nextExpenseId(list) {
+  let max = 0;
+  (list || []).forEach((x) => {
+    const m = String(x.id || '').match(/^E(\d+)$/);
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return `E${String(max + 1).padStart(3, '0')}`;
+}
+
+// ไฟล์แนบอาจเป็น PDF — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
+function isPdfUrl(url) {
+  const s = String(url || '').split('?')[0].toLowerCase();
+  return s.endsWith('.pdf');
+}
+
 export default function PageExpenses({ data, saveData, role }) {
   const [form, setForm] = useState({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
   const [saved, setSaved] = useState(false);
@@ -19,7 +35,6 @@ export default function PageExpenses({ data, saveData, role }) {
       const url = await uploadReceipt(file);
       setForm((f) => ({ ...f, receiptUrl: url }));
     } catch (e) {
-      console.error(e);
       setErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
         ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
         : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
@@ -36,7 +51,7 @@ export default function PageExpenses({ data, saveData, role }) {
     if (!form.notes.trim()) { setErr('กรอกหมายเหตุว่าใช้จ่ายอะไร'); return; }
     setErr('');
     const label = form.notes.trim();
-    const newExpense = { id: `E${String((data.expenses || []).length + 1).padStart(3, '0')}`, ...form, item: label, category: 'ทั่วไป', amount: Number(form.amount) };
+    const newExpense = { id: nextExpenseId(data.expenses), ...form, item: label, category: 'ทั่วไป', amount: Number(form.amount) };
     saveData({
       ...data,
       expenses: [...(data.expenses || []), newExpense],
@@ -85,11 +100,18 @@ export default function PageExpenses({ data, saveData, role }) {
                 <span>{uploading ? 'กำลังอัปโหลด…' : form.receiptUrl ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
                 <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} key={form.receiptUrl || 'empty'} onChange={(e) => handleFile(e.target.files[0])} />
               </label>
-              {receiptPreview && (
+              {receiptPreview && !isPdfUrl(receiptPreview) && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                  <a href={receiptPreview} target="_blank" rel="noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <ExternalLink size={13} /> เปิดดูรูปเต็ม
+                  </a>
+                </div>
+              )}
+              {receiptPreview && isPdfUrl(receiptPreview) && (
+                <div style={{ marginTop: 8 }}>
+                  <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    <ExternalLink size={13} /> เปิดดูใบเสร็จ (PDF)
                   </a>
                 </div>
               )}
@@ -106,10 +128,10 @@ export default function PageExpenses({ data, saveData, role }) {
               const url = resolveImageUrl(exp.receiptUrl);
               return (
               <div key={exp.id} className="exp-row">
-                <span className="exp-ic">{url ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6 }} /> : <Receipt size={16} />}</span>
+                <span className="exp-ic">{url && !isPdfUrl(url) ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6 }} /> : <Receipt size={16} />}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <b style={{ fontSize: 13.5, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exp.item}</b>
-                  <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}{url ? <> · <a href={url} target="_blank" rel="noreferrer">ดูใบเสร็จ</a></> : exp.receiptUrl ? ` · มีไฟล์: ${exp.receiptUrl}` : ''}</span>
+                  <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}{url ? <> · <a href={url} target="_blank" rel="noopener noreferrer">ดูใบเสร็จ{isPdfUrl(url) ? ' (PDF)' : ''}</a></> : exp.receiptUrl ? ` · มีไฟล์: ${exp.receiptUrl}` : ''}</span>
                 </span>
                 <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {exp.amount.toLocaleString()}</b></span>
               </div>

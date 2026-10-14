@@ -55,5 +55,5 @@ export function downloadMonthExcel(data, month) {
   a.download = `statement-${month}.csv`;
   document.body.appendChild(a);
   a.click();
-  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 5000);
 }
