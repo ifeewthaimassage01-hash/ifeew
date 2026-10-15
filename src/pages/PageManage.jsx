@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { commBaht, categoryEn, serviceCategoryOrder } from '../lib/billing';
+import { getOwnerPass } from '../lib/auth';
 import { bkkNow } from '../utils/bkk';
 import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, syncState } from '../data/cloudSync';
 
@@ -90,6 +91,24 @@ export default function PageManage({ data, saveData }) {
   const [showP, setShowP] = useState(false);
   const [editingP, setEditingP] = useState(null);
   const [pForm, setPForm] = useState({ name: '', amount: '', active: true });
+
+  // ฟอร์มเปลี่ยนรหัสเจ้าของร้าน — เก็บใน app_settings ผ่าน saveData ปกติ
+  const [ownerForm, setOwnerForm] = useState({ cur: '', next: '', confirm: '' });
+
+  const saveOwnerPass = () => {
+    const real = getOwnerPass(data.ownerPass);
+    if (ownerForm.cur !== real) { setErr('รหัสเจ้าของร้านปัจจุบันไม่ถูกต้อง'); return; }
+    if (!ownerForm.next || ownerForm.next.length < 4) { setErr('รหัสใหม่ต้องยาวอย่างน้อย 4 ตัว'); return; }
+    if (ownerForm.next !== ownerForm.confirm) { setErr('รหัสใหม่กับยืนยันไม่ตรงกัน'); return; }
+    setErr('');
+    saveData({
+      ...data,
+      ownerPass: ownerForm.next,
+      auditLog: pushAudit(data, 'เปลี่ยนรหัสเจ้าของร้าน', 'เปลี่ยนรหัสเข้าใช้งาน', 'เปลี่ยนแล้ว'),
+    });
+    setOwnerForm({ cur: '', next: '', confirm: '' });
+    alertDialog({ title: 'เปลี่ยนรหัสเจ้าของร้านแล้ว', message: 'มีผลทันทีทุกเครื่องที่ต่อ cloud' });
+  };
 
   // มุมมองย่อย "จัดลำดับ": ลากวางใน modal เก็บเป็น draft แล้วกดบันทึกครั้งเดียว (data model เดิม serviceCategoryOrder)
   const [showOrder, setShowOrder] = useState(false);
@@ -565,10 +584,11 @@ export default function PageManage({ data, saveData }) {
 
   return (
     <div>
-      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
         <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''}>พนักงาน ({therapists.length})</button>
         <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''}>รายการ ({cats.length})</button>
         <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''}>โปร ({promos.length})</button>
+        <button onClick={() => setTab('pass')} className={tab === 'pass' ? 'on' : ''}>รหัส</button>
       </div>
 
       {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
@@ -680,6 +700,24 @@ export default function PageManage({ data, saveData }) {
             </div>
           ))}
           {promos.length === 0 && <EmptyState title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
+        </Card>
+      )}
+
+      {tab === 'pass' && (
+        <Card>
+          <CardHead title="รหัสเจ้าของร้าน" hint="เข้าใช้งาน + ดูภาพรวม" />
+          <p className="muted" style={{ marginBottom: 8 }}>
+            สถานะ: {data.ownerPass
+              ? <span className="badge paid">ตั้งเองแล้ว</span>
+              : <span className="badge neutral">ยังไม่ตั้ง · ใช้ค่าจากระบบ</span>}
+          </p>
+          <div className="field"><label>รหัสปัจจุบัน *</label><input type="password" value={ownerForm.cur} onChange={(e) => setOwnerForm({ ...ownerForm, cur: e.target.value })} placeholder="กรอกรหัสปัจจุบัน" className="input" autoComplete="current-password" /></div>
+          <div className="f2">
+            <div className="field"><label>รหัสใหม่ (≥ 4 ตัว) *</label><input type="password" value={ownerForm.next} onChange={(e) => setOwnerForm({ ...ownerForm, next: e.target.value })} placeholder="รหัสใหม่" className="input" autoComplete="new-password" /></div>
+            <div className="field"><label>ยืนยันรหัสใหม่ *</label><input type="password" value={ownerForm.confirm} onChange={(e) => setOwnerForm({ ...ownerForm, confirm: e.target.value })} placeholder="กรอกอีกครั้ง" className="input" autoComplete="new-password" /></div>
+          </div>
+          <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัสเจ้าของร้าน</button>
+          <p className="muted" style={{ marginTop: 10 }}>รหัสนี้ใช้เข้าใช้งาน + อนุมัติยกเลิกบิล (หน้าบิล + บิลที่เปิดอยู่) · เปลี่ยนแล้วมีผลทุกเครื่องทันทีที่ sync</p>
         </Card>
       )}
 

@@ -3,7 +3,7 @@ import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, E
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
-import { getManagerPass } from '../lib/auth';
+import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 
 const billRows = (b) => b.items || b.customers || [];
@@ -14,7 +14,7 @@ const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i),
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
 
-// C2: รหัสผู้จัดการ — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
+// C2: รหัสเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
 // TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
 // ห้าม hardcode รหัสซ้ำหลายไฟล์ — ใช้ค่าจาก lib/auth.js ที่เดียว
 
@@ -132,7 +132,7 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
 
 /* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก */
 export default function OpenBillsSection({ data, saveData, role }) {
-  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสผู้จัดการอยู่แล้ว
+  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const openBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
 
@@ -285,7 +285,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'เจ้าของร้าน',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -305,7 +305,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((b) => (b.id === editTarget.id ? updated.bill : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'เจ้าของร้าน',
         action: 'แก้ไขบิลที่เปิดอยู่', detail: `${editTarget.customer || 'ลูกค้าหน้าร้าน'} · ${rows.length} รายการ · ฿ ${(subtotal - disc).toLocaleString()}`,
         oldValue: 'open', newValue: 'open', approvedBy: '-',
       }],
@@ -352,7 +352,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
       ...data,
       bills: data.bills.map((x) => (x.id === b.id ? { ...x, status: 'paid', paymentMethod: payMethod, paidAt: bkkNow(), slip: payMethod === 'QR Code / โอนเงิน' ? (slipName || '') : '' } : x)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'เจ้าของร้าน',
         action: 'เช็คบิล', detail: `${b.customer || 'ลูกค้าหน้าร้าน'} · ฿ ${billTotal(b).toLocaleString()} · ${payMethod}`,
         oldValue: 'open', newValue: 'paid', approvedBy: '-',
       }],
@@ -371,15 +371,15 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setVoidTarget(b); setAuthPass(''); setAuthReason(''); setVoidErr('');
   };
 
-  const confirmVoid = () => {    if (authPass !== getManagerPass()) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
+  const confirmVoid = () => {    if (authPass !== getOwnerPass(data?.ownerPass)) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
       bills: data.bills.map((b) => (b.id === voidTarget.id ? { ...b, status: 'cancelled' } : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'เจ้าของร้าน',
         action: 'ยกเลิกบิล', detail: `${voidTarget.customer || 'ลูกค้าหน้าร้าน'} — ${authReason}`,
-        oldValue: voidTarget.status || 'open', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
+        oldValue: voidTarget.status || 'open', newValue: 'cancelled', approvedBy: 'เจ้าของร้าน',
       }],
     });
     setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr('');
@@ -600,10 +600,10 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <button className="modal-x" onClick={() => { setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <div className="pagehead-main" style={{ marginBottom: 6 }}>
             <div className="pagehead-icon" style={{ background: 'var(--red)' }}><ShieldAlert size={22} /></div>
-            <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยผู้จัดการ</p></div>
+            <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยเจ้าของร้าน</p></div>
           </div>
           {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสผู้จัดการ" className="input" /></div>
+          <div className="field"><label>รหัสเจ้าของร้าน</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสเจ้าของร้าน" className="input" /></div>
           <div className="field"><label>เหตุผลการยกเลิก (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setVoidErr(''); }} placeholder="เช่น ลูกค้าขอเปลี่ยนบริการ…" className="input" rows={3} /></div>
           <div className="modal-row">
             <button onClick={confirmVoid} disabled={!authReason.trim() || !authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>

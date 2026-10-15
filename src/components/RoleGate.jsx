@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
-import { getOwnerPass } from '../lib/auth';
+import { getOwnerPass, resolveOwnerPass } from '../lib/auth';
 
 // รหัสผ่านเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (C6)
 // หมายเหตุ: การเช็กฝั่ง client กันได้แค่ระดับ UI ควรย้ายไปตรวจฝั่ง server / Supabase RLS ต่อ
@@ -44,14 +44,24 @@ export default function RoleGate({ onSelect }) {
   const [mode, setMode] = useState('select'); // select | owner
   const [pass, setPass] = useState('');
   const [err, setErr] = useState('');
+  const [checking, setChecking] = useState(false);
 
-  const submitOwner = (e) => {
+  const submitOwner = async (e) => {
     e.preventDefault();
-    if (pass === getOwnerPass()) {
-      setErr('');
-      onSelect('owner');
-    } else {
-      setErr('รหัสไม่ถูกต้อง ลองอีกครั้ง');
+    if (checking) return;
+    setChecking(true);
+    setErr('');
+    try {
+      // รหัสที่ตั้งเองในแอป (cloud) ชนะ env/default — ต้องดึงก่อนตรวจเพราะหน้านี้ยังไม่มี data
+      const real = await resolveOwnerPass();
+      if (pass === real) {
+        setErr('');
+        onSelect('owner');
+      } else {
+        setErr('รหัสไม่ถูกต้อง ลองอีกครั้ง');
+      }
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -87,8 +97,8 @@ export default function RoleGate({ onSelect }) {
               />
             </div>
             {err && <div className="err-banner"><TriangleAlert size={15} strokeWidth={1.9} className="eic" /> {err}</div>}
-            <button type="submit" className="btn btn-primary btn-block" disabled={!pass}>
-              <KeyRound size={17} strokeWidth={1.9} /> เข้าสู่ระบบเจ้าของร้าน
+            <button type="submit" className="btn btn-primary btn-block" disabled={!pass || checking}>
+              <KeyRound size={17} strokeWidth={1.9} /> {checking ? 'กำลังตรวจรหัส…' : 'เข้าสู่ระบบเจ้าของร้าน'}
             </button>
             <button type="button" className="btn btn-ghost btn-block mt8" onClick={() => setMode('select')}>
               <ArrowLeft size={16} strokeWidth={1.9} /> กลับไปเลือกบทบาท

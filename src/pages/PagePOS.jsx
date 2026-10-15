@@ -366,7 +366,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   const validPick = pickedServices.length > 0 && activeTherapistId && selectedStartTime != null && !timeError;
 
-  // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติผู้จัดการ, สถานะ open
+  // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติเจ้าของร้าน, สถานะ open
   const openDraftBill = () => {
     if (creating) return;
     if (pickedServices.length === 0) { setErr('เพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }

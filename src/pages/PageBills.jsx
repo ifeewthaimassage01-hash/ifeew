@@ -4,7 +4,7 @@ import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confi
 import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { commBaht, freelanceDisplayName, svcLabel, isFreelance } from '../lib/billing';
-import { getManagerPass } from '../lib/auth';
+import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
 
@@ -50,7 +50,7 @@ const rowNet = (i) => i.net ?? i.price ?? 0;
 const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
-// C2: รหัสผู้จัดการ — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
+// C2: รหัสเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
 // TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
 
 // ไฟล์แนบอาจเป็น PDF — อย่า render <img> ตรง ๆ ถ้าเป็น PDF
@@ -60,7 +60,7 @@ function isPdfUrl(url) {
 }
 
 export default function PageBills({ data, saveData, role }) {
-  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสผู้จัดการอยู่แล้ว
+  // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const [tab, setTab] = useState('open');
   const [query, setQuery] = useState('');
@@ -115,15 +115,15 @@ export default function PageBills({ data, saveData, role }) {
   };
 
   const confirmVoid = () => {
-    if (authPass !== getManagerPass()) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
+    if (authPass !== getOwnerPass(data?.ownerPass)) { setVoidErr('รหัสไม่ถูกต้อง'); return; }
     if (!authReason.trim()) { setVoidErr('กรุณาระบุเหตุผลการยกเลิกสั้น ๆ'); return; }
     saveData({
       ...data,
       bills: data.bills.map((b) => (b.id === voidTarget.id ? { ...b, status: 'cancelled' } : b)),
       auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'ผู้จัดการ',
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: 'เจ้าของร้าน',
         action: 'ยกเลิกบิล', detail: `${voidTarget.customer || 'ลูกค้าหน้าร้าน'} — ${authReason}`,
-        oldValue: voidTarget.status || 'paid', newValue: 'cancelled', approvedBy: 'ผู้จัดการ',
+        oldValue: voidTarget.status || 'paid', newValue: 'cancelled', approvedBy: 'เจ้าของร้าน',
       }],
     });
     setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr('');
@@ -363,10 +363,10 @@ export default function PageBills({ data, saveData, role }) {
           <button className="modal-x" onClick={() => { setVoidTarget(null); setAuthPass(''); setAuthReason(''); setVoidErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <div className="pagehead-main" style={{ marginBottom: 6 }}>
             <div className="pagehead-icon" style={{ background: 'var(--red)' }}><ShieldAlert size={22} /></div>
-            <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยผู้จัดการ</p></div>
+            <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยเจ้าของร้าน</p></div>
           </div>
           {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
-          <div className="field"><label>รหัสผ่านผู้จัดการ</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสผู้จัดการ" className="input" /></div>
+          <div className="field"><label>รหัสเจ้าของร้าน</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสเจ้าของร้าน" className="input" /></div>
           <div className="field"><label>เหตุผลการยกเลิก (บังคับ)</label><textarea value={authReason} onChange={(e) => { setAuthReason(e.target.value); setVoidErr(''); }} placeholder="เช่น ลูกค้าขอเปลี่ยนบริการ…" className="input" rows={3} /></div>
           <div className="modal-row">
             <button onClick={confirmVoid} disabled={!authReason.trim() || !authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>

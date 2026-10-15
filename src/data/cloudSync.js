@@ -47,6 +47,8 @@ export function emptyCloudData() {
     auditLog: [],
     eodStatus: {},
     commissionSettings: { mode: 'flat', flatRates: {} },
+    // รหัสที่เจ้าของร้านตั้งเองในแอป (sync ผ่าน app_settings key owner_pass) — ว่าง = ใช้ env/default
+    ownerPass: '',
   };
 }
 
@@ -222,6 +224,7 @@ function settingsEntriesOf(o) {
     { key: 'commission_settings', value: o.commissionSettings ?? { mode: 'flat', flatRates: {} } },
     { key: 'service_category_en', value: o.serviceCategoryEn ?? {} },
     { key: 'service_category_order', value: o.serviceCategoryOrder ?? [] },
+    { key: 'owner_pass', value: o.ownerPass ?? '' },
   ];
 }
 function rememberSettingsFrom(o) {
@@ -350,6 +353,8 @@ export async function loadCloudData(opts) {
       serviceCategoryOrder: Array.isArray(settingsMap.service_category_order)
         ? settingsMap.service_category_order.filter((c) => typeof c === 'string' && c)
         : [],
+      // รหัสที่ตั้งเองในแอป — เก็บเป็น string ตรงๆ, ไม่มี = '' (ใช้ env/default)
+      ownerPass: typeof settingsMap.owner_pass === 'string' ? settingsMap.owner_pass : '',
     };
 
     // จำ snapshot ฝั่ง cloud ก่อน overlay (C3) — outbox ที่ overlay ทับยังถือว่า "ยังไม่ sync"
