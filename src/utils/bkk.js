@@ -39,6 +39,29 @@ export function bkkNow() {
   return `${p.y}-${p.m}-${p.d}T${p.H}:${p.M}:${p.S}+07:00`;
 }
 
+/** ชั่วโมงตัดยอดวันธุรกิจ — ร้านปิดดึก บิล 00:00–02:59 นับเป็นของวันก่อนหน้า */
+export const BIZ_CUTOFF_HOUR = 3;
+
+/** วันที่ธุรกิจ YYYY-MM-DD ของ timestamp — ถอย 3 ชม. แล้วอ่านวันที่ไทย
+ * (รับทั้ง ISO มี offset, wall-time ไม่มี offset ถือว่าไทย, และ date ล้วนที่นับตามปฏิทิน) */
+export function bizDateOf(ts) {
+  if (!ts) return '';
+  let s = String(ts);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(s)) s += '+07:00';
+  const ms = new Date(s).getTime();
+  if (Number.isNaN(ms)) {
+    const m = String(ts).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(m) ? m : '';
+  }
+  const p = parts(new Date(ms - BIZ_CUTOFF_HOUR * 3600000));
+  return `${p.y}-${p.m}-${p.d}`;
+}
+
+/** วันที่ธุรกิจวันนี้ (หลังตี 3 = วันใหม่) */
+export function bizToday() {
+  return bizDateOf(new Date());
+}
+
 /** ปี ค.ศ. ไทย (สำหรับ footer) */
 export function bkkYear() {
   return parts().y;

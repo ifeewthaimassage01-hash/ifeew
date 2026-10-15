@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DateRange, inDateRange } from '../components/ui';
-import { bkkToday } from '../utils/bkk';
+import { bizDateOf, bizToday } from '../utils/bkk';
 import { svcLabel, commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 
 export default function PageCommission({ data, saveData, role }) {
@@ -9,10 +9,10 @@ export default function PageCommission({ data, saveData, role }) {
   const [historyFor, setHistoryFor] = useState(null);
   // M3: viewTab เป็น state ดูข้อมูลอย่างเดียว ไม่เขียนทับ commissionSettings ใน DB
   const [viewTab, setViewTab] = useState('regular'); // regular | freelance | rates
-  const todayStr = bkkToday();
+  const todayStr = bizToday();
   const [dr, setDr] = useState({ from: todayStr, to: todayStr });
   const therapists = data.therapists || [];
-  const bills = (data.bills || []).filter((b) => b.status === 'paid' && inDateRange(b.date || b.createdAt, dr.from, dr.to));
+  const bills = (data.bills || []).filter((b) => b.status === 'paid' && inDateRange(bizDateOf(b.date || b.createdAt), dr.from, dr.to));
 
   const stats = {};
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, total: 0, services: {}, svcDetail: {}, history: [] }; });

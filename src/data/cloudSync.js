@@ -625,6 +625,13 @@ export async function deleteBillFromCloud(id) {
   if (billErr) throw billErr;
 }
 
+// ลบค่าใช้จ่าย — upsert sync ลบให้ไม่ได้ ต้องลบใน cloud เอง ไม่งั้นของที่ลบจะโผล่กลับมาตอนโหลด/realtime reload
+export async function deleteExpenseFromCloud(id) {
+  if (!isSupabaseConfigured || !supabase || !id) return;
+  const { error } = await withRetryOnce(() => supabase.from('expenses').delete().eq('id', id));
+  if (error) throw error;
+}
+
 // ลบแถว master (พนักงาน/บริการ/หมวด/เสริม/โปร) — upsert sync ลบให้ไม่ได้
 // ต้องลบใน cloud เอง ไม่งั้นของที่ลบจะโผล่กลับมาตอนโหลด/ realtime reload
 async function deleteRowsFromCloud(table, col, values) {

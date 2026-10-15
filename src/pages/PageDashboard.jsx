@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange } from '../components/ui';
 import { commBaht, isFreelance } from '../lib/billing';
-import { bkkToday } from '../utils/bkk';
+import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
 
@@ -18,7 +18,8 @@ const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i),
 // สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
 
 export default function PageDashboard({ data }) {
-  const today = localDay(0);
+  // วันธุรกิจตัดยอดตี 3 — หลังเที่ยงคืนถึงตี 3 ยังนับเป็นวันก่อนหน้า
+  const today = bizToday();
   const [tab, setTab] = useState('day');
   const [dr, setDr] = useState({ from: today, to: today });
   const [stmtMonth, setStmtMonth] = useState(() => today.slice(0, 7));
@@ -39,7 +40,8 @@ export default function PageDashboard({ data }) {
     return { regSales, regComm, extSales, extComm };
   };
 
-  const rangeBills = paidBills.filter((b) => inDateRange(b.date, dr.from, dr.to));
+  // บิลนับตาม "วันที่ธุรกิจ" (00:00–02:59 = วันก่อนหน้า); รายจ่ายมีแค่วันที่นับตามปฏิทิน
+  const rangeBills = paidBills.filter((b) => inDateRange(bizDateOf(b.date), dr.from, dr.to));
   const rangeSplit = calcSplit(rangeBills);
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   const expenseToday = (data.expenses || []).filter((e) => inDateRange(e.date, dr.from, dr.to)).reduce((s, e) => s + e.amount, 0);
@@ -70,6 +72,7 @@ export default function PageDashboard({ data }) {
       {tab === 'day' && (
       <>
       <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+      <p className="muted" style={{ marginTop: 6 }}>วันธุรกิจตัดยอด 03:00 — บิลหลังเที่ยงคืนถึงตี 3 นับเป็นของวันก่อนหน้า</p>
 
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
-import { bkkToday, bkkNow, fmtBkk } from '../utils/bkk';
+import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { commBaht, freelanceDisplayName, svcLabel, isFreelance } from '../lib/billing';
 import { getManagerPass } from '../lib/auth';
@@ -44,10 +44,6 @@ function Dropdown({ icon: Icon, label, value, options, onChange }) {
   );
 }
 
-function localDay(offset = 0) {
-  return bkkToday(offset);
-}
-
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
 // สูตรยอดบิลมาตรฐานทั้งแอป (ตรงกับยอด total ที่เซฟใน OpenBills buildUpdatedBill)
@@ -70,7 +66,7 @@ export default function PageBills({ data, saveData, role }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
-  const [dr, setDr] = useState({ from: localDay(0), to: localDay(0) });
+  const [dr, setDr] = useState({ from: bizToday(), to: bizToday() });
   const [showFilters, setShowFilters] = useState(false);
   const activeFilterCount = ((dr.from || dr.to) ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (payFilter !== 'all' ? 1 : 0);
   const clearFilters = () => { setDr({ from: '', to: '' }); setStatusFilter('all'); setPayFilter('all'); };
@@ -87,7 +83,7 @@ export default function PageBills({ data, saveData, role }) {
     if (b.status === 'open') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    return matchQ && inDateRange(b.date, dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && inDateRange(bizDateOf(b.date), dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
@@ -232,7 +228,7 @@ export default function PageBills({ data, saveData, role }) {
               <div className="kpi-sub">{history.length} บิล · ชำระแล้ว {history.filter((b) => b.status === 'paid').length} · ยกเลิก {history.filter((b) => b.status === 'cancelled').length}</div>
             </div>
             <Kpi label="บิลทั้งหมด" value={bills.filter((b) => b.status !== 'open').length} />
-            <Kpi label="บิลวันนี้" value={bills.filter((b) => b.status !== 'open' && b.date && b.date.slice(0, 10) === localDay(0)).length} />
+            <Kpi label="บิลวันนี้" value={bills.filter((b) => b.status !== 'open' && bizDateOf(b.date) === bizToday()).length} />
           </div>
 
           <Card className="table-card show-desktop">

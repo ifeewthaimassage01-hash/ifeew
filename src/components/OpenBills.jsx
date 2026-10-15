@@ -150,7 +150,12 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [checkoutPay, setCheckoutPay] = useState('เงินสด');
   const [slipName, setSlipName] = useState('');
   const [slipUploading, setSlipUploading] = useState(false);
+  const [slipProgress, setSlipProgress] = useState(0);
+  const [slipLocal, setSlipLocal] = useState(null); // blob URL โชว์ทันที
+  const [slipLocalIsPdf, setSlipLocalIsPdf] = useState(false);
   const [slipErr, setSlipErr] = useState('');
+  const slipPreview = resolveImageUrl(slipName) || slipLocal;
+  const slipIsPdf = slipName ? isPdfUrl(resolveImageUrl(slipName)) : slipLocalIsPdf;
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [authReason, setAuthReason] = useState('');
@@ -313,6 +318,9 @@ export default function OpenBillsSection({ data, saveData, role }) {
     setCheckoutTarget(b);
     setCheckoutPay(b.paymentMethod || 'เงินสด');
     setSlipName(b.slip || '');
+    setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
+    setSlipLocalIsPdf(false);
+    setSlipProgress(0);
     setSlipErr('');
     setExpandedKey(null);
   };
@@ -320,10 +328,18 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const handleSlipFile = async (file) => {
     if (!file) return;
     setSlipErr('');
+    setSlipLocalIsPdf(file.type === 'application/pdf');
+    try {
+      const blobUrl = URL.createObjectURL(file);
+      setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return blobUrl; });
+    } catch { /* ignore */ }
+    setSlipProgress(0);
     setSlipUploading(true);
     try {
-      const url = await uploadSlip(file);
+      const url = await uploadSlip(file, (p) => setSlipProgress(p));
       setSlipName(url);
+      setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
+      setSlipProgress(100);
     } catch (e) {
       setSlipErr(e.message || 'อัปโหลดสลิปไม่สำเร็จ');
     } finally {
@@ -342,6 +358,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
       }],
     });
     setCheckoutTarget(null); setSlipName('');
+    setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
+    setSlipProgress(0);
   };
 
   // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
@@ -507,8 +525,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
       )}
 
       {checkoutTarget && (
-        <Modal onClose={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }}>
-          <button className="modal-x" onClick={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }} aria-label="ปิด"><X size={16} /></button>
+        <Modal onClose={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; }); }}>
+          <button className="modal-x" onClick={() => { setCheckoutTarget(null); setSlipName(''); setSlipErr(''); setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; }); }} aria-label="ปิด"><X size={16} /></button>
           <div className="mcard-top">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
@@ -540,28 +558,38 @@ export default function OpenBillsSection({ data, saveData, role }) {
               {slipErr && <div className="err-banner">⚠ {slipErr}</div>}
               <label className="filebtn">
                 {slipUploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
-                <span>{slipUploading ? 'กำลังอัปโหลด…' : slipName ? (resolveImageUrl(slipName) ? 'เปลี่ยนสลิป' : `แนบแล้ว: ${slipName}`) : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
+                <span>{slipUploading ? (slipProgress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${slipProgress}%`) : slipName || slipLocal ? (slipPreview ? 'เปลี่ยนสลิป' : `แนบแล้ว: ${slipName}`) : 'แตะเพื่อถ่ายรูป / แนบสลิป'}</span>
                 <input type="file" accept="image/*,application/pdf" hidden disabled={slipUploading} onChange={(e) => handleSlipFile(e.target.files[0])} />
               </label>
-              {resolveImageUrl(slipName) && !isPdfUrl(resolveImageUrl(slipName)) && (
+              {slipUploading && (
+                <div className="bar-track" style={{ margin: '8px 0 0' }}><span className="bar-fill" style={{ width: `${Math.max(2, slipProgress)}%` }} /></div>
+              )}
+              {slipPreview && !slipIsPdf && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <img src={resolveImageUrl(slipName)} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <img src={slipPreview} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                  {slipName && (
+                  <a href={slipPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <ExternalLink size={13} /> เปิดดูสลิป
                   </a>
+                  )}
+                  {slipUploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {slipProgress}%</span>}
                 </div>
               )}
-              {resolveImageUrl(slipName) && isPdfUrl(resolveImageUrl(slipName)) && (
+              {slipPreview && slipIsPdf && (
                 <div style={{ marginTop: 8 }}>
-                  <a href={resolveImageUrl(slipName)} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  {slipName ? (
+                  <a href={slipPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
                     <ExternalLink size={13} /> เปิดดูสลิป (PDF)
                   </a>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 12 }}>แนบ PDF แล้ว กำลังอัปโหลด… {slipProgress}%</span>
+                  )}
                 </div>
               )}
             </div>
           )}
           <div className="modal-cta modal-cta-3">
-            <button onClick={() => { startEdit(checkoutTarget); setCheckoutTarget(null); setSlipName(''); setSlipErr(''); }} className="btn btn-ghost" style={{ width: '100%' }}>แก้ไข</button>
+            <button onClick={() => { startEdit(checkoutTarget); setCheckoutTarget(null); setSlipName(''); setSlipErr(''); setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; }); }} className="btn btn-ghost" style={{ width: '100%' }}>แก้ไข</button>
             <button onClick={() => doCheckoutBill(checkoutTarget, checkoutPay)} disabled={slipUploading} className="btn btn-primary" style={{ width: '100%' }}>ยืนยันเช็คบิล</button>
           </div>
         </Modal>

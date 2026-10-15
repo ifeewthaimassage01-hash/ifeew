@@ -2,7 +2,7 @@
 // Rendered inside .print-only, visible in print only.
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 import { formatDuration } from './ui';
-import { bkkToday } from '../utils/bkk';
+import { bkkToday, bizDateOf } from '../utils/bkk';
 
 const rowsOf = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
@@ -61,7 +61,8 @@ export function buildMonthReport(data, month) {
     return 'บริการที่ลบแล้ว';
   };
 
-  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && String(b.date || '').slice(0, 7) === month);
+  // บิลนับตาม "เดือนธุรกิจ" (บิลหลังเที่ยงคืนถึงตี 3 = เดือนก่อนหน้าถ้าข้ามเดือน); รายจ่ายนับตามปฏิทิน
+  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && bizDateOf(b.date).slice(0, 7) === month);
   const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 7) === month);
 
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
@@ -84,7 +85,7 @@ export function buildMonthReport(data, month) {
       const comm = gross > 0 ? (fullComm * price) / gross : 0;
       const net = Math.max(0, price - comm);
       lines.push({
-        ts: b.date || '', date: String(b.date || '').slice(0, 10),
+        ts: b.date || '', date: bizDateOf(b.date),
         service: serviceDisplay(it),
         therapist: it.therapistName || b.therapistName || nameOf(tid),
         price, comm, net, staff: isStaff(tid),
@@ -106,7 +107,7 @@ export function buildMonthReport(data, month) {
     d.income += l.price; d.comm += l.comm;
   });
   paidBills.forEach((b) => {
-    const d = String(b.date || '').slice(0, 10);
+    const d = bizDateOf(b.date);
     if (days[d]) days[d].bills.add(b.id);
   });
   const expByDay = {};
@@ -116,7 +117,7 @@ export function buildMonthReport(data, month) {
   });
   paidBills.forEach((b) => {
     if (b.fuel) {
-      const d = String(b.date || '').slice(0, 10);
+      const d = bizDateOf(b.date);
       expByDay[d] = (expByDay[d] || 0) + b.fuel;
     }
   });
