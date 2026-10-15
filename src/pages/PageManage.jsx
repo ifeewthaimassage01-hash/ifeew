@@ -709,7 +709,7 @@ export default function PageManage({ data, saveData }) {
           <p className="muted" style={{ marginBottom: 8 }}>
             สถานะ: {data.ownerPass
               ? <span className="badge paid">ตั้งเองแล้ว</span>
-              : <span className="badge neutral">ยังไม่ตั้ง · ใช้ค่าจากระบบ</span>}
+              : <span className="badge neutral">ยังไม่ตั้ง · ใช้รหัสเริ่มต้น 123123</span>}
           </p>
           <div className="field"><label>รหัสปัจจุบัน *</label><input type="password" value={ownerForm.cur} onChange={(e) => setOwnerForm({ ...ownerForm, cur: e.target.value })} placeholder="กรอกรหัสปัจจุบัน" className="input" autoComplete="current-password" /></div>
           <div className="f2">

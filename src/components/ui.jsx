@@ -135,12 +135,18 @@ export function fmtRange(from, to) {
 export function Modal({ children, onClose }) {
   const boxRef = useRef(null);
   const prevRef = useRef(null);
+  // เก็บ onClose ล่าสุดใน ref — effect ต้องรันครั้งเดียวตอน mount เท่านั้น
+  // (ทุกที่ส่ง onClose เป็น inline arrow = reference ใหม่ทุก render ถ้าใส่ใน deps
+  // effect จะรันซ้ำทุกครั้งที่พิมพ์ → โฟกัสโดนดึงกลับไปปุ่ม X พิมพ์ต่อไม่ได้)
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     prevRef.current = document.activeElement;
     const box = boxRef.current;
-    box?.querySelector('button, input, select, textarea')?.focus?.();
+    // โฟกัสช่องกรอกก่อน (ถ้ามี) ไม่ใช่ปุ่ม X — กันคีย์บอร์ดมือถือหลุดตอนพิมพ์
+    (box?.querySelector('input, select, textarea') || box?.querySelector('button'))?.focus?.();
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); onClose?.(); }
+      if (e.key === 'Escape') { e.preventDefault(); closeRef.current?.(); }
       else if (e.key === 'Tab' && box) {
         const f = [...box.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')]
           .filter((el) => !el.disabled);
@@ -156,7 +162,7 @@ export function Modal({ children, onClose }) {
       document.removeEventListener('keydown', onKey);
       if (prevRef.current?.focus) prevRef.current.focus();
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className="modal-ov" onClick={onClose}>
       <div ref={boxRef} className="modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
