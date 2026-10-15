@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, ReceiptText, FileText, LayoutGrid, Calculator,
-  Flower2, LogOut, Store,
+  LogOut, Store,
 } from 'lucide-react';
 import { fmtBkk } from '../utils/bkk';
 
@@ -18,7 +18,7 @@ export function RailDesktop({ active, items, onNavigate, onExit, badges }) {
     <aside className="rail">
       <div className="rail-in">
         <div className="rail-brand">
-          <div className="mark"><Flower2 size={24} strokeWidth={1.5} /></div>
+          <div className="mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
           <div><b>I'FEEW</b><small>Thai Massage</small></div>
         </div>
         <div className="rail-label">เมนูหลัก</div>
@@ -54,7 +54,7 @@ export function TopBar({ active, items, role, onExit }) {
   return (
     <div className="topbar">
       <div className="topbar-in">
-        <div className="brand-mark"><Flower2 size={21} strokeWidth={1.6} /></div>
+        <div className="brand-mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
         <div>
           <div className="brand-name">I'FEEW<small>Thai Massage</small></div>
         </div>

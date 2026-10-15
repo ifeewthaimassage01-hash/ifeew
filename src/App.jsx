@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
-import { Flower2, TriangleAlert, WifiOff } from 'lucide-react';
+import { TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
 import RoleGate, { saveRole, clearRole, isOwnerSessionExpired } from './components/RoleGate';
@@ -47,7 +47,7 @@ function LoadingScreen() {
   return (
     <div className="loading-screen">
       <div className="loading-card">
-        <div className="loading-mark"><Flower2 size={30} strokeWidth={1.4} /></div>
+        <div className="loading-mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
         <h2>I'FEEW</h2>
         <p style={{ fontSize: 10, letterSpacing: '0.3em', textTransform: 'uppercase', opacity: 0.6, marginTop: 4 }}>Thai Massage </p>
         <div className="loadbar"><i /></div>

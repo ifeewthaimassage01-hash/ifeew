@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Flower2, UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
+import { UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
 import { getOwnerPass } from '../lib/auth';
 
@@ -58,7 +58,7 @@ export default function RoleGate({ onSelect }) {
   return (
     <div className="gate-screen">
       <div className="gate-card">
-        <div className="gate-mark"><Flower2 size={30} strokeWidth={1.5} /></div>
+        <div className="gate-mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
         <h1 className="gate-title">I'FEEW</h1>
         <p className="gate-sub">Thai Massage · เลือกบทบาทเพื่อเข้าใช้งาน</p>
 

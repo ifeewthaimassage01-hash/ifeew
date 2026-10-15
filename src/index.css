@@ -48,7 +48,7 @@ body {
 @supports (overflow: clip) { body { overflow-x: clip; } }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: 0; }
 p { margin: 0; }
-button { font-family: inherit; cursor: pointer; }
+button { font-family: inherit; cursor: pointer; color: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--brown); outline-offset: 2px;
 }
@@ -89,9 +89,14 @@ img { max-width: 100%; }
 }
 .brand-mark {
   width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
-  background: var(--brown-950); color: #efe0cd;
-  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
+/* โลโก้ร้าน — มนที่ตัวรูปเอง ไม่พึ่งกรอบพ่อ กันเส้นขอบผีบน Safari */
+.brand-mark img, .rail-brand .mark img, .gate-mark img, .loading-mark img {
+  width: 100%; height: 100%; object-fit: contain; display: block; border-radius: inherit;
+}
+.rail-brand .mark, .gate-mark, .loading-mark { overflow: hidden; background: transparent; }
 .brand-name { font-size: 19px; font-weight: 700; color: var(--ink); line-height: 1; letter-spacing: -0.01em; }
 .brand-name small { font-size: 10px; font-weight: 500; color: var(--muted); display: block; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px; }
 .topbar-spacer { flex: 1; }
@@ -1347,14 +1352,14 @@ label.filebtn {
 .cat-card {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   min-height: 72px; height: 100%; padding: 12px 12px 12px 14px; border-radius: 14px; width: 100%;
-  max-width: 100%; min-width: 0; overflow: hidden;
+  max-width: 100%; min-width: 0; overflow: hidden; color: var(--ink);
   background: var(--surface); border: 1.5px solid var(--line); text-align: left;
 }
 .cat-card:active { transform: scale(0.98); border-color: var(--brown); }
 .cat-card.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
 .cat-card-main { flex: 1; min-width: 0; max-width: 100%; display: flex; flex-direction: column; gap: 3px; }
 .cat-card-main b {
-  font-size: 14.5px; font-weight: 700; line-height: 1.4; max-width: 100%;
+  font-size: 14.5px; font-weight: 700; line-height: 1.4; max-width: 100%; color: var(--ink);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   overflow-wrap: break-word; word-break: normal; line-break: loose;
   min-height: 2.8em;
