@@ -1,6 +1,6 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
+import { commBaht, freelanceDisplayName, isFreelance, GUARANTEE_CATEGORY } from '../lib/billing';
 import { formatDuration } from './ui';
 import { bkkToday, bizDateOf } from '../utils/bkk';
 
@@ -66,7 +66,13 @@ export function buildMonthReport(data, month) {
   const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 7) === month);
 
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
-  const expenseSum = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  // GUARANTEE (พิกัด frontend-agent: MonthStatement.jsx buildMonthReport ใต้ income/expenseSum) — กันนับซ้ำ:
+  // expense หมวด 'ค่าประกันมือหมอ' หักออกจาก expenseSum แล้วบวกเข้า regComm (net นับครั้งเดียวฝั่ง regComm)
+  const expenseSumAll = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const guaranteeSum = expenses
+    .filter((e) => e.category === GUARANTEE_CATEGORY)
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const expenseSum = expenseSumAll - guaranteeSum;
 
   // line items sorted by datetime — ราคาแต่ละ line หักส่วนลดท้ายบิลตามสัดส่วนแล้ว
   const lines = [];
@@ -94,7 +100,8 @@ export function buildMonthReport(data, month) {
   });
   lines.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
 
-  const regComm = lines.filter((l) => l.staff).reduce((s, l) => s + l.comm, 0);
+  const regCommBase = lines.filter((l) => l.staff).reduce((s, l) => s + l.comm, 0);
+  const regComm = regCommBase + guaranteeSum;
   const extComm = lines.filter((l) => !l.staff).reduce((s, l) => s + l.comm, 0);
   const fuelSum = paidBills.reduce((s, b) => s + (b.fuel || 0), 0);
   const expenseAll = expenseSum + extComm + fuelSum;
@@ -173,7 +180,7 @@ export function buildMonthReport(data, month) {
   return {
     month, monthLabel: thaiMonth(month),
     paidBills, expenses, lines, dayRows, expByDay, paySum, therRows, ledger,
-    income, expenseSum, regComm, extComm, fuelSum, expenseAll, net,
+    income, expenseSum, expenseSumAll, guaranteeSum, regComm, regCommBase, extComm, fuelSum, expenseAll, net,
   };
 }
 
@@ -191,7 +198,7 @@ export default function MonthStatement({ data, month }) {
       <div className="stmt-bank-head">
         <div className="stmt-brand">I'FEEW THAI MASSAGE</div>
         <div className="stmt-doc-title">ใบสรุปประจำเดือน {monthLabel}</div>
-        <div className="stmt-doc-sub">พิมพ์เมื่อ {fmtDay(bkkToday())} · บิลชำระแล้ว {paidBills.length} ใบ · {ledger.length} รายการ</div>
+        <div className="stmt-doc-sub">{paidBills.length} บิล · {ledger.length} รายการ</div>
       </div>
 
       <h2>รายการเดินบัญชี</h2>

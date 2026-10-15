@@ -11,7 +11,7 @@ export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
           {Icon && <div className="pagehead-icon"><Icon size={22} strokeWidth={1.8} /></div>}
           <div style={{ minWidth: 0 }}>
             <h1 className="h1">{title}</h1>
-            {subtitle && <p className="muted" style={{ margin: '2px 0 0' }}>{subtitle}</p>}
+            {subtitle && <p className="muted" style={{ margin: '4px 0 0' }}>{subtitle}</p>}
           </div>
         </div>
         {actions && <div className="pagehead-actions">{actions}</div>}
@@ -48,7 +48,7 @@ export function Kpi({ tone = '', label, value, sub, span = false, small = false 
 
 export function EmptyState({ icon: Icon, title, subtitle }) {
   return (
-    <div className="empty">
+    <div className="empty" role="status">
       {Icon && <div className="empty-ic"><Icon size={26} strokeWidth={1.6} /></div>}
       <b>{title}</b>
       {subtitle && <span>{subtitle}</span>}

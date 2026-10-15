@@ -125,7 +125,6 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
         <span className="muted">ยอดสุทธิ</span>
         <span className="grand">฿ {total.toLocaleString()}</span>
       </div>
-      <div className="rcpt-sub" style={{ textAlign: 'right', marginTop: 2 }}>ค่าแรงพนักงานรวม ฿ {commTotal.toLocaleString()}</div>
     </div>
   );
 }
@@ -417,10 +416,6 @@ export default function OpenBillsSection({ data, saveData, role }) {
               <div className="ob-total">
                 <span className="ob-sum">
                   <span className="ob-grand">฿ {billTotal(b).toLocaleString()}</span>
-                  <span className="muted">ค่าแรง ฿ {rows.reduce((s, it) => {
-                    const svc = (data.services || []).find((x) => x.id === it.serviceId);
-                    return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
-                  }, 0).toLocaleString()}</span>
                 </span>
                 <span className="ob-btns">
                   <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
@@ -465,7 +460,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
             <button type="button" className="dash-add" onClick={() => { setShowAddSvc(true); setEditErr(''); }}><Plus size={15} /> เพิ่มบริการ</button>
           ) : (
             <div className="field">
-              <label>เพิ่มบริการ (ใช้หมอเดิมจากตอนเปิดบิล)</label>
+              <label>เพิ่มบริการ (หมอเดิม)</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <select value={addSvcId} onChange={(e) => { setAddSvcId(e.target.value); setEditErr(''); }} className="input" style={{ flex: 1, minWidth: 0 }}>
                   <option value="">— เลือกบริการ —</option>

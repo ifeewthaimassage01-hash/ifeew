@@ -87,6 +87,9 @@ export default function PageExpenses({ data, saveData, role }) {
   };
   const expenses = [...(data.expenses || [])].reverse();
   const grandTotal = (data.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // P0-4/P1-9: แถวระบบประกันมือ (notes ขึ้นต้น 'guarantee:') — สร้างอัตโนมัติ ห้ามแก้ notes/amount/date
+  const isSysRow = (exp) => typeof (exp && exp.notes) === 'string' && String(exp.notes).startsWith('guarantee:');
+  const isOwner = role === 'owner';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -115,6 +118,9 @@ export default function PageExpenses({ data, saveData, role }) {
   };
 
   const openEdit = (exp) => {
+    // P0-4: แถวระบบล็อกห้ามแก้ (กันแก้ notes แล้วจ่ายเบิ้ล)
+    if (isSysRow(exp)) return;
+    if (!isOwner) return; // P1-9: role gate — เฉพาะ owner
     setEditErr('');
     setEditing(exp);
     setEditLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
@@ -138,6 +144,9 @@ export default function PageExpenses({ data, saveData, role }) {
 
   const saveEdit = async () => {
     if (!editing || busyId) return;
+    // P0-4: กันทะลุ — แถวระบบห้ามเซฟแก้เด็ดขาด (notes/amount/date ล็อก)
+    if (isSysRow(editing)) { setEditErr('แถวระบบประกันมือ — แก้ไขไม่ได้ (ลบได้อย่างเดียว)'); return; }
+    if (!isOwner) { setEditErr('เฉพาะเจ้าของร้านเท่านั้น'); return; }
     const amt = Number(editForm.amount);
     if (!Number.isFinite(amt) || amt <= 0) { setEditErr('กรอกจำนวนเงินให้ถูกต้อง (ต้องมากกว่า 0)'); return; }
     if (!editForm.notes.trim()) { setEditErr('กรอกหมายเหตุว่าใช้จ่ายอะไร'); return; }
@@ -172,9 +181,14 @@ export default function PageExpenses({ data, saveData, role }) {
 
   const deleteExp = async (exp) => {
     if (busyId) return;
+    if (!isOwner) return; // P1-9: role gate — ซ่อนปุ่มแล้ว + กันเรียกตรง
+    // P0-4: แถวระบบเตือนก่อนลบว่าเงื่อนไขยังเข้าจะสร้างกลับมาใหม่ (ไม่ทำ blocklist แค่เตือน)
+    const sys = isSysRow(exp);
     const ok = await confirmDialog({
       title: `ลบรายจ่ายนี้?`,
-      message: `${exp.item || exp.notes || exp.id} · ฿ ${Number(exp.amount || 0).toLocaleString()} — ลบแล้วกู้ไม่ได้ ยอดรวมจะเปลี่ยน`,
+      message: sys
+        ? `${exp.item || exp.notes || exp.id} · ฿ ${Number(exp.amount || 0).toLocaleString()} — แถวระบบประกันมือ: ลบแล้วระบบจะสร้างกลับมาใหม่ถ้าเงื่อนไขยังเข้า`
+        : `${exp.item || exp.notes || exp.id} · ฿ ${Number(exp.amount || 0).toLocaleString()} — ลบแล้วกู้ไม่ได้ ยอดรวมจะเปลี่ยน`,
       confirmLabel: 'ลบเลย', danger: true,
     });
     if (!ok) return;
@@ -217,7 +231,7 @@ export default function PageExpenses({ data, saveData, role }) {
 
       <div className="cols-32">
         <Card>
-          <CardHead title="ฟอร์มบันทึกค่าใช้จ่าย" hint="* ช่องจำเป็น" />
+          <CardHead title="บันทึกค่าใช้จ่าย" />
           {err && <div className="err-banner">⚠ {err}</div>}
           <form onSubmit={handleSubmit}>
             <div className="f2">
@@ -233,7 +247,7 @@ export default function PageExpenses({ data, saveData, role }) {
               </div>
               <div className="field"><label>ลงชื่อ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้จ่าย" className="input" /></div>
             </div>
-            <div className="field"><label>ใบเสร็จ / หลักฐาน {!isCloudinaryConfigured && <span className="muted">(ยังไม่ตั้งค่า Cloudinary)</span>}</label>
+            <div className="field"><label>ใบเสร็จ</label>
               <label className="filebtn">
                 {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
                 <span>{uploading ? (progress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${progress}%`) : form.receiptUrl || localPreview ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
@@ -276,22 +290,28 @@ export default function PageExpenses({ data, saveData, role }) {
             {expenses.map((exp) => {
               const url = resolveImageUrl(exp.receiptUrl);
               const busy = busyId === exp.id;
+              const sys = isSysRow(exp);
               return (
               <div key={exp.id} className="exp-row">
                 <span className="exp-ic">{url && !isPdfUrl(url) ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6 }} /> : <Receipt size={16} />}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <b style={{ fontSize: 13.5, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exp.item}</b>
                   <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}{url ? <> · <a href={url} target="_blank" rel="noopener noreferrer">ดูใบเสร็จ{isPdfUrl(url) ? ' (PDF)' : ''}</a></> : exp.receiptUrl ? ` · มีไฟล์: ${exp.receiptUrl}` : ''}</span>
+                  {sys && <span className="muted" style={{ display: 'block', fontSize: 11 }}>ระบบอัตโนมัติ</span>}
                 </span>
-                <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {Number(exp.amount || 0).toLocaleString()}</b></span>
+                <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {Number(exp.amount || 0).toLocaleString()}</b>{sys && <span className="badge info" style={{ display: 'block', marginTop: 2 }}>ระบบ</span>}</span>
+                {isOwner ? (
                 <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {!sys && (
                   <button type="button" className="icon-btn" title="แก้ไข" aria-label={`แก้ไข ${exp.item}`} disabled={!!busyId} onClick={() => openEdit(exp)} style={{ width: 32, height: 32 }}>
                     <Pencil size={15} />
                   </button>
-                  <button type="button" className="icon-btn" title="ลบ" aria-label={`ลบ ${exp.item}`} disabled={!!busyId} onClick={() => deleteExp(exp)} style={{ width: 32, height: 32, color: busy ? undefined : 'var(--red)' }}>
+                  )}
+                  <button type="button" className="icon-btn" title={sys ? 'ลบ (ระบบจะสร้างกลับมาใหม่ถ้าเงื่อนไขยังเข้า)' : 'ลบ'} aria-label={`ลบ ${exp.item}`} disabled={!!busyId} onClick={() => deleteExp(exp)} style={{ width: 32, height: 32, color: busy ? undefined : 'var(--red)' }}>
                     {busy ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
                   </button>
                 </span>
+                ) : null}
               </div>
               );
             })}

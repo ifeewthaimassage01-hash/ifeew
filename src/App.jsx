@@ -3,10 +3,12 @@ import { TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
 import RoleGate, { saveRole, clearRole, isOwnerSessionExpired } from './components/RoleGate';
-import { loadCloudData, scheduleSync, cloudStatus, syncState, subscribeSyncStatus, retrySync } from './data/cloudSync';
+import { loadCloudData, scheduleSync, cloudStatus, syncState, subscribeSyncStatus, retrySync, deleteExpenseFromCloud } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { subscribePosTables } from './lib/realtime';
-import { bkkYear } from './utils/bkk';
+import { bkkYear, bizToday } from './utils/bkk';
+import { ensureGuaranteeEntries, reconcileGuaranteeEntries, guaranteeSigOf } from './lib/billing';
+import * as billingMod from './lib/billing';
 
 // แยก chunk รายหน้า — โหลดเฉพาะหน้าที่เปิด (React.lazy + Suspense)
 const PageDashboard = lazy(() => import('./pages/PageDashboard'));
@@ -56,6 +58,15 @@ function LoadingScreen() {
   );
 }
 
+// P1-7: วันที่ก่อนหน้าแบบปฏิทิน (YYYY-MM-DD) — ใช้คู่ bizToday กันบิลข้ามเที่ยงคืน
+function prevDayStr(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ymd || ''));
+  if (!m) return ymd;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - 86400000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+}
+
 export default function App() {
   const [role, setRole] = useState(loadRole);
   const [activePage, setActivePage] = useState(() => DEFAULT_PAGE[loadRole()] || 'pos');
@@ -72,6 +83,9 @@ export default function App() {
   useEffect(() => { dataRef.current = data; }, [data]);
   // C5: นับ modal ที่เปิดอยู่ — realtime reload ข้ามตอนมี modal กันทับ wizard/dialog
   const modalOpenRef = useRef(0);
+  // P1-7: trigger ประกันมือรอบเปิดแอป — รันครั้งเดียวต่อรอบโหลด (guard กัน StrictMode
+  // double-invoke + กัน loop กับ realtime: realtime ใช้ quiet reload คนละ effect ไม่ผ่านตรงนี้)
+  const guaranteeBootRef = useRef(false);
   useEffect(() => {
     const onModal = (e) => { modalOpenRef.current = e.detail?.open || 0; };
     window.addEventListener('ifeew-modal', onModal);
@@ -111,9 +125,44 @@ export default function App() {
         // Cloud-only: โหลดจาก Supabase อย่างเดียว ไม่มีการแสดงข้อมูลก่อน
         const cloud = await loadCloudData();
         if (!cancelled && cloud) {
-          setData(cloud);
-          setCloudMode(cloudStatus.mode);
-          setCloudError('');
+          // P1-7: trigger ประกันมือนอกเหนือเปิดหน้า — หลังโหลดรอบเปิดแอปสำเร็จ (ไม่ใช่ quiet
+          // realtime reload: effect นี้รันแค่ mount) ensure ให้ bizToday + เมื่อวาน (กันบิลข้าม
+          // เที่ยงคืน) ครั้งเดียวต่อรอบโหลด แล้ว saveData เฉพาะเมื่อมีสร้าง/เปลี่ยนจริง
+          // (created > 0 + เทียบ guaranteeSigOf ก่อน/หลัง) — ไม่รื้อ logic load เดิม
+          let next = cloud;
+          const removedIds = [];
+          if (!guaranteeBootRef.current) {
+            guaranteeBootRef.current = true;
+            try {
+              const t0 = bizToday();
+              for (const day of [prevDayStr(t0), t0]) {
+                const before = guaranteeSigOf(next, day);
+                const res = ensureGuaranteeEntries(next, day);
+                if (res && res.created > 0 && res.data && guaranteeSigOf(res.data, day) !== before) {
+                  next = res.data;
+                }
+                // reconcile ปรับลดยอดที่เกิน (จ่ายบิลทีหลัง/ถอนชื่อ) — มี export นี้อยู่แล้วเรียกตรงได้เลย
+                const r = reconcileGuaranteeEntries(next, day);
+                if (r && r.data && (r.changed || (r.removedIds && r.removedIds.length > 0))) {
+                  next = r.data;
+                  if (r.removedIds) removedIds.push(...r.removedIds);
+                }
+              }
+            } catch (e) { console.error('[guarantee] boot ensure failed:', e); }
+            // แถวที่ reconcile ตัดออกต้องลบใน cloud ด้วย (upsert ลบให้ไม่ได้) — พลาดรอบนี้รอบหน้าเจอแล้วลบใหม่
+            for (const id of removedIds) {
+              try { await deleteExpenseFromCloud(id); } catch (e) { console.error('[guarantee] boot delete failed:', e); }
+            }
+          }
+          if (next !== cloud) {
+            setCloudMode(cloudStatus.mode);
+            setCloudError('');
+            saveData(next); // setData + scheduleSync (pending guard เดิมกัน realtime ทับ)
+          } else {
+            setData(cloud);
+            setCloudMode(cloudStatus.mode);
+            setCloudError('');
+          }
         } else if (!cancelled) {
           // โหลดล้มเหลว: แสดง error screen พร้อมปุ่มรีเฟรช ห้าม fallback เงียบ
           setLoadError(cloudStatus.lastError || 'ต่อ cloud ไม่ได้ — กดรีเฟรชเพื่อลองใหม่');
@@ -220,9 +269,9 @@ export default function App() {
   return (
     <div className="app">
       <div className="shell">
-        <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} badges={badges} />
+        <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} badges={badges} data={data} saveData={saveData} role={role} />
         <div className="main-col">
-          <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} />
+          <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} data={data} saveData={saveData} />
           <main className="page">
             <div className="container">
               {/* M2: banner รวมอันเดียว (offline ชนะ) + sticky ไม่ดัน wizard */}
@@ -231,7 +280,7 @@ export default function App() {
                   {!online ? (
                     <>
                       <WifiOff size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                      <span>ไม่มีเน็ต — ข้อมูลที่บันทึกจะยังไม่ขึ้น cloud จนกว่าเน็ตจะกลับ (กลับมาแล้วระบบจะ sync ให้เอง)</span>
+                      <span>ไม่มีเน็ต — ระบบจะ sync ขึ้น cloud ให้เองเมื่อเน็ตกลับ</span>
                     </>
                   ) : (
                     <>
@@ -253,7 +302,7 @@ export default function App() {
             <div className="container">
               <span>I'FEEW Thai Massage — POS</span>
               <span title={cloudError || ''}>
-                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : `○ เกิดข้อผิดพลาด${cloudError ? ` — ${cloudError}` : ''}`}{live ? ' · ● Live' : ''} · Clean & Warm Spa · {bkkYear()}
+                {cloudMode === 'cloud' ? '● Cloud เชื่อมแล้ว' : `○ เกิดข้อผิดพลาด${cloudError ? ` — ${cloudError}` : ''}`}{live ? ' · ● Live' : ''} · {bkkYear()}
               </span>
             </div>
           </footer>

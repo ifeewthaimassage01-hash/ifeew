@@ -49,6 +49,9 @@ export function emptyCloudData() {
     commissionSettings: { mode: 'flat', flatRates: {} },
     // รหัสที่เจ้าของร้านตั้งเองในแอป (sync ผ่าน app_settings key owner_pass) — ว่าง = ใช้ env/default
     ownerPass: '',
+    // GUARANTEE — ประกันมือหมอประจำ/วัน (sync ผ่าน app_settings keys guarantee_amount + attendance)
+    guaranteeAmount: 400,
+    attendance: {},
   };
 }
 
@@ -225,6 +228,9 @@ function settingsEntriesOf(o) {
     { key: 'service_category_en', value: o.serviceCategoryEn ?? {} },
     { key: 'service_category_order', value: o.serviceCategoryOrder ?? [] },
     { key: 'owner_pass', value: o.ownerPass ?? '' },
+    // GUARANTEE — ยอดประกันมือ/วัน (number) + สมุดลงชื่อเข้างาน {dateStr: {therapistId: {at, by}}}
+    { key: 'guarantee_amount', value: o.guaranteeAmount ?? 400 },
+    { key: 'attendance', value: o.attendance ?? {} },
   ];
 }
 function rememberSettingsFrom(o) {
@@ -355,6 +361,15 @@ export async function loadCloudData(opts) {
         : [],
       // รหัสที่ตั้งเองในแอป — เก็บเป็น string ตรงๆ, ไม่มี = '' (ใช้ env/default)
       ownerPass: typeof settingsMap.owner_pass === 'string' ? settingsMap.owner_pass : '',
+      // GUARANTEE — ยอดประกันมือ/วัน: ตัวเลขเท่านั้น ไม่ใช่/ไม่มี = 400 (default กลาง)
+      guaranteeAmount: (() => {
+        const v = Number(settingsMap.guarantee_amount);
+        return Number.isFinite(v) && v >= 0 ? v : 400;
+      })(),
+      // GUARANTEE — สมุดลงชื่อเข้างาน: object {dateStr: {therapistId: {at, by}}} ไม่ใช่ object = {}
+      attendance: (settingsMap.attendance && typeof settingsMap.attendance === 'object' && !Array.isArray(settingsMap.attendance))
+        ? settingsMap.attendance
+        : {},
     };
 
     // จำ snapshot ฝั่ง cloud ก่อน overlay (C3) — outbox ที่ overlay ทับยังถือว่า "ยังไม่ sync"
@@ -427,6 +442,61 @@ async function tolerantUpsert(table, rows, dropKeys) {
     return supabase.from(table).upsert(stripped);
   }
   return first;
+}
+
+// ---------- P0-3: กัน 2 เครื่องสร้างรายจ่ายประกันมือซ้ำ (race) ----------
+// แถวประกันมือ dedupe ด้วย notes key `guarantee:{tid}:{date}` (ดู ensureGuaranteeEntries
+// ใน billing.js — ไม่แตะสูตรเงิน แค่เทียบ key ตอนชนกัน) + partial unique index
+// ux_expenses_guarantee_key (supabase/migration_guarantee.sql) เป็นตัวล็อกชั้นสุดท้าย
+const EXPENSE_DROP_KEYS = ['branch_id'];
+function toExpenseRow(e) {
+  return {
+    id: e.id, date: e.date || null, category: e.category || 'ทั่วไป', item: e.item || '',
+    amount: e.amount || 0, method: e.method || '', approved_by: e.approvedBy || '',
+    receipt_url: e.receiptUrl || '', notes: e.notes || '', branch_id: e.branchId || 'main',
+  };
+}
+// ชน unique = 23505 หรือ duplicate key (รวมชื่อ index กัน message รูปอื่น)
+function isUniqueViolation(err) {
+  if (!err) return false;
+  if (err.code === '23505') return true;
+  return /duplicate key|unique constraint|ux_expenses_guarantee_key/i.test(err.message || '');
+}
+// sync รายจ่ายแบบทนชนกัน: upsert ปกติก่อน (คง retry + tolerant เดิมทุกอย่าง) ถ้าติด
+// unique-violation ให้ดึงแถวประกันจาก cloud มาเทียบ notes key ตัดแถวซ้ำฝั่ง local ทิ้ง
+// (เก็บเวอร์ชัน cloud — แปลงแถว cloud กลับเป็น shape แอปทับลง d.expenses) แล้ว retry
+// ครั้งเดียวเฉพาะแถวที่เหลือ ถ้า error เป็น missing-column/index (migration เก่า) หรือ
+// อ่าน cloud ไม่ได้ จะ fallback คืนผลเดิมแบบ tolerantUpsert ไม่พัง ไม่กลืน error อื่น
+async function syncExpensesWithGuaranteeDedup(appExpenses) {
+  const rows = (appExpenses || []).map(toExpenseRow);
+  if (rows.length === 0) return { data: [], error: null };
+  const res = await withRetryOnce(() => tolerantUpsert('expenses', rows, EXPENSE_DROP_KEYS));
+  if (!res.error || !isUniqueViolation(res.error)) return res;
+  try {
+    const keys = [...new Set(rows.map((r) => r.notes)
+      .filter((n) => typeof n === 'string' && n.startsWith('guarantee:')))];
+    if (keys.length === 0) return res; // ชนที่แถวอื่น (เช่น id) — คืน error เดิมให้ caller
+    const { data: cloudRows, error: selErr } = await supabase.from('expenses').select('*').in('notes', keys);
+    if (selErr) return res; // migration เก่า/อ่านไม่ได้ — fallback พฤติกรรมเดิม
+    const cloudByNotes = new Map((cloudRows || []).map((r) => [r.notes, r]));
+    if (cloudByNotes.size === 0) return res;
+    for (const [notes, cr] of cloudByNotes) {
+      const idx = (appExpenses || []).findIndex((e) => e && e.notes === notes);
+      if (idx >= 0) {
+        appExpenses[idx] = {
+          id: cr.id, date: cr.date, category: cr.category, item: cr.item,
+          amount: cr.amount, method: cr.method, approvedBy: cr.approved_by,
+          receiptUrl: cr.receipt_url, notes: cr.notes, branchId: cr.branch_id || 'main',
+        };
+      }
+    }
+    const filtered = rows.filter((r) => !(typeof r.notes === 'string'
+      && r.notes.startsWith('guarantee:') && cloudByNotes.has(r.notes)));
+    if (filtered.length === 0) return { data: cloudRows, error: null }; // ซ้ำทุกแถว — สำเร็จด้วยเวอร์ชัน cloud
+    return await tolerantUpsert('expenses', filtered, EXPENSE_DROP_KEYS); // retry ครั้งเดียว
+  } catch {
+    return res; // กันทุกทาง — ไม่พัง sync
+  }
 }
 
 function toItemRows(b) {
@@ -508,11 +578,7 @@ export async function syncDataToCloud(d) {
     if (d.promotions) tasks.push(withRetryOnce(() => supabase.from('promotions').upsert(d.promotions.map((p) => ({
       id: p.id, name: p.name, amount: p.amount, active: p.active !== false,
     })))));
-    if (d.expenses) tasks.push(withRetryOnce(() => tolerantUpsert('expenses', d.expenses.map((e) => ({
-      id: e.id, date: e.date || null, category: e.category || 'ทั่วไป', item: e.item || '',
-      amount: e.amount || 0, method: e.method || '', approved_by: e.approvedBy || '',
-      receipt_url: e.receiptUrl || '', notes: e.notes || '', branch_id: e.branchId || 'main',
-    })), ['branch_id'])));
+    if (d.expenses) tasks.push(syncExpensesWithGuaranteeDedup(d.expenses));
     if (d.auditLog) {
       // audit log only grows — upsert last 200 to bound payload
       const tail = d.auditLog.slice(-200);

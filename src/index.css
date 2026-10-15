@@ -25,8 +25,8 @@
   --r-lg: 16px;
   --r-md: 12px;
   --r-sm: 10px;
-  --sh-card: 0 1px 2px rgba(100, 81, 62, 0.04);
-  --sh-pop: 0 16px 40px -16px rgba(100, 81, 62, 0.15);
+  --sh-card: none; /* minimalist: การ์ดเรียบด้วยเส้น hairline อย่างเดียว ไม่ใช้เงา */
+  --sh-pop: 0 16px 40px -16px rgba(100, 81, 62, 0.15); /* เก็บไว้เฉพาะ modal/nav ลอย */
   --font-body: 'Kanit', system-ui, sans-serif;
   --font-display: 'Kanit', system-ui, sans-serif;
 }
@@ -69,7 +69,7 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
 .app { min-height: 100vh; min-height: 100dvh; max-width: 100vw; overflow-x: visible; }
 .shell { display: block; min-height: 100vh; min-height: 100dvh; max-width: 100%; overflow-x: visible; }
 .main-col { min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
-.page { flex: 1; padding: 16px 14px 130px; min-width: 0; max-width: 100%; }
+.page { flex: 1; padding: 20px 16px 140px; min-width: 0; max-width: 100%; }
 .container { max-width: 1180px; width: 100%; max-width: min(1180px, 100%); margin: 0 auto; min-width: 0; }
 img { max-width: 100%; }
 .foot { display: none; }
@@ -85,7 +85,7 @@ img { max-width: 100%; }
 .topbar-in {
   max-width: 1180px; max-width: min(1180px, 100%); margin: 0 auto; box-sizing: border-box;
   display: flex; align-items: center; gap: 12px; min-width: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
 }
 .brand-mark {
   width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
@@ -100,17 +100,8 @@ img { max-width: 100%; }
 .brand-name { font-size: 19px; font-weight: 700; color: var(--ink); line-height: 1; letter-spacing: -0.01em; }
 .brand-name small { font-size: 10px; font-weight: 500; color: var(--muted); display: block; letter-spacing: 0.14em; text-transform: uppercase; margin-top: 3px; }
 .topbar-spacer { flex: 1; }
-.status-pill {
-  display: inline-flex; align-items: center; gap: 7px;
-  background: var(--brown-tint); border: 1px solid #e7d6c3;
-  border-radius: 999px; padding: 7px 13px;
-  font-size: 12px; font-weight: 600; color: var(--brown-dark);
-  white-space: nowrap;
-}
-.status-pill .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--brown); animation: pulse 1.8s infinite; }
-@keyframes pulse { 50% { opacity: 0.35; } }
-.date-chip { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.date-chip b { color: var(--ink); font-weight: 600; }
+/* (ลบ .status-pill/.pulse แล้ว — grep ทั้ง src ไม่พบ JSX ใช้ TopBar ใช้ role-chip/icon-btn แทน) */
+/* (ลบ .date-chip แล้ว — ข้อความซ้ำกับ page header; TopBar เหลือโลโก้ + role + ปุ่มลัด) */
 
 /* bottom nav — light */
 /* M6: safe-area นับที่เดียว (ที่ margin ของ .bottomnav-in) — ไม่บวกซ้ำที่ padding นี้ */
@@ -144,7 +135,7 @@ img { max-width: 100%; }
 /* (ลบ legacy .fab แล้ว — ไม่มี JSX ใช้) */
 
 /* ---------- page head ---------- */
-.pagehead { margin: 4px 0 14px; }
+.pagehead { margin: 8px 0 20px; }
 .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
@@ -168,17 +159,17 @@ img { max-width: 100%; }
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--sh-card);
-  padding: 16px; margin-bottom: 12px;
+  padding: 20px; margin-bottom: 16px;
   min-width: 0; max-width: 100%; overflow-wrap: break-word;
 }
-.card:last-child { margin-bottom: 0; }
-.card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+/* (ปิดกฎ .card:last-child margin 0 — ให้การ์ดใบสุดท้ายเว้นล่างเท่ากันหมด) */
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .card-h h2 { font-size: 15.5px; font-weight: 700; }
 .card-h small, .card-h .muted { font-size: 12px; }
 
-.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
 .kpi {
-  border-radius: var(--r-md); padding: 14px;
+  border-radius: var(--r-md); padding: 16px;
   border: 1px solid var(--line); background: var(--surface);
 }
 .kpi.dark { background: var(--brown-950); border-color: var(--brown-950); color: #fff; }
@@ -203,12 +194,11 @@ img { max-width: 100%; }
 .btn-primary { background: var(--brown); color: #fff; }
 .btn-primary:hover { background: var(--brown-dark); }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-.btn-dark { background: var(--brown-950); color: #fff; }
-.btn-brass { background: var(--brown-950); color: #fff; }
+/* (ลบ .btn-dark/.btn-brass/.btn-white แล้ว — grep ทั้ง src ไม่พบ JSX ใช้) */
 .btn-ghost { background: var(--surface); border-color: var(--line); color: var(--ink); width: auto; }
 .btn-danger { background: var(--red); color: #fff; }
 .btn-soft-danger { background: var(--red-bg); color: var(--red); border: 1px solid #ecbcb4; border-radius: 10px; padding: 8px 13px; font-size: 13px; font-weight: 600; }
-.btn-white { width: 100%; padding: 13px; border-radius: 12px; border: 0; background: #fff; color: var(--brown-950); font-weight: 700; font-size: 14.5px; }
+/* (ลบ .btn-white แล้ว — grep ทั้ง src ไม่พบ JSX ใช้) */
 .btn.auto { width: auto; }
 .icon-btn {
   width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
@@ -247,6 +237,9 @@ textarea.input { resize: vertical; min-height: 68px; }
 .seg.cols3 button { padding: 10px 4px; font-size: 12.5px; }
 .seg button { padding: 11px 8px; border-radius: 10px; font-size: 13.5px; font-weight: 600; border: 0; background: transparent; color: var(--muted); }
 .seg button.on { background: var(--brown-950); color: #fff; }
+/* แท็บไอคอน (หน้าจัดการร้าน): ไอคอนบน ป้ายล่าง แตะง่ายจอแคบ */
+.seg-icons button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 9px 2px; font-size: 10.5px; line-height: 1.2; min-width: 0; }
+.seg-icons button span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 
 /* ---------- badges / tables ---------- */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 600; border: 1px solid transparent; white-space: nowrap; }
@@ -273,7 +266,8 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .muted { color: var(--muted); font-size: 12px; }
 .divider { border: 0; border-top: 1px dashed var(--line); margin: 12px 0; }
 
-.mlist { display: grid; gap: 9px; }
+.mlist { display: grid; gap: 12px; }
+.mlist > .card { margin-bottom: 0; }
 .mcard {
   display: block; width: 100%; text-align: left; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--sh-card);
@@ -384,7 +378,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .thera.on { border-color: var(--brown); background: var(--brown-tint-2); box-shadow: 0 0 0 1px var(--brown); }
 .thera-ava {
   width: 50px; height: 50px; border-radius: 15px;
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--muted);
+  background: var(--surface-2); border: 0; color: var(--muted);
   display: flex; align-items: center; justify-content: center;
   font-size: 22px; font-weight: 700;
 }
@@ -420,14 +414,14 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .pay-card.on { background: var(--brown-950); color: #fff; border-color: var(--brown-950); }
 
 .stepnav { display: flex; gap: 8px; margin-top: 14px; }
-.summary-box { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 12px; padding: 11px 13px; margin-bottom: 12px; font-size: 13.5px; }
+.summary-box { background: var(--surface-2); border: 0; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; font-size: 13.5px; }
 .summary-box .r { display: flex; justify-content: space-between; padding: 3px 0; gap: 10px; font-variant-numeric: tabular-nums; }
 .summary-box .r span:first-child { color: var(--muted); }
 
 /* (ลบ dead .svc-toolbar แล้ว — ไม่มี JSX ใช้) */
 
 /* ---------- category sections + product cards (ref: สินค้ายกแพ็ค) ---------- */
-.cat-list { display: grid; gap: 18px; }
+.cat-list { display: grid; gap: 24px; }
 .cat-sec-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 10px; margin: 2px 0 10px;
@@ -513,7 +507,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .cash-amt { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 14px; font-weight: 600; }
 .cash-amt input { width: 106px; padding: 8px 10px; border-radius: 9px; border: 1px solid var(--line); font-size: 15px; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
 .cash-amt input:focus { outline: none; border-color: var(--brown); }
-.formula { border-radius: 12px; background: var(--surface-2); border: 1px dashed var(--line); padding: 10px 12px; font-size: 12px; color: var(--muted); line-height: 1.7; font-variant-numeric: tabular-nums; }
+.formula { border-radius: 12px; background: var(--surface-2); border: 0; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.7; font-variant-numeric: tabular-nums; }
 
 .exp-row { display: flex; align-items: center; gap: 11px; padding: 9px 4px; border-bottom: 1px solid var(--line-soft); }
 .exp-row:last-child { border-bottom: 0; }
@@ -522,12 +516,12 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .bar-track { height: 7px; border-radius: 99px; background: var(--line-soft); overflow: hidden; margin: 11px 0; }
 .bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--brown); }
 .mini3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
-.mini-box { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 11px; padding: 8px 4px; }
+.mini-box { background: var(--surface-2); border: 0; border-radius: 11px; padding: 10px 6px; }
 .mini-box.hl { background: var(--brown-950); border-color: var(--brown-950); color: #fff; }
 .mini-box .l { font-size: 10px; opacity: 0.65; }
 .mini-box .v { font-size: 12.5px; font-weight: 700; margin-top: 1px; font-variant-numeric: tabular-nums; }
 .refgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.refbox { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 11px; padding: 9px 11px; }
+.refbox { background: var(--surface-2); border: 0; border-radius: 11px; padding: 10px 12px; }
 .refbox b { font-size: 12.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .audit-row { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
@@ -555,10 +549,10 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .alert.ok { color: var(--brown-dark); background: var(--brown-tint); border: 1px solid #e7d6c3; }
 .okmsg { text-align: center; font-size: 13px; color: var(--brown-dark); font-weight: 600; margin-top: 10px; }
 
-.empty { text-align: center; padding: 34px 16px; }
+.empty { text-align: center; padding: 48px 20px; }
 .empty-ic {
-  width: 54px; height: 54px; margin: 0 auto 11px; border-radius: 16px;
-  background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--faint);
+  width: 54px; height: 54px; margin: 0 auto 12px; border-radius: 16px;
+  background: var(--surface-2); border: 0; color: var(--faint);
   display: flex; align-items: center; justify-content: center;
 }
 .empty b { font-size: 17px; font-weight: 700; color: var(--ink); display: block; }
@@ -573,7 +567,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 }
 .toast {
   background: var(--brown-950); color: #fff; font-size: 13.5px; font-weight: 600;
-  border-radius: 999px; padding: 11px 18px; box-shadow: var(--sh-pop);
+  border-radius: 999px; padding: 12px 20px; box-shadow: var(--sh-pop);
   display: flex; align-items: center; gap: 8px;
   animation: toastin 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
   max-width: 92vw; white-space: normal; overflow-wrap: anywhere; word-break: break-word; text-align: center;
@@ -587,9 +581,9 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
   animation: fade 0.18s both;
 }
 .modal {
-  background: #fff; border: 1px solid var(--line);
+  background: #fff; border: 0;
   border-radius: 22px 22px 0 0; width: 100%; max-width: 500px;
-  padding: 20px 18px calc(20px + env(safe-area-inset-bottom));
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   max-height: 92vh; max-height: 92dvh; overflow-y: auto;
   animation: sheet 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   box-shadow: var(--sh-pop);
@@ -611,8 +605,7 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 
 .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .f3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-.catbtn { padding: 10px 6px; border-radius: 11px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: #fff; color: var(--muted); }
-.catbtn.on { background: var(--brown-950); color: #fff; border-color: var(--brown-950); }
+/* (ลบ .catbtn แล้ว — grep ทั้ง src ไม่พบ JSX ใช้ ใช้ .chip/.seg แทน) */
 label.filebtn {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
   margin-bottom: 0;
@@ -639,7 +632,6 @@ label.filebtn {
 .btn.btn-block { width: 100%; }
 .btn.btn-sm { padding: 7px 12px; font-size: 12px; }
 .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.center { text-align: center; }
 .mt0 { margin-top: 0; }
 .mt4 { margin-top: 4px; }
 .mt6 { margin-top: 6px; }
@@ -649,7 +641,6 @@ label.filebtn {
 .mb8 { margin-bottom: 8px; }
 .ml8 { margin-left: 8px; }
 .fs11 { font-size: 11px; }
-.fs115 { font-size: 11.5px; }
 .fg1 { flex: 1; }
 .fg09 { flex: 0.9; }
 .fg11 { flex: 1.1; }
@@ -665,7 +656,7 @@ label.filebtn {
 @media (max-width: 719px) {
   .page { padding: 12px 16px 140px; }
   .container { padding: 0 2px; }
-  .card { padding: 12px; border-radius: 12px; }
+  .card { padding: 16px; border-radius: 12px; }
   .h1 { font-size: 20px; }
   .lede { font-size: 12.5px; }
   .kpi-value { font-size: 24px; }
@@ -682,11 +673,11 @@ label.filebtn {
   .dropdown-btn { padding: 10px 12px; font-size: 13px; }
   .dropdown-item { padding: 9px 11px; font-size: 13px; }
   .search-wrap .input { padding-left: 38px; }
-  .topbar-in { padding: 10px 16px; }
+  .topbar-in { padding: 12px 16px; }
   .brand-name { font-size: 18px; }
   .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 6px 4px; }
   .bottomnav-in button { padding: 8px 2px 7px; min-height: 56px; }
-  .modal { padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); }
+  .modal { padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); }
   .gate-card { padding: 26px 20px 20px; }
   .gate-title { font-size: 28px; }
   .gate-role { padding: 14px; }
@@ -723,7 +714,7 @@ label.filebtn {
   .check-row small { font-size: 11px; }
   .err-banner { font-size: 12.5px; padding: 11px 14px; }
   .alert { font-size: 12px; padding: 11px 13px; }
-  .empty { padding: 30px 16px; }
+  .empty { padding: 40px 20px; }
   .empty-ic { width: 50px; height: 50px; }
   .empty b { font-size: 16px; }
   .empty span { font-size: 12px; }
@@ -733,28 +724,24 @@ label.filebtn {
   .modal-row { gap: 10px; }
   .f2 { gap: 10px; }
   .f3 { gap: 8px; }
-  .catbtn { padding: 9px 6px; font-size: 12px; }
   .filebtn { padding: 14px; font-size: 15px; }
   .loading-card h2 { font-size: 26px; }
   .loading-mark { width: 58px; height: 58px; }
   .loadbar { width: 150px; }
-  .quick-btn { padding: 15px; font-size: 13.5px; }
   .rank-row { padding: 10px 2px; }
   .recent-bill { padding: 10px 2px; }
   .mrow { padding: 11px 2px; }
   .toggle { padding: 8px 14px; font-size: 12.5px; }
   .icon-btn { width: 30px; height: 30px; }
   .role-chip { padding: 8px 13px; font-size: 12.5px; }
-  .date-chip { font-size: 11.5px; }
-  .status-pill { padding: 8px 14px; font-size: 11.5px; }
-  .pagehead { margin: 2px 0 12px; }
+  .pagehead { margin: 4px 0 16px; }
   .pagehead-icon { width: 40px; height: 40px; }
   .pagehead-actions { gap: 8px; }
   .card-h h2 { font-size: 15px; }
   .card-h small, .card-h .muted { font-size: 11.5px; }
   .divider { margin: 10px 0; }
-  .mlist { gap: 10px; }
-  .cat-list { gap: 16px; }
+  .mlist { gap: 12px; }
+  .cat-list { gap: 20px; }
   .cat-sec-head h3 { font-size: 20px; }
   .cat-arrow { width: 40px; height: 40px; }
   .hscroll { gap: 12px; }
@@ -803,7 +790,7 @@ label.filebtn {
   * { scrollbar-width: none; -ms-overflow-style: none; }
   *::-webkit-scrollbar { display: none !important; }
   /* --- POS mobile (ย้ายมาจากบล็อกท้ายไฟล์) --- */
-  .page { padding: 14px 20px 150px; }
+  .page { padding: 20px 20px 160px; }
   .steps { padding: 10px; position: sticky; top: 59px; z-index: 20; }
   .step { gap: 8px; padding: 4px; }
   .step:not(.cur) { display: none; }
@@ -875,12 +862,12 @@ label.filebtn {
   .rail-brand .mark { width: 42px; height: 42px; border-radius: 12px; background: var(--brown-950); display: flex; align-items: center; justify-content: center; color: #efe0cd; flex-shrink: 0; }
   .rail-brand b { font-size: 21px; display: block; line-height: 1; font-weight: 700; letter-spacing: -0.02em; }
   .rail-brand small { font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-  .rail-label { margin: 14px 16px 7px; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
-  .rail-nav { flex: 1; overflow-y: auto; padding: 0 10px; display: flex; flex-direction: column; gap: 3px; }
+  /* (ลบ .rail-label แล้ว — ป้าย "เมนูหลัก" ซ้ำกับ aria-label ของ nav) */
+  .rail-nav { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
   .rail-btn {
     display: flex; align-items: center; gap: 11px; width: 100%;
     border: 0; background: transparent; color: var(--muted);
-    border-radius: 12px; padding: 8px 10px; text-align: left;
+    border-radius: 12px; padding: 10px 12px; text-align: left;
   }
   .rail-btn:hover { background: var(--surface-2); }
   .rail-btn .ri { width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; background: var(--surface-2); border: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: center; }
@@ -891,7 +878,11 @@ label.filebtn {
   .rail-btn.on small { color: rgba(255, 255, 255, 0.6); }
   .rail-btn.on .ri { background: rgba(255, 255, 255, 0.12); border-color: transparent; color: #fff; }
   .rail-foot { padding: 10px; }
-  .rail-status { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 12px; padding: 12px 13px; font-size: 12.5px; }
+  /* แบ่งด้วย space แทนป้ายหัวข้อ — nav มี aria-label="เมนูหลัก" แทน */
+  .rail-status { background: var(--surface-2); border: 0; border-radius: 12px; padding: 14px; font-size: 12.5px; display: grid; gap: 8px; }
+  .rail-today { font-size: 10px; text-transform: uppercase; letter-spacing: 0.14em; opacity: 0.6; }
+  .rail-date { font-weight: 600; }
+  .rail-ghost { padding: 11px 12px; font-size: 13px; }
   .main-col { flex: 1; min-width: 0; }
   .topbar { display: none; }
   .page { padding: 28px 28px 56px; }
@@ -934,8 +925,6 @@ label.filebtn {
 @media (min-width: 768px) and (max-width: 1079px) {
   .page { padding: 20px 20px 130px; }
   .container { max-width: 780px; }
-  /* ช่วงนี้ topbar ยังแสดงอยู่ — โชว์วันที่ให้แถบไม่โล่ง */
-  .topbar .date-chip.show-desktop { display: block !important; }
   .topbar-in { max-width: 780px; }
   .kpi-grid { grid-template-columns: repeat(4, 1fr); }
   .kpi-grid > .kpi { grid-column: span 2; }
@@ -948,8 +937,8 @@ label.filebtn {
 .gate-screen { min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--bg); }
 .gate-card {
   width: 100%; max-width: 430px; background: #fff;
-  border: 1px solid var(--line); border-radius: 22px;
-  box-shadow: var(--sh-pop); padding: 30px 24px 22px; text-align: center;
+  border: 0; border-radius: 22px;
+  box-shadow: var(--sh-pop); padding: 34px 26px 24px; text-align: center;
   animation: fade 0.35s both;
 }
 .gate-mark {
@@ -969,7 +958,7 @@ label.filebtn {
 .gate-role:hover { border-color: var(--brown); background: var(--brown-tint-2); }
 .gate-ric {
   width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
-  background: var(--surface-2); border: 1px solid var(--line-soft);
+  background: var(--surface-2); border: 0;
   display: flex; align-items: center; justify-content: center; color: var(--brown-dark);
 }
 .gate-role b { font-size: 15px; display: block; }
@@ -984,13 +973,7 @@ label.filebtn {
 
 /* ---------- dashboard ---------- */
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.quick-btn {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 9px;
-  background: #fff; border: 1px solid var(--line); border-radius: 13px;
-  padding: 14px; font-size: 13px; font-weight: 600; color: var(--ink); text-align: left;
-}
-.quick-btn svg { color: var(--brown-dark); }
-.quick-btn:active { transform: scale(0.98); background: var(--brown-tint-2); }
+/* (ลบ .quick-btn แล้ว — grep ทั้ง src ไม่พบ JSX ใช้) */
 .rank-row { display: flex; align-items: center; gap: 11px; padding: 9px 2px; border-bottom: 1px solid var(--line-soft); }
 .rank-row:last-child { border-bottom: 0; }
 .recent-bill {
@@ -1077,7 +1060,7 @@ label.filebtn {
 .hist-sum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .hist-sum-box {
   background: linear-gradient(150deg, var(--brown-tint-2), var(--surface-2));
-  border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px;
+  border: 0; border-radius: 12px; padding: 12px;
 }
 .hist-sum-box b { font-size: 13px; font-weight: 700; display: block; line-height: 1.4; }
 .hist-count {
@@ -1106,7 +1089,7 @@ label.filebtn {
 .hist-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
 .hist-meta span { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); }
 .hist-amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.hist-amt { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 11px; padding: 9px 6px; text-align: center; }
+.hist-amt { background: var(--surface-2); border: 0; border-radius: 11px; padding: 10px 6px; text-align: center; }
 .hist-amt.comm { background: var(--brown-950); border-color: var(--brown-950); color: #fff; }
 .hist-amt span { font-size: 10px; opacity: 0.65; display: block; }
 .hist-amt b { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -1143,6 +1126,35 @@ label.filebtn {
 .mrow:last-child { border-bottom: 0; }
 .mrow .grow { flex: 1; min-width: 0; }
 
+/* ---------- เช็กชื่อเข้างาน (แถวรายชื่อแตะง่ายใน modal มือถือ) ---------- */
+.checkin-row {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px;
+  width: 100%; background: var(--surface); border: 1px solid var(--line-soft);
+  border-radius: 12px; padding: 10px 6px; color: var(--ink);
+}
+.checkin-row:active { background: var(--surface-2); }
+.checkin-row .grow { width: 100%; min-width: 0; }
+.checkin-row .grow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; display: block; }
+.checkin-row .grow small { display: block; }
+.checkin-row .thera-ava { width: 40px; height: 40px; font-size: 18px; }
+.checkin-row .badge { font-size: 10.5px; padding: 3px 8px; }
+.checkin-list { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+/* หัวการ์ดเช็กชื่อ — เว้นระยะหัว/คำอธิบาย/ป้ายจำนวนให้หายใจ */
+.checkin-card .card-h { align-items: flex-start; margin-bottom: 14px; }
+.checkin-card .card-h small.muted { margin-top: 5px !important; line-height: 1.5; }
+.checkin-card .card-h .badge { margin-top: 2px; flex-shrink: 0; }
+/* ลิสต์เช็กชื่อเลื่อนในกรอบ — เฉพาะใน popup (กันยืดชนขอบบนจอ) */
+.modal .checkin-list { max-height: 42dvh; overflow-y: auto; margin: 0 -2px; padding: 0 2px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+@media (min-width: 720px) {
+  .modal .checkin-list { max-height: 340px; }
+  .checkin-list { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+}
+/* มือถือ: รายชื่อ 2 คอลัมน์แบบกะทัดรัด (รูป+ชื่อซ้อนกัน ป้ายอยู่ล่าง) */
+@media (max-width: 719px) {
+  .card.checkin-card:last-child { margin-bottom: 18px; }
+  .checkin-list { grid-template-columns: 1fr 1fr 1fr; }
+}
+
 /* การ์ดรายการ + ราคา — ชื่อบน ตารางเวลาล่าง ตัวเลขชิดขวาตรงกัน */
 .mcat-card { border-bottom: 1px solid var(--line-soft); padding: 12px 2px; }
 .mcat-card:last-child { border-bottom: 0; }
@@ -1150,7 +1162,7 @@ label.filebtn {
 .mcat-name { flex: 1; min-width: 0; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mcat-hourly { flex-shrink: 0; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; background: var(--brown-tint); color: var(--brown-dark); border: 1px solid #e7d6c3; border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
 .mcat-actions { flex-shrink: 0; display: flex; gap: 6px; }
-.mcat-grid { margin-top: 8px; border: 1px solid var(--line-soft); border-radius: 10px; overflow: hidden; }
+.mcat-grid { margin-top: 8px; border: 0; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
 .mcat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; padding: 7px 12px; font-size: 13px; font-variant-numeric: tabular-nums; }
 .mcat-row span:nth-child(2), .mcat-row span:nth-child(3) { text-align: right; }
 .mcat-row + .mcat-row { border-top: 1px solid var(--line-soft); }
@@ -1222,7 +1234,7 @@ label.filebtn {
 /* การ์ดประวัติบิล — ชื่อลูกค้า/ยอด + หมอนวด + บริการ/ราคา + pill สถานะ */
 .hcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); padding: 13px 14px; box-shadow: var(--sh-card); }
 .hcard-head { display: flex; align-items: center; gap: 11px; }
-.hcard-ava { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; background: var(--brown-tint-2); border: 1px solid var(--line-soft); color: var(--brown-dark); display: flex; align-items: center; justify-content: center; }
+.hcard-ava { width: 44px; height: 44px; border-radius: 13px; flex-shrink: 0; background: var(--brown-tint-2); border: 0; color: var(--brown-dark); display: flex; align-items: center; justify-content: center; }
 .hcard-title { flex: 1; min-width: 0; }
 .hcard-title b { font-size: 14.5px; font-weight: 700; display: block; }
 .hcard-title .muted { display: flex; align-items: center; gap: 5px; font-size: 11.5px; margin-top: 2px; flex-wrap: wrap; }
@@ -1230,7 +1242,7 @@ label.filebtn {
 .hcard-amt.cancelled { color: var(--faint); text-decoration: line-through; }
 .hcard-doc { margin-top: 9px; font-size: 12.5px; color: var(--muted); }
 .hcard-doc b { color: var(--brown-dark); }
-.hcard-svcs { margin-top: 7px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 4px 11px; }
+.hcard-svcs { margin-top: 8px; background: var(--surface-2); border: 0; border-radius: 10px; padding: 4px 12px; }
 .hcard-svc { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px dashed var(--line); }
 .hcard-svc:last-child { border-bottom: 0; }
 .hcard-svc b { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1484,7 +1496,7 @@ label.filebtn {
   .cat-en { max-width: 100%; }
   .cat-price { white-space: normal; overflow-wrap: normal; word-break: keep-all; }
   .cat-card-arrow { align-self: center; }
-  /* M3: stepnav ลอยเหนือ BottomNav — นิยาม sticky ครั้งเดียวที่นี่
+  /* M3: stepnav ลอยเหนือ BottomNav โชว์ตลอดจนกว่าจะเลือกรายการ — นิยาม sticky ครั้งเดียวที่นี่
      bottom 94px = ความสูง BottomNav จริง (~56 ปุ่ม + 12 padding + 12 margin + 2 border + เผื่อ) */
   .stepnav {
     position: sticky; bottom: calc(94px + env(safe-area-inset-bottom)); z-index: 25;

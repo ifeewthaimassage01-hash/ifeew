@@ -1,28 +1,32 @@
+import { useState } from 'react';
 import {
   LayoutDashboard, ReceiptText, FileText, LayoutGrid, Calculator,
-  LogOut, Store,
+  LogOut, Store, UserCheck, X,
 } from 'lucide-react';
-import { fmtBkk } from '../utils/bkk';
+import { fmtBkk, bizToday } from '../utils/bkk';
+import { Modal } from './ui';
+import AttendanceCard from './AttendanceCard';
 
 export const NAV_ITEMS = [
-  { label: 'ภาพรวม', short: 'ภาพรวม', sub: 'ยอดขาย · กำไร · ท็อป', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
-  { label: 'POS', short: 'POS', sub: 'เปิดบิล · จอเดียว', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
-  { label: 'บิล', short: 'บิล', sub: 'เปิดอยู่ · ประวัติ', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
-  { label: 'รายจ่าย', short: 'รายจ่าย', sub: 'บันทึกรายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
-  { label: 'จัดการร้าน', short: 'จัดการ', sub: 'พนักงาน · บริการ', icon: Store, key: 'manage', roles: ['owner'] },
-  { label: 'ค่าแรง', short: 'ค่าแรง', sub: 'หมอประจำ · หมอวิ่ง', icon: Calculator, key: 'commission', roles: ['owner', 'staff'] },
+  { label: 'ภาพรวม', short: 'ภาพรวม', icon: LayoutDashboard, key: 'dashboard', roles: ['owner'] },
+  { label: 'POS', short: 'POS', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
+  { label: 'บิล', short: 'บิล', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
+  { label: 'รายจ่าย', short: 'รายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
+  { label: 'จัดการร้าน', short: 'จัดการ', icon: Store, key: 'manage', roles: ['owner'] },
+  { label: 'ค่าแรง', short: 'ค่าแรง', icon: Calculator, key: 'commission', roles: ['owner', 'staff'] },
 ];
 
-export function RailDesktop({ active, items, onNavigate, onExit, badges }) {
+export function RailDesktop({ active, items, onNavigate, onExit, badges, data, saveData, role }) {
+  const [showCheckin, setShowCheckin] = useState(false);
   return (
+    <>
     <aside className="rail">
       <div className="rail-in">
         <div className="rail-brand">
           <div className="mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
           <div><b>I'FEEW</b><small>Thai Massage</small></div>
         </div>
-        <div className="rail-label">เมนูหลัก</div>
-        <nav className="rail-nav">
+        <nav className="rail-nav" aria-label="เมนูหลัก">
           {items.map((item) => {
             const Icon = item.icon;
             const count = badges?.[item.key] || 0;
@@ -37,21 +41,32 @@ export function RailDesktop({ active, items, onNavigate, onExit, badges }) {
         </nav>
         <div className="rail-foot">
           <div className="rail-status">
-            <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.14em', opacity: 0.6 }}>วันนี้</div>
-            <div style={{ fontWeight: 600, marginTop: 2 }}>{fmtBkk(new Date().toISOString(), { weekday: 'long', day: 'numeric', month: 'short' })}</div>
-            <button className="btn btn-ghost btn-block" style={{ marginTop: 10, padding: '9px 10px', fontSize: 12.5 }} onClick={onExit}>
+            <div className="rail-today">วันนี้</div>
+            <div className="rail-date">{fmtBkk(new Date().toISOString(), { weekday: 'long', day: 'numeric', month: 'short' })}</div>
+            <button className="btn btn-ghost btn-block rail-ghost" onClick={() => setShowCheckin(true)}>
+              <UserCheck size={16} strokeWidth={1.9} /> เช็กชื่อเข้างาน
+            </button>
+            <button className="btn btn-ghost btn-block rail-ghost" onClick={onExit}>
               <LogOut size={16} strokeWidth={1.9} /> สลับบทบาท / ออก
             </button>
           </div>
         </div>
       </div>
     </aside>
+      {showCheckin && (
+        <Modal onClose={() => setShowCheckin(false)}>
+          <button className="modal-x" onClick={() => setShowCheckin(false)} aria-label="ปิด"><X size={16} /></button>
+          <AttendanceCard data={data} saveData={saveData} dateStr={bizToday()} role={role} />
+        </Modal>
+      )}
+    </>
   );
 }
 
-export function TopBar({ active, items, role, onExit }) {
-  const current = items.find((n) => n.key === active) || items[0];
+export function TopBar({ active, items, role, onExit, data, saveData }) {
+  const [showCheckin, setShowCheckin] = useState(false);
   return (
+    <>
     <div className="topbar">
       <div className="topbar-in">
         <div className="brand-mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
@@ -59,13 +74,22 @@ export function TopBar({ active, items, role, onExit }) {
           <div className="brand-name">I'FEEW<small>Thai Massage</small></div>
         </div>
         <div className="topbar-spacer" />
-        <div className="date-chip show-desktop"> <b>{current?.label}</b> · {fmtBkk(new Date().toISOString(), { day: 'numeric', month: 'long', year: 'numeric' })}</div>
         <span className="role-chip">{role === 'owner' ? 'เจ้าของร้าน' : 'พนักงาน'}</span>
+        <button className="icon-btn" title="เช็กชื่อเข้างาน" onClick={() => setShowCheckin(true)} aria-label="เช็กชื่อเข้างาน">
+          <UserCheck size={16} strokeWidth={1.9} />
+        </button>
         <button className="icon-btn" title="สลับบทบาท / ออก" onClick={onExit} aria-label="ออกจากระบบ">
           <LogOut size={16} strokeWidth={1.9} />
         </button>
       </div>
     </div>
+      {showCheckin && (
+        <Modal onClose={() => setShowCheckin(false)}>
+          <button className="modal-x" onClick={() => setShowCheckin(false)} aria-label="ปิด"><X size={16} /></button>
+          <AttendanceCard data={data} saveData={saveData} dateStr={bizToday()} role={role} />
+        </Modal>
+      )}
+    </>
   );
 }
 

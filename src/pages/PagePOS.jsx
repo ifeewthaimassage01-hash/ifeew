@@ -490,9 +490,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             })}
           </div>
           {visibleCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
+          {selectedCategory && (
           <div className="stepnav">
-            <button className="btn btn-primary btn-block" onClick={() => setStep(2)} disabled={!selectedCategory}>ถัดไป →</button>
+            <button className="btn btn-primary btn-block" onClick={() => setStep(2)}>ถัดไป →</button>
           </div>
+          )}
         </Card>
         </>
       )}
@@ -572,7 +574,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                     className="input"
                   />
                 </div>
-                <p className="muted mt6 fs11">พิมพ์ชื่อแล้วกดถัดไปได้เลย ไม่ต้องเพิ่มเข้าทะเบียน</p>
               </div>
             )}
           <div className="stepnav">
@@ -624,7 +625,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             {selectedStartTime != null && (
               <div className="tend-box full">จบ {billEnd != null ? minutesToTime(billEnd) : '—'} · รวม {formatDuration(billMinutes)}</div>
             )}
-            {timeError ? (
+            {timeError && (
               <div className="alert warn">{timeError}
                 {(() => {
                   const nf = nextFreeFrom(selectedStartTime ?? nowMinutes());
@@ -635,8 +636,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                   ) : null;
                 })()}
               </div>
-            ) : (
-              <p className="muted mt6 fs11">พักเตรียมห้อง {BREAK_MINUTES} นาทีหลังจบงานโดยอัตโนมัติ</p>
             )}
           </div>
 
@@ -700,7 +699,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                     {promoId && <button type="button" className="preset-btn" onClick={() => { setPromoId(''); setDiscount(''); }}>ไม่ใช้โปร</button>}
                   </div>
                 ) : (
-                  <p className="muted">ยังไม่มีโปรโมชัน — เพิ่มได้ในหน้าจัดการร้าน</p>
+                  <p className="muted">ยังไม่มีโปรโมชัน</p>
                 )}
               </div>
               <div className="summary-box">
@@ -717,9 +716,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 )}
               </div>
               <button className="btn btn-primary btn-block mt4" onClick={openDraftBill} disabled={creating} aria-busy={creating}>
-                <ReceiptText size={18} /> {creating ? 'กำลังเปิดบิล…' : `เปิดบิลไว้ก่อน · ฿ ${total.toLocaleString()}`}
+                <ReceiptText size={18} /> {creating ? 'กำลังเปิดบิล…' : `เปิดบิล · ฿ ${total.toLocaleString()}`}
               </button>
-              <p className="muted mt8 fs115 center">ลูกค้าเข้านวดแล้วค่อยจ่ายทีหลังที่หน้าบิล เพิ่มบริการระหว่างนวดได้ที่นั่น</p>
             </Card>
           )}
         </div>

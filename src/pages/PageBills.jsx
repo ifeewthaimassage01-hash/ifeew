@@ -82,7 +82,7 @@ export default function PageBills({ data, saveData, role }) {
     if (b.status === 'open') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    return matchQ && inDateRange(bizDateOf(b.date), dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && inDateRange(bizDateOf(b.date || b.createdAt), dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
@@ -221,18 +221,16 @@ export default function PageBills({ data, saveData, role }) {
 
           <div className="kpi-grid">
             <div className="kpi dark span2">
-              <div className="kpi-label">ยอดรวมที่กรอง (ชำระแล้ว)</div>
+              <div className="kpi-label">ยอดรวม (ชำระแล้ว)</div>
               <div className="kpi-value">฿ {totalSum.toLocaleString()}</div>
-              <div className="kpi-sub">{history.length} บิล · ชำระแล้ว {history.filter((b) => b.status === 'paid').length} · ยกเลิก {history.filter((b) => b.status === 'cancelled').length}</div>
+              <div className="kpi-sub">{history.filter((b) => b.status === 'paid').length} บิลชำระแล้ว · {history.filter((b) => b.status === 'cancelled').length} ยกเลิก</div>
             </div>
-            <Kpi label="บิลทั้งหมด" value={bills.filter((b) => b.status !== 'open').length} />
-            <Kpi label="บิลวันนี้" value={bills.filter((b) => b.status !== 'open' && bizDateOf(b.date) === bizToday()).length} />
           </div>
 
           <Card className="table-card show-desktop">
             <div className="table-scroll">
               <table className="tbl">
-                <thead><tr><th>วันที่</th><th>หมอนวด</th><th>ช่องทาง</th><th className="r">ยอด</th><th className="r">ค่าแรงหมอ</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
+                <thead><tr><th>วันที่</th><th>หมอนวด</th><th>ช่องทาง</th><th className="r">ยอด</th><th>สถานะ</th><th className="c">จัดการ</th></tr></thead>
                 <tbody>
                   {history.map((b) => (
                     <tr key={b.id}>
@@ -240,10 +238,6 @@ export default function PageBills({ data, saveData, role }) {
                       <td><b style={{ fontWeight: 600 }}>{therapistDisplay(b)}</b></td>
                       <td className="muted">{b.paymentMethod}</td>
                       <td className="r"><b>฿ {billTotal(b).toLocaleString()}</b></td>
-                      <td className="r muted">฿ {billRows(b).reduce((s, it) => {
-                        const svc = (data.services || []).find((x) => x.id === it.serviceId);
-                        return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
-                      }, 0).toLocaleString()}</td>
                       <td><StatusBadge status={b.status} /></td>
                       <td className="c">
                         <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
@@ -284,7 +278,6 @@ export default function PageBills({ data, saveData, role }) {
                       <div key={i} className="hcard-svc"><span>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</span><b>฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b></div>
                     ))}
                     {b.promotion ? <div className="hcard-svc promo"><span>โปร: {b.promotion}</span><b>−฿ {(b.discount || 0).toLocaleString()}</b></div> : null}
-                    <div className="hcard-svc"><span className="muted">ค่าแรงหมอ{docExtra ? 'วิ่ง' : ''}</span><b>฿ {commTotal.toLocaleString()}</b></div>
                   </div>
                   <div className="hcard-foot">
                     <StatusBadge status={b.status} />
@@ -312,8 +305,6 @@ export default function PageBills({ data, saveData, role }) {
           </div>
           <div className="summary-box" style={{ marginTop: 12 }}>
             <div className="r"><span>หมอ</span><b>{therapistDisplay(detailBill)}</b></div>
-            <div className="r"><span>ลูกค้า</span><b>{detailBill.customer || '—'}</b></div>
-            <div className="r"><span>สมาชิก</span><b>{detailBill.memberNo || '—'}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
             {(detailBill.fuel || 0) > 0 && <div className="r"><span>ค่าน้ำมันหมอวิ่ง</span><b>+฿ {(detailBill.fuel || 0).toLocaleString()}</b></div>}
             {detailBill.promotion && <div className="r"><span>โปรโมชัน</span><b>{detailBill.promotion}</b></div>}

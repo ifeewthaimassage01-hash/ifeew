@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
-import { commBaht, categoryEn, serviceCategoryOrder } from '../lib/billing';
+import { commBaht, categoryEn, serviceCategoryOrder, guaranteeAmountOf } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { bkkNow } from '../utils/bkk';
 import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, syncState } from '../data/cloudSync';
@@ -94,6 +94,21 @@ export default function PageManage({ data, saveData }) {
 
   // ฟอร์มเปลี่ยนรหัสเจ้าของร้าน — เก็บใน app_settings ผ่าน saveData ปกติ
   const [ownerForm, setOwnerForm] = useState({ cur: '', next: '', confirm: '' });
+
+  // ยอดประกันมือหมอประจำ/วัน — number input บันทึกผ่าน saveData + audit (owner only ทั้งหน้า)
+  const [gAmt, setGAmt] = useState('');
+  const saveGuarantee = () => {
+    const n = Math.round(Number(gAmt));
+    if (!Number.isFinite(n) || n <= 0) { setErr('กรอกยอดประกันมือให้ถูกต้อง (ต้องมากกว่า 0)'); return; }
+    setErr('');
+    saveData({
+      ...data,
+      guaranteeAmount: n,
+      auditLog: pushAudit(data, 'เปลี่ยนยอดประกันมือ', `ยอดประกันมือ/วัน`, `฿ ${guaranteeAmountOf(data).toLocaleString()} → ฿ ${n.toLocaleString()}`),
+    });
+    setGAmt('');
+    alertDialog({ title: 'เปลี่ยนยอดประกันมือแล้ว', message: `เช็กชื่อ = ได้ครบ ฿ ${n.toLocaleString()}/วัน` });
+  };
 
   const saveOwnerPass = () => {
     const real = getOwnerPass(data.ownerPass);
@@ -584,11 +599,12 @@ export default function PageManage({ data, saveData }) {
 
   return (
     <div>
-      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-        <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''}>พนักงาน ({therapists.length})</button>
-        <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''}>รายการ ({cats.length})</button>
-        <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''}>โปร ({promos.length})</button>
-        <button onClick={() => setTab('pass')} className={tab === 'pass' ? 'on' : ''}>รหัส</button>
+      <div className="seg seg-icons" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr' }}>
+        <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''} aria-label={`พนักงาน ${therapists.length} คน`}><Users size={17} strokeWidth={1.9} /><span>พนักงาน {therapists.length}</span></button>
+        <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''} aria-label={`รายการ ${cats.length} รายการ`}><LayoutGrid size={17} strokeWidth={1.9} /><span>รายการ {cats.length}</span></button>
+        <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''} aria-label={`โปรโมชัน ${promos.length} รายการ`}><Tag size={17} strokeWidth={1.9} /><span>โปร {promos.length}</span></button>
+        <button onClick={() => setTab('guarantee')} className={tab === 'guarantee' ? 'on' : ''} aria-label="ประกันมือ"><ShieldCheck size={17} strokeWidth={1.9} /><span>ประกันมือ</span></button>
+        <button onClick={() => setTab('pass')} className={tab === 'pass' ? 'on' : ''} aria-label="รหัส"><KeyRound size={17} strokeWidth={1.9} /><span>รหัส</span></button>
       </div>
 
       {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
@@ -611,21 +627,18 @@ export default function PageManage({ data, saveData }) {
             </div>
           ))}
           {therapists.length === 0 && <EmptyState title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
-          <p className="muted" style={{ marginTop: 10 }}>พนักงานที่พักงานจะไม่ขึ้นให้เลือกใน POS · ลบแล้วประวัติบิลเดิมยังเก็บชื่อไว้</p>
         </Card>
       )}
 
       {tab === 'services' && (
         <Card>
           <CardHead
-            title="รายการ + ราคาต่อชม"
-            hint="1 รายการ = หลายช่วงเวลา"
+            title="รายการ + ราคา"
             right={<span style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={cats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
               <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC} title="เพิ่มรายการ" aria-label="เพิ่มรายการ"><Plus size={15} /> <span className="btn-t">เพิ่มรายการ</span></button>
             </span>}
           />
-          <p className="muted" style={{ marginBottom: 8 }}>ตั้ง<b>ราคาต่อชม</b>ครั้งเดียว ระบบเติมราคา 45/60/90/120 นาทีให้ แก้เองได้ทีหลัง · POS ดึงราคาจริงตามช่วงเวลา · กด <b>จัดลำดับ</b> เพื่อลากสลับที่ — POS แสดงตามลำดับนี้</p>
           {catRows.map(({ name, en, timed, hourly }, idx) => (
             <div key={name} className="mcat-card">
               <div className="mcat-head">
@@ -660,10 +673,8 @@ export default function PageManage({ data, saveData }) {
         <Card>
           <CardHead
             title="บริการเสริม"
-            hint="POS ขั้นระยะเวลา · +เงิน +เวลา"
             right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddA} title="เพิ่มบริการเสริม" aria-label="เพิ่มบริการเสริม"><Plus size={15} /> <span className="btn-t">เพิ่มเสริม</span></button>}
           />
-          <p className="muted" style={{ marginBottom: 8 }}>เช่น ประคบสมุนไพร +30 นาที ฿ 350 · เลือกได้หลายอย่างต่อลูกค้า 1 คน</p>
           {addons.map((a) => (
             <div key={a.id} className="mrow">
               <span className="grow">
@@ -683,11 +694,9 @@ export default function PageManage({ data, saveData }) {
       {tab === 'promos' && (
         <Card>
           <CardHead
-            title="โปรโมชันส่วนลด"
-            hint="POS + แก้ไขบิล · เลือกแทนกรอกมือ"
+            title="โปรโมชัน"
             right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP} title="เพิ่มโปรโมชัน" aria-label="เพิ่มโปรโมชัน"><Plus size={15} /> <span className="btn-t">เพิ่มโปร</span></button>}
           />
-          <p className="muted" style={{ marginBottom: 8 }}>เช่น โปรวันเกิด −฿ 500 · โปร 10 ครั้ง −฿ 300 · แตะ 1 โปรต่อ 1 บิล</p>
           {promos.map((p) => (
             <div key={p.id} className="mrow">
               <span className="grow">
@@ -703,21 +712,26 @@ export default function PageManage({ data, saveData }) {
         </Card>
       )}
 
+      {tab === 'guarantee' && (
+        <Card>
+          <CardHead
+            title="ประกันมือ"
+            right={<span className="badge info">฿ {guaranteeAmountOf(data).toLocaleString()}/วัน</span>}
+          />
+          <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
+          <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
+        </Card>
+      )}
+
       {tab === 'pass' && (
         <Card>
-          <CardHead title="รหัสเจ้าของร้าน" hint="เข้าใช้งาน + ดูภาพรวม" />
-          <p className="muted" style={{ marginBottom: 8 }}>
-            สถานะ: {data.ownerPass
-              ? <span className="badge paid">ตั้งเองแล้ว</span>
-              : <span className="badge neutral">ยังไม่ตั้ง · ใช้รหัสเริ่มต้น 123123</span>}
-          </p>
+          <CardHead title="รหัสเจ้าของร้าน" right={data.ownerPass ? <span className="badge paid">ตั้งเองแล้ว</span> : <span className="badge neutral">เริ่มต้น 123123</span>} />
           <div className="field"><label>รหัสปัจจุบัน *</label><input type="password" value={ownerForm.cur} onChange={(e) => setOwnerForm({ ...ownerForm, cur: e.target.value })} placeholder="กรอกรหัสปัจจุบัน" className="input" autoComplete="current-password" /></div>
           <div className="f2">
             <div className="field"><label>รหัสใหม่ (≥ 4 ตัว) *</label><input type="password" value={ownerForm.next} onChange={(e) => setOwnerForm({ ...ownerForm, next: e.target.value })} placeholder="รหัสใหม่" className="input" autoComplete="new-password" /></div>
             <div className="field"><label>ยืนยันรหัสใหม่ *</label><input type="password" value={ownerForm.confirm} onChange={(e) => setOwnerForm({ ...ownerForm, confirm: e.target.value })} placeholder="กรอกอีกครั้ง" className="input" autoComplete="new-password" /></div>
           </div>
-          <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัสเจ้าของร้าน</button>
-          <p className="muted" style={{ marginTop: 10 }}>รหัสนี้ใช้เข้าใช้งาน + อนุมัติยกเลิกบิล (หน้าบิล + บิลที่เปิดอยู่) · เปลี่ยนแล้วมีผลทุกเครื่องทันทีที่ sync</p>
+          <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัส</button>
         </Card>
       )}
 
@@ -725,7 +739,6 @@ export default function PageManage({ data, saveData }) {
         <Modal onClose={closeOrder}>
           <button className="modal-x" onClick={closeOrder} aria-label="ปิด (ยกเลิก ไม่บันทึก)"><X size={16} /></button>
           <h3>จัดลำดับรายการ</h3>
-          <p className="muted" style={{ marginTop: 4 }}>กดค้างที่ <GripVertical size={13} style={{ verticalAlign: -2 }} /> แล้วลากสลับที่ · หรือใช้ ↑/↓ · ปิด = ยกเลิก · กด <b>บันทึกลำดับ</b> POS ถึงเปลี่ยนตาม</p>
           <div ref={listRef} className={`ord-list${drag ? ' ord-live' : ''}`} role="list" aria-label="ลำดับหมวดบริการ">
             {(() => {
               // ลำดับพรีวิวขณะลาก: เสียบแถวที่ลากไว้ตรงตำแหน่งที่จะวาง (แถวนั้นซ่อนไว้แต่ไม่ถอดออกจาก DOM

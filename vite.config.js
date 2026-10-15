@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // devOptions: เสิร์ฟ manifest + SW ในโหมด dev ด้วย (ไม่งั้น dev ขึ้น Manifest syntax error
+      // เพราะ vite ตอบ index.html กลับมาแทน — ของ production มีไฟล์จริงอยู่แล้ว)
+      devOptions: { enabled: true, type: 'module' },
       includeAssets: ['favicon-64.png', 'apple-touch-icon.png', 'logo.jpg'],
       manifest: {
         name: "I'FEEW Thai Massage — POS",
