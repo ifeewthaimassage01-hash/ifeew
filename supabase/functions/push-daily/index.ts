@@ -68,9 +68,10 @@ Deno.serve(async (req: Request) => {
     const { data: subs } = await sb.from("push_subscriptions").select("endpoint,p256dh,auth").eq("role", "owner");
 
     const fmt = (n: number) => Number(n || 0).toLocaleString("th-TH");
-    const title = "สรุปยอดวันนี้";
+    const title = "📊 สรุปยอดวันนี้";
     const text = `รายรับ ฿${fmt(revenue)} · ${count} บิล · รายจ่าย ฿${fmt(expTotal)} — regComm ละเอียดดูในแอป`;
-    const payload = JSON.stringify({ title, body: text, url: "./" });
+    // App ไม่มี route แยกหน้าสรุป (src/App.jsx ใช้ internal state) — url คง './' เหมือนเดิม
+    const payload = JSON.stringify({ title, body: text, kind: "daily", url: "./" });
 
     let sent = 0;
     await Promise.all(

@@ -7,7 +7,7 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
-// Payload จาก Edge Functions: { title, body, url }
+// Payload จาก Edge Functions: { title, body, kind, url }
 self.addEventListener('push', (event) => {
   let data = {};
   try {
@@ -20,18 +20,30 @@ self.addEventListener('push', (event) => {
     }
   }
   const title = data.title || "I'FEEW POS";
+  const kind = data.kind || '';
+  const url = data.url || './';
+  const actions =
+    kind === 'bill' || kind === 'bill-open'
+      ? [{ action: 'open-bill', title: 'ดูบิล' }, { action: 'dismiss', title: 'ปิด' }]
+      : kind === 'daily'
+        ? [{ action: 'open-summary', title: 'ดูสรุป' }, { action: 'dismiss', title: 'ปิด' }]
+        : [];
   const options = {
     body: data.body || '',
     icon: './pwa-192x192.png',
     badge: './favicon-64.png',
-    data: { url: data.url || './' },
+    tag: kind || 'ifeew',
+    actions,
+    data: { url, kind },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  if (event.action === 'dismiss') return;
   const url = (event.notification.data && event.notification.data.url) || './';
+  // action ว่าง (กดตัวแจ้งเตือน) / open-bill / open-summary → เปิด url เดียวกัน
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
