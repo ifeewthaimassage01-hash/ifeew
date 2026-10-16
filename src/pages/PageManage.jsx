@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck } from 'lucide-react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck, Bell, BellOff } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { commBaht, categoryEn, serviceCategoryOrder, guaranteeAmountOf } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { bkkNow } from '../utils/bkk';
+import { isPushSupported, getSubscription, subscribeOwner, unsubscribeOwner } from '../lib/push';
 import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, syncState } from '../data/cloudSync';
 
 // ลบใน cloud ไม่สำเร็จ = ของจะโผล่กลับมาตอนโหลดใหม่ จึงต้องเตือนให้รู้
@@ -59,6 +60,61 @@ function hourlyOf(rows) {
   if (h60) return h60.price;
   const shortest = [...timed].sort((a, b) => a.duration - b.duration)[0];
   return Math.round((shortest.price / shortest.duration) * 60);
+}
+
+/* การ์ดแจ้งเตือนแอดมิน (Web Push) — หน้านี้ owner-only อยู่แล้ว ไม่ต้อง gate เพิ่ม */
+function PushAdminCard() {
+  const supported = isPushSupported();
+  const [on, setOn] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    let alive = true;
+    getSubscription().then((s) => { if (alive) setOn(!!s); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const enable = async () => {
+    setBusy(true); setMsg('');
+    try {
+      await subscribeOwner();
+      setOn(true);
+      setMsg('เปิดแจ้งเตือนแล้ว เครื่องนี้จะได้รับบิลใหม่ + สรุปรายวัน');
+    } catch (e) {
+      setMsg(e?.message || 'เปิดแจ้งเตือนไม่สำเร็จ');
+    } finally { setBusy(false); }
+  };
+  const disable = async () => {
+    setBusy(true); setMsg('');
+    try {
+      await unsubscribeOwner();
+      setOn(false);
+      setMsg('ปิดแจ้งเตือนของเครื่องนี้แล้ว');
+    } catch (e) {
+      setMsg(e?.message || 'ปิดแจ้งเตือนไม่สำเร็จ');
+    } finally { setBusy(false); }
+  };
+  return (
+    <Card>
+      <CardHead
+        title="แจ้งเตือนแอดมิน"
+        right={supported
+          ? (on ? <span className="badge paid">เปิดอยู่</span> : <span className="badge neutral">ปิดอยู่</span>)
+          : <span className="badge void">ไม่รองรับ</span>}
+      />
+      <p className="muted" style={{ margin: '0 0 10px' }}>
+        {supported
+          ? (on ? 'เครื่องนี้รับแจ้งเตือนบิลใหม่ + สรุปรายวันแล้ว' : 'เปิดไว้เพื่อรับแจ้งเตือนบิลใหม่ + สรุปรายวันบนเครื่องนี้')
+          : 'เบราว์เซอร์นี้ไม่รองรับ Push (ลอง Chrome / Edge / Safari ล่าสุด)'}
+      </p>
+      {supported && (
+        on
+          ? <button onClick={disable} disabled={busy} className="btn btn-ghost btn-block"><BellOff size={16} /> {busy ? 'กำลังปิด…' : 'ปิดแจ้งเตือนเครื่องนี้'}</button>
+          : <button onClick={enable} disabled={busy} className="btn btn-primary btn-block"><Bell size={16} /> {busy ? 'กำลังเปิด…' : 'เปิดแจ้งเตือน'}</button>
+      )}
+      {msg && <p className="muted" style={{ margin: '8px 0 0' }}>{msg}</p>}
+      <p className="muted" style={{ margin: '8px 0 0' }}>iOS ต้องติดตั้งแอปลงหน้าจอหลักก่อน</p>
+    </Card>
+  );
 }
 
 export default function PageManage({ data, saveData }) {
@@ -599,6 +655,7 @@ export default function PageManage({ data, saveData }) {
 
   return (
     <div>
+      <PushAdminCard />
       <div className="seg seg-icons" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr' }}>
         <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''} aria-label={`พนักงาน ${therapists.length} คน`}><Users size={17} strokeWidth={1.9} /><span>พนักงาน {therapists.length}</span></button>
         <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''} aria-label={`รายการ ${cats.length} รายการ`}><LayoutGrid size={17} strokeWidth={1.9} /><span>รายการ {cats.length}</span></button>

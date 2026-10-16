@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       // devOptions: เสิร์ฟ manifest + SW ในโหมด dev ด้วย (ไม่งั้น dev ขึ้น Manifest syntax error
       // เพราะ vite ตอบ index.html กลับมาแทน — ของ production มีไฟล์จริงอยู่แล้ว)
       devOptions: { enabled: true, type: 'module' },
@@ -39,6 +42,9 @@ export default defineConfig({
             options: { cacheName: 'google-fonts', expiration: { maxEntries: 20, maxAgeSeconds: 31536000 } },
           },
         ],
+      },
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
       },
     }),
   ],
