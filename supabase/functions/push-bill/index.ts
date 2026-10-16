@@ -74,6 +74,8 @@ Deno.serve(async (req: Request) => {
       }),
     );
 
+    console.log("push-bill result:", JSON.stringify({ sent, subsCount: list.length }));
+
     return new Response(JSON.stringify({ sent }), {
       status: 200,
       headers: { ...cors, "Content-Type": "application/json" },
