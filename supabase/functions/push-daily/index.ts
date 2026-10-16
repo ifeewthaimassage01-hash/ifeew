@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
 
     const fmt = (n: number) => Number(n || 0).toLocaleString("th-TH");
     const net = revenue - expTotal;
-    const title = "📊 สรุปยอดวันนี้ (${count} บิล)";
+    const title = `📊 สรุปยอดวันนี้ (${count} บิล)`;
     const text = `รายรับ ฿${fmt(revenue)} · รายจ่าย ฿${fmt(expTotal)} · สุทธิ ฿${fmt(net)}`;
     // App ไม่มี route แยกหน้าสรุป (src/App.jsx ใช้ internal state) — url คง './' เหมือนเดิม
     const payload = JSON.stringify({ title, body: text, kind: "daily", url: "./" });

@@ -147,12 +147,12 @@ Deno.serve(async (req: Request) => {
         serviceText = `${first} +${itemsArr.length - 1} รายการ`;
       }
       const who = therapistName || docName;
-      const title = "🧾 เปิดบิลใหม่";
-      const text = serviceText ? `${who} · ${serviceText} · ${baht(total)}` : `${who} · ${baht(total)}`;
+      const title = `🔔 เปิดบิล โดย (${who})`;
+      const text = serviceText ? `${serviceText} = ${baht(total)}` : `${who} · ${baht(total)}`;
       payload = JSON.stringify({ title, body: text, kind: "bill-open", url: "./" });
     } else {
       // เช็คบิล (paid) — payload เดิม ห้ามเปลี่ยน
-      const title = `🔔 บิลใหม่ ${baht(total)}`;
+      const title = `💸 เช็คบิล ${baht(total)}`;
       const text = `${docName} · ${payment || "ไม่ระบุวิธีจ่าย"}`;
       payload = JSON.stringify({ title, body: text, kind: "bill", url: "./" });
     }
