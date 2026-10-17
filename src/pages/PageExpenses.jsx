@@ -22,7 +22,7 @@ export default function PageExpenses({ data, saveData, role }) {
   const [localPreview, setLocalPreview] = useState(null); // blob URL โชว์ทันที ไม่รอ cloud
   const [localIsPdf, setLocalIsPdf] = useState(false);
   const [err, setErr] = useState('');
-  const receiptPreview = resolveImageUrl(form.receiptUrl) || localPreview;
+  const receiptPreview = localPreview || resolveImageUrl(form.receiptUrl);
   const receiptIsPdf = form.receiptUrl ? isPdfUrl(receiptPreview) : localIsPdf;
 
   // state แก้ไข / ลบ
@@ -34,7 +34,7 @@ export default function PageExpenses({ data, saveData, role }) {
   const [editLocalIsPdf, setEditLocalIsPdf] = useState(false);
   const [editErr, setEditErr] = useState('');
   const [busyId, setBusyId] = useState(''); // กันกดซ้ำตอนลบ/เซฟ
-  const editPreview = resolveImageUrl(editForm.receiptUrl) || editLocalPreview;
+  const editPreview = editLocalPreview || resolveImageUrl(editForm.receiptUrl);
   const editIsPdf = editForm.receiptUrl ? isPdfUrl(editPreview) : editLocalIsPdf;
 
   const handleFile = async (file) => {

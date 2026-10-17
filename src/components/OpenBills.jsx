@@ -153,7 +153,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [slipLocal, setSlipLocal] = useState(null); // blob URL โชว์ทันที
   const [slipLocalIsPdf, setSlipLocalIsPdf] = useState(false);
   const [slipErr, setSlipErr] = useState('');
-  const slipPreview = resolveImageUrl(slipName) || slipLocal;
+  const slipPreview = slipLocal || resolveImageUrl(slipName);
   const slipIsPdf = slipName ? isPdfUrl(resolveImageUrl(slipName)) : slipLocalIsPdf;
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
