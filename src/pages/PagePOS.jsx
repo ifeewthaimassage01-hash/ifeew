@@ -237,7 +237,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     if (!activeTherapistId) return [];
     const slots = [];
     (data.bills || []).forEach((b) => {
-      if (b.status === 'cancelled') return;
+      // ตรวจเฉพาะบิลที่ยังเปิดอยู่ (status = open) — ไม่นับบิลที่เช็คแล้ว (paid) หรือยกเลิก (cancelled)
+      if (b.status !== 'open') return;
       // โมเดลใหม่: หมอระดับบิล ก้อนเดียวทั้งบิล
       if (b.therapistId && b.startTime) {
         if (b.therapistId === activeTherapistId) {
