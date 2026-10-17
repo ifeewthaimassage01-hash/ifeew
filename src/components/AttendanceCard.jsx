@@ -32,7 +32,8 @@ export default function AttendanceCard({ data, saveData, dateStr, role, title, h
     // P1-8 reversal — owner ถอนเช็กชื่อ: ลบ expense ประกันของคู่นั้น (notes key ตรงคู่)
     // ใน saveData ครั้งเดียวกับถอนชื่อ (กัน lost update) + ลบใน cloud เอง (upsert ลบให้ไม่ได้)
     // ถอนชื่อแล้ว ensure จะไม่สร้างกลับ (ไม่มีชื่อใน attendance แล้ว guaranteeTopups shortfall=0)
-    let nextExpenses = data.expenses;
+    // BUG-ATT-01: กัน expenses เป็น undefined ตอนเซฟทับ
+    let nextExpenses = data.expenses || [];
     let reversalAudit = null;
     let doomedIds = [];
     if (!entry && isOwner) {

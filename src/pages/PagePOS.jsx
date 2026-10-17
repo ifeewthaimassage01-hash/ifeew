@@ -184,6 +184,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const [err, setErr] = useState('');
   // M7: กันกดเปิดบิลซ้ำ (ดับเบิลแตะสร้างบิลคู่)
   const [creating, setCreating] = useState(false);
+  // BUG-POS-04: ref กันดับเบิลแตะแบบ synchronous (state creating อัปเดตช้าเกินไป)
+  const creatingRef = useRef(false);
   const wizardGuardRef = useRef(false);
 
   // บอก App ว่ากำลังเลือกหมอ/เวลา/ตรวจสอบบิล — realtime จะได้ไม่โหลดทับกลางคัน
@@ -195,6 +197,13 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: isWizardActive ? 1 : 0 } }));
     }
   }, [step]);
+
+  // BUG-POS-03: ออกจากหน้าระหว่างอยู่ wizard → ปลด guard ให้ realtime กลับมาทำงาน
+  useEffect(() => () => {
+    if (wizardGuardRef.current) {
+      window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: 0 } }));
+    }
+  }, []);
 
   // รายการที่จองได้ = มีบริการแบบมีระยะเวลา — เรียงตามลำดับที่จัดในจัดการร้าน (serviceCategoryOrder)
   const bookableCats = useMemo(() => {
@@ -232,6 +241,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     return pickedServices.map((p, i) => ({ ...p, start: times[i].start, end: times[i].end }));
   }, [pickedServices, selectedStartTime]);
   const billEnd = chained.length ? chained[chained.length - 1].end : null;
+  // BUG-POS-02: ช่วงเวลาจริงของบิลตามเวลาเริ่มที่เลือก — ใช้เช็กช่องว่างให้ตรงกับ timeError
+  // (fallback เป็น billMinutes เมื่อยังไม่มีเวลาเริ่ม/ยังต่อคิวไม่ได้)
+  const billSpan = (billEnd != null && selectedStartTime != null) ? billEnd - selectedStartTime : billMinutes;
 
   const bookedSlots = useMemo(() => {
     if (!activeTherapistId) return [];
@@ -276,8 +288,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / เกินเวลาร้าน
   const slotState = (t) => {
     if (pickedServices.length === 0) return 'oob';
-    if (t < OPEN_MIN || t + billMinutes > CLOSE_MIN) return 'oob';
-    const clash = bookedSlots.some((s) => t < s.end && t + billMinutes > s.start);
+    // BUG-POS-02: ใช้ billSpan ให้ตรงกับ timeError (อย่าใช้ billMinutes ที่ไม่รวมพักห้อง)
+    if (t < OPEN_MIN || t + billSpan > CLOSE_MIN) return 'oob';
+    const clash = bookedSlots.some((s) => t < s.end && t + billSpan > s.start);
     return clash ? 'clash' : 'free';
   };
 
@@ -285,7 +298,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const nextFreeFrom = (base) => {
     if (pickedServices.length === 0) return null;
     const start = Math.max(snap15(base ?? nowMinutes()), OPEN_MIN);
-    for (let t = start; t + billMinutes <= CLOSE_MIN; t += GRID_STEP) {
+    // BUG-POS-02: ใช้ billSpan ในการกวาดหาช่องว่าง
+    for (let t = start; t + billSpan <= CLOSE_MIN; t += GRID_STEP) {
       if (slotState(t) === 'free') return t;
     }
     return null;
@@ -381,7 +395,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติเจ้าของร้าน, สถานะ open
   const openDraftBill = () => {
-    if (creating) return;
+    // BUG-POS-04: ใช้ ref กันดับเบิลแตะแบบ synchronous
+    if (creatingRef.current) return;
     if (pickedServices.length === 0) { setErr('เพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
     if (!activeTherapistId) { setErr('เลือกหมอนวดก่อนเปิดบิล'); return; }
     if (selectedStartTime == null || timeError) { setErr('เลือกเวลาเริ่มให้ถูกต้องก่อนเปิดบิล'); return; }
@@ -390,13 +405,15 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   };
 
   const openBill = async () => {
-    if (creating) return;
+    // BUG-POS-04: guard แบบ synchronous ก่อน state creating
+    if (creatingRef.current) return;
     // ตรวจซ้ำก่อนเซฟ: กันเครื่องอื่นจองช่วงเวลาเดียวกันเข้าไปก่อนแล้ว
     const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
     if (clash) {
       setErr('เวลานี้ชนกับคิวที่จองแล้ว (มีผู้ใช้งานคนอื่นจองไปก่อน) ลองเลือกเวลาว่างถัดไป');
       return;
     }
+    creatingRef.current = true;
     setCreating(true);
     try {
     const id = generateBillId(data.bills);
@@ -442,6 +459,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     });
     if (onNavigate) onNavigate('bills');
     } finally {
+      // BUG-POS-04: reset ref คู่กับ state เสมอ
+      creatingRef.current = false;
       setCreating(false);
     }
   };

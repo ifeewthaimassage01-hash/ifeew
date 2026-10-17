@@ -50,22 +50,31 @@ Deno.serve(async (req: Request) => {
 
     const { dateStr, startISO, endISO } = bkkToday();
     const sb = createClient(SUPABASE_URL, SERVICE_KEY);
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { ...cors, "Content-Type": "application/json" },
+      });
 
-    // บิล paid ของวันนี้ (เทียบคอลัมน์ date; แถวที่ date ว่างใช้ paid_at/created_at ไม่นับ — ตรงกับ logic หลักที่ date เป็นเวลาบิล)
-    const { data: bills } = await sb
+    // BUG(S7/push-daily): เดิมกลืน error ของ query → ส่งสรุปยอด 0 ให้เจ้าของแบบผิด ๆ
+    // ตอนนี้ถ้า query ล้ม ให้ abort ตอบ 500 เพื่อให้ cron เตือน + ลองใหม่
+    const { data: bills, error: billsErr } = await sb
       .from("bills")
       .select("total")
       .eq("status", "paid")
       .gte("date", startISO)
       .lt("date", endISO);
+    if (billsErr) return json({ sent: 0, error: `bills: ${billsErr.message}` }, 500);
     const revenue = (bills || []).reduce((s: number, b: { total?: number }) => s + (Number(b.total) || 0), 0);
     const count = (bills || []).length;
 
-    const { data: exps } = await sb.from("expenses").select("amount").eq("date", dateStr);
+    const { data: exps, error: expsErr } = await sb.from("expenses").select("amount").eq("date", dateStr);
+    if (expsErr) return json({ sent: 0, error: `expenses: ${expsErr.message}` }, 500);
     const expTotal = (exps || []).reduce((s: number, e: { amount?: number }) => s + (Number(e.amount) || 0), 0);
 
     webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
-    const { data: subs } = await sb.from("push_subscriptions").select("endpoint,p256dh,auth").eq("role", "owner");
+    const { data: subs, error: subsErr } = await sb.from("push_subscriptions").select("endpoint,p256dh,auth").eq("role", "owner");
+    if (subsErr) return json({ sent: 0, error: `push_subscriptions: ${subsErr.message}` }, 500);
 
     const fmt = (n: number) => Number(n || 0).toLocaleString("th-TH");
     const net = revenue - expTotal;
@@ -75,6 +84,8 @@ Deno.serve(async (req: Request) => {
     const payload = JSON.stringify({ title, body: text, kind: "daily", url: "./" });
 
     let sent = 0;
+    let failed = 0;
+    const stale: string[] = [];
     await Promise.all(
       (subs || []).map(async (s: { endpoint: string; p256dh: string; auth: string }) => {
         try {
@@ -83,19 +94,26 @@ Deno.serve(async (req: Request) => {
             payload,
           );
           sent += 1;
-        } catch {
-          // ข้ามเครื่องที่ subscription หมดอายุ
+        } catch (err) {
+          failed += 1;
+          const code = (err as { statusCode?: number })?.statusCode;
+          // 404/410 = subscription ตายถาวร → เก็บไว้ลบออกจาก DB
+          if (code === 404 || code === 410) stale.push(s.endpoint);
+          console.error("push-daily send failed", code, s.endpoint);
         }
       }),
     );
+    // ล้าง subscription ที่หมดอายุ (best-effort — ไม่ให้ล้มทั้งงานถ้าลบไม่ได้)
+    if (stale.length > 0) {
+      const { error: delErr } = await sb.from("push_subscriptions").delete().in("endpoint", stale);
+      if (delErr) console.error("push-daily prune failed", delErr.message);
+    }
 
-    return new Response(JSON.stringify({ sent, date: dateStr, revenue, count, expenses: expTotal, net }), {
-      status: 200,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ sent, failed, pruned: stale.length, date: dateStr, revenue, count, expenses: expTotal, net });
   } catch (e) {
+    console.error("push-daily fatal", String(e));
     return new Response(JSON.stringify({ sent: 0, error: String(e) }), {
-      status: 200,
+      status: 500,
       headers: { ...cors, "Content-Type": "application/json" },
     });
   }

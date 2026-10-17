@@ -3,7 +3,7 @@ import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sp
 import { Card, CardHead, EmptyState, DateRange, inDateRange, fmtDay } from '../components/ui';
 import AttendanceCard from '../components/AttendanceCard';
 import { bizDateOf, bizToday } from '../utils/bkk';
-import { svcLabel, commBaht, freelanceDisplayName, isFreelance, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY } from '../lib/billing';
+import { svcLabel, commBaht, freelanceDisplayName, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY, billLinesOf } from '../lib/billing';
 
 export default function PageCommission({ data, saveData, role }) {
   const isStaff = role === 'staff';
@@ -80,41 +80,36 @@ export default function PageCommission({ data, saveData, role }) {
   const extBillIds = new Set();
   const freelanceById = {};
   bills.forEach((bill) => {
-    (bill.items || bill.customers || []).forEach((itm) => {
-      const tid = itm.therapistId || bill.therapistId;
-      // M4: เช็กหมอวิ่งมาตรฐานที่เดียว (isFreelance) — ไม่พึ่ง prefix EXT- / stats โดยตรง
-      if (isFreelance(tid, therapists)) {
-        const key = tid ? String(tid) : 'ไม่ระบุ';
-        const net = itm.net ?? itm.price ?? 0;
-        const qty = itm.qty || 1;
-        freelanceTotal += net; freelanceJobs += qty;
-        const svc = (data.services || []).find((x) => x.id === itm.serviceId);
-        if (svc) freelanceComm += commBaht(svc) * qty;
+    billLinesOf(bill, data.services, therapists).forEach((l) => {
+      const qty = l.it.qty || 1;
+      // M4: เช็กหมอวิ่งมาตรฐานที่เดียว (isFreelance) ผ่าน l.staff จาก billing.js
+      if (!l.staff) {
+        const key = l.tid ? String(l.tid) : 'ไม่ระบุ';
+        freelanceTotal += l.price; freelanceJobs += qty;
+        // BUG-02 (reports): ค่าแรงหมอวิ่งหักส่วนลดท้ายบิลเหมือนรายงานอื่น (เดิมคิดเต็ม)
+        freelanceComm += l.comm;
         extBillIds.add(bill.id);
         if (!freelanceById[key]) freelanceById[key] = { jobs: 0, total: 0 };
         freelanceById[key].jobs += qty;
-        freelanceById[key].total += net;
+        freelanceById[key].total += l.price;
         return;
       }
-      // M1: นับ net/jobs หมอประจำก่อนเช็ก svc — บริการถูกลบเหลือแค่ comm=0 (freelance ทำแบบนี้อยู่แล้ว)
-      const s = stats[tid];
-      const net = itm.net ?? itm.price ?? 0;
-      const qty = itm.qty || 1;
-      s.totalSales += net;
+      // M1: นับ net/jobs หมอประจำก่อนเช็ก svc — บริการถูกลบเหลือแค่ comm=0
+      const s = stats[l.tid];
+      if (!s) return; // กัน therapist ถูกลบ/ไม่รู้จัก — ไม่ให้ throw
+      s.totalSales += l.price;
       s.jobs += qty;
       regBillIds.add(bill.id);
-      const svc = (data.services || []).find((x) => x.id === itm.serviceId);
-      const comm = svc ? commBaht(svc) * qty : 0;
-      // โหมด Flat: หมอประจำ (บาท) ต่อครั้งที่นวด
-      s.flatCommission += comm;
+      // โหมด Flat: หมอประจำ (บาท) ต่อครั้งที่นวด — หักส่วนลดท้ายบิลตามสัดส่วน (BUG-02)
+      s.flatCommission += l.comm;
       // นับว่านวดอะไรไปบ้าง + เก็บประวัติ
-      const label = svc ? svcLabel(svc) : (itm.serviceName || itm.serviceId || 'บริการที่ลบแล้ว');
+      const label = l.svc ? svcLabel(l.svc) : (l.it.serviceName || l.it.serviceId || 'บริการที่ลบแล้ว');
       s.services[label] = (s.services[label] || 0) + qty;
       if (!s.svcDetail[label]) s.svcDetail[label] = { qty: 0, sales: 0, comm: 0 };
       s.svcDetail[label].qty += qty;
-      s.svcDetail[label].sales += net;
-      s.svcDetail[label].comm += comm;
-      s.history.push({ billId: bill.id, date: bill.date || bill.createdAt || '', label, qty, net, comm });
+      s.svcDetail[label].sales += l.price;
+      s.svcDetail[label].comm += l.comm;
+      s.history.push({ billId: bill.id, date: bill.date || bill.createdAt || '', label, qty, net: l.price, comm: l.comm });
     });
   });
   // ค่าน้ำมันหมอวิ่ง ฿30/รอบ — ผูกกับบิลที่มีงานหมอวิ่ง

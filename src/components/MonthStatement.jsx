@@ -1,12 +1,8 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { commBaht, freelanceDisplayName, isFreelance, GUARANTEE_CATEGORY } from '../lib/billing';
+import { freelanceDisplayName, GUARANTEE_CATEGORY, billTotal, billLinesOf } from '../lib/billing';
 import { formatDuration } from './ui';
 import { bkkToday, bizDateOf } from '../utils/bkk';
-
-const rowsOf = (b) => b.items || b.customers || [];
-const rowNet = (i) => i.net ?? i.price ?? 0;
-const billTotal = (b) => Math.max(0, rowsOf(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 
 // สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
 // โดย income = ผลรวม billTotal (หลังหักส่วนลดท้ายบิลแล้ว)
@@ -40,16 +36,10 @@ export function fmtDNum(iso) {
 export function buildMonthReport(data, month) {
   const therapists = data.therapists || [];
   const services = data.services || [];
-  // M4: เช็กหมอประจำมาตรฐานที่เดียว (isFreelance)
-  const isStaff = (tid) => !isFreelance(tid, therapists);
   const nameOf = (tid, fallback) => {
     const t = therapists.find((x) => x.id === tid);
     if (t) return t.name;
     return freelanceDisplayName(fallback || tid || '—');
-  };
-  const commOf = (it) => {
-    const svc = services.find((x) => x.id === it.serviceId);
-    return svc ? commBaht(svc) * (it.qty || 1) : 0;
   };
 
   // ชื่อบริการ: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
@@ -62,7 +52,8 @@ export function buildMonthReport(data, month) {
   };
 
   // บิลนับตาม "เดือนธุรกิจ" (บิลหลังเที่ยงคืนถึงตี 3 = เดือนก่อนหน้าถ้าข้ามเดือน); รายจ่ายนับตามปฏิทิน
-  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && bizDateOf(b.date).slice(0, 7) === month);
+  // BUG-03 (reports): fallback createdAt เมื่อ date ว่าง — ให้ตรงกับ Dashboard/Commission/Bills
+  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && bizDateOf(b.date || b.createdAt).slice(0, 7) === month);
   const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 7) === month);
 
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
@@ -74,27 +65,15 @@ export function buildMonthReport(data, month) {
     .reduce((s, e) => s + (e.amount || 0), 0);
   const expenseSum = expenseSumAll - guaranteeSum;
 
-  // line items sorted by datetime — ราคาแต่ละ line หักส่วนลดท้ายบิลตามสัดส่วนแล้ว
+  // line items sorted by datetime — ใช้ billLinesOf กลาง (ปันส่วนลดท้ายบิล + ลดค่าแรงตามส่วนลด)
   const lines = [];
   paidBills.forEach((b) => {
-    const rows = rowsOf(b);
-    const subtotal = rows.reduce((s, it) => s + rowNet(it), 0);
-    const disc = Math.max(0, Math.min(subtotal, b.discount || 0));
-    rows.forEach((it) => {
-      const tid = it.therapistId || b.therapistId;
-      const gross = rowNet(it);
-      // ปันส่วนลดท้ายบิลลง line ตามสัดส่วนราคา (กันยอดรวม lines เกิน income จริง)
-      const share = subtotal > 0 ? gross / subtotal : (rows.length > 0 ? 1 / rows.length : 0);
-      const price = Math.max(0, gross - disc * share);
-      // M3: ปัน comm ตามสัดส่วนราคาหลังหักส่วนลด + floor net>=0 (กัน price-comm ติดลบ)
-      const fullComm = commOf(it);
-      const comm = gross > 0 ? (fullComm * price) / gross : 0;
-      const net = Math.max(0, price - comm);
+    billLinesOf(b, services, therapists).forEach((l) => {
       lines.push({
-        ts: b.date || '', date: bizDateOf(b.date),
-        service: serviceDisplay(it),
-        therapist: it.therapistName || b.therapistName || nameOf(tid),
-        price, comm, net, staff: isStaff(tid),
+        ts: b.date || '', date: bizDateOf(b.date || b.createdAt),
+        service: serviceDisplay(l.it),
+        therapist: l.it.therapistName || b.therapistName || nameOf(l.tid),
+        price: l.price, comm: l.comm, net: l.net, staff: l.staff,
       });
     });
   });
@@ -114,7 +93,7 @@ export function buildMonthReport(data, month) {
     d.income += l.price; d.comm += l.comm;
   });
   paidBills.forEach((b) => {
-    const d = bizDateOf(b.date);
+    const d = bizDateOf(b.date || b.createdAt);
     if (days[d]) days[d].bills.add(b.id);
   });
   const expByDay = {};
@@ -124,7 +103,7 @@ export function buildMonthReport(data, month) {
   });
   paidBills.forEach((b) => {
     if (b.fuel) {
-      const d = bizDateOf(b.date);
+      const d = bizDateOf(b.date || b.createdAt);
       expByDay[d] = (expByDay[d] || 0) + b.fuel;
     }
   });

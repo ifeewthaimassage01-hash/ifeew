@@ -3,7 +3,7 @@ import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar,
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
 import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
-import { commBaht, freelanceDisplayName, svcLabel, isFreelance } from '../lib/billing';
+import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
@@ -44,10 +44,7 @@ function Dropdown({ icon: Icon, label, value, options, onChange }) {
   );
 }
 
-const billRows = (b) => b.items || b.customers || [];
-const rowNet = (i) => i.net ?? i.price ?? 0;
-// สูตรยอดบิลมาตรฐานทั้งแอป (ตรงกับยอด total ที่เซฟใน OpenBills buildUpdatedBill)
-const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
+// (ย้าย helper billRows/rowNet/billTotal ไปใช้ตัวกลางใน billing.js — กันสูตรเพี้ยน)
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 
 // C2: รหัสเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
@@ -258,10 +255,6 @@ export default function PageBills({ data, saveData, role }) {
               const paid = b.status === 'paid';
               const docName = therapistDisplay(b);
               const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
-              const commTotal = rows.reduce((s, it) => {
-                const svc = (data.services || []).find((x) => x.id === it.serviceId);
-                return s + (svc ? commBaht(svc) * (it.qty || 1) : 0);
-              }, 0);
               return (
                 <div key={b.id} className="hcard" onClick={() => setDetailBill(b)} style={{ cursor: 'pointer' }}>
                   <div className="hcard-head">

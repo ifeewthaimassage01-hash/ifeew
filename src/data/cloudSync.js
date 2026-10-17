@@ -113,7 +113,14 @@ function fromItemRow(i) {
 function fromBillRow(r, itemsByBill) {
   const items = (itemsByBill[r.id] || []).map(fromItemRow);
   // DB เก่าไม่มี subtotal/total: คำนวณจากรายการกันหาย (ไม่ทิ้งเป็น 0)
-  const sub = r.subtotal ?? items.reduce((s, i) => s + (i.net ?? i.price ?? 0), 0);
+  const itemsSum = items.reduce((s, i) => s + (i.net ?? i.price ?? 0), 0);
+  // BUG-06: migration เพิ่ม default 0 — บิลเก่าที่มีรายการแต่ subtotal/total = 0 ต้อง recompute
+  const sub = (r.subtotal == null || (Number(r.subtotal) === 0 && items.length > 0))
+    ? itemsSum
+    : r.subtotal;
+  const total = (r.total == null || (Number(r.total) === 0 && sub > 0))
+    ? (sub - (r.discount || 0))
+    : r.total;
   return {
     id: r.id,
     date: r.date,
@@ -132,7 +139,7 @@ function fromBillRow(r, itemsByBill) {
     endTime: r.end_time || '',
     promotion: r.promotion || '',
     subtotal: sub,
-    total: r.total ?? (sub - (r.discount || 0)),
+    total,
     updatedAt: r.updated_at || r.created_at || r.date || null,
     createdAt: r.created_at || r.date,
     items,
@@ -271,6 +278,19 @@ function queueOutbox(data) {
     writeOutbox(pending);
   } catch { /* ignore */ }
 }
+// BUG-05: prune คิวหลัง sync สำเร็จ — เก็บเฉพาะบิลที่ fp ยังต่างจาก snapshot ล่าสุด
+// (edit ที่เข้าคิวระหว่าง sync กำลังวิ่ง) ทิ้งเฉพาะรายการที่ยืนยันขึ้น cloud แล้ว
+function pruneOutbox() {
+  try {
+    const pending = readOutbox();
+    if (!pending) return;
+    const kept = pending.bills.filter((b) => {
+      try { return stableBillFp(b) !== lastKnownBillFp.get(b.id); }
+      catch { return true; }
+    });
+    writeOutbox(kept);
+  } catch { /* ignore */ }
+}
 
 export async function loadCloudData(opts) {
   const quiet = !!(opts && opts.quiet); // M9: realtime reload ส่ง {quiet:true} ได้ — ห้ามแตะ cloudStatus/notify
@@ -288,10 +308,10 @@ export async function loadCloudData(opts) {
       fetchSmall('service_categories', 'name'),
       fetchSmall('addons', 'id'),
       fetchSmall('promotions', 'id'),
-      fetchAll('bills', 'created_at', { ascending: false }),
+      fetchAll('bills', 'created_at', { ascending: false, tiebreak: 'id' }), // BUG-08
       fetchAll('bill_items', 'bill_id', { ascending: true, tiebreak: 'id' }),
       fetchAll('expenses', 'date', { ascending: false, tiebreak: 'id' }),
-      fetchAll('audit_log', 'timestamp', { ascending: false }),
+      fetchAll('audit_log', 'timestamp', { ascending: false, tiebreak: 'id' }), // BUG-08
       (async () => {
         const { data, error } = await withRetryOnce(() => supabase.from('app_settings').select('*').limit(100));
         if (error) throw error;
@@ -299,11 +319,30 @@ export async function loadCloudData(opts) {
       })(),
     ]);
 
+    const settingsMap = {};
+    for (const s of settings) settingsMap[s.key] = s.value;
+
     const isEmpty = therapists.length === 0 && bills.length === 0 && services.length === 0;
 
     // Cloud ว่างเปล่าจริง = คืนชุดว่างปกติ (mode cloud)
     if (isEmpty) {
       const empty = emptyCloudData();
+      // BUG-10: cloud ว่างแต่ยังมี settings จริง (เช่น รหัสผ่าน/ประกัน) — merge กลับ ไม่ทิ้งเป็นค่า default
+      if (settingsMap.cash_drawer) empty.cashDrawer = settingsMap.cash_drawer;
+      if (settingsMap.eod_status) empty.eodStatus = settingsMap.eod_status;
+      if (settingsMap.commission_settings) empty.commissionSettings = settingsMap.commission_settings;
+      if (settingsMap.service_category_en) empty.serviceCategoryEn = settingsMap.service_category_en;
+      if (Array.isArray(settingsMap.service_category_order)) {
+        empty.serviceCategoryOrder = settingsMap.service_category_order.filter((c) => typeof c === 'string' && c);
+      }
+      if (typeof settingsMap.owner_pass === 'string') empty.ownerPass = settingsMap.owner_pass;
+      {
+        const v = Number(settingsMap.guarantee_amount);
+        if (Number.isFinite(v) && v >= 0) empty.guaranteeAmount = v;
+      }
+      if (settingsMap.attendance && typeof settingsMap.attendance === 'object' && !Array.isArray(settingsMap.attendance)) {
+        empty.attendance = settingsMap.attendance;
+      }
       rememberBills(empty.bills);
       rememberSettingsFrom(empty);
       // C5: cloud ว่างแต่มีบิลค้าง outbox (สร้างตอนเน็ตหลุด) — เอากลับมาแสดง กันหาย
@@ -319,8 +358,6 @@ export async function loadCloudData(opts) {
     for (const i of items) {
       (itemsByBill[i.bill_id] ||= []).push(i);
     }
-    const settingsMap = {};
-    for (const s of settings) settingsMap[s.key] = s.value;
 
     const mappedBills = bills.map((r) => fromBillRow(r, itemsByBill));
     const result = {
@@ -480,16 +517,8 @@ async function syncExpensesWithGuaranteeDedup(appExpenses) {
     if (selErr) return res; // migration เก่า/อ่านไม่ได้ — fallback พฤติกรรมเดิม
     const cloudByNotes = new Map((cloudRows || []).map((r) => [r.notes, r]));
     if (cloudByNotes.size === 0) return res;
-    for (const [notes, cr] of cloudByNotes) {
-      const idx = (appExpenses || []).findIndex((e) => e && e.notes === notes);
-      if (idx >= 0) {
-        appExpenses[idx] = {
-          id: cr.id, date: cr.date, category: cr.category, item: cr.item,
-          amount: cr.amount, method: cr.method, approvedBy: cr.approved_by,
-          receiptUrl: cr.receipt_url, notes: cr.notes, branchId: cr.branch_id || 'main',
-        };
-      }
-    }
+    // BUG-04: ไม่แก้ appExpenses ตรง ๆ (state ของ React) — cloud เป็น source of truth
+    // แถว local จะถูก reconcile ตอน load/realtime ครั้งถัดไป ตัดแค่แถวซ้ำเพื่อกัน 23505
     const filtered = rows.filter((r) => !(typeof r.notes === 'string'
       && r.notes.startsWith('guarantee:') && cloudByNotes.has(r.notes)));
     if (filtered.length === 0) return { data: cloudRows, error: null }; // ซ้ำทุกแถว — สำเร็จด้วยเวอร์ชัน cloud
@@ -547,8 +576,15 @@ async function replaceBillItems(billId, wantRows) {
   }
 }
 
-export async function syncDataToCloud(d) {
-  if (!isSupabaseConfigured || !supabase) return;
+// BUG-09: mutex — กัน sync ซ้อนกัน (debounce + retrySync + realtime) ให้ใช้ promise เดิม
+let inFlight = null;
+export function syncDataToCloud(d) {
+  if (!isSupabaseConfigured || !supabase) return Promise.resolve();
+  if (inFlight) return inFlight; // มี sync วิ่งอยู่แล้ว — reuse promise ไม่ยิง write ซ้อน
+  inFlight = doSyncDataToCloud(d).finally(() => { inFlight = null; });
+  return inFlight;
+}
+async function doSyncDataToCloud(d) {
   try {
     // C3 — อัปโหลดเฉพาะบิล/ตั้งค่าที่เปลี่ยนในเครื่องนี้ บิลอื่นไม่โดนทับ (กัน last-write-wins ทั้งก้อน)
     const changedBills = (d.bills || []).filter((b) => {
@@ -659,7 +695,7 @@ export async function syncDataToCloud(d) {
     // สำเร็จ — จำ snapshot ใหม่ + เคลียร์คิวค้าง
     if (d.bills) rememberBills(d.bills);
     rememberSettingsFrom(d);
-    clearOutbox();
+    pruneOutbox(); // BUG-05: เก็บ edit ที่ค้างระหว่าง sync ไว้ ไม่ทิ้งทั้งคิว
     if (migrationWarning) setCloudStatus('error', migrationWarning);
     else setCloudStatus('cloud', '');
   } catch (err) {

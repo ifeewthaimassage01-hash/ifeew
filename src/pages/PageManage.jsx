@@ -214,7 +214,8 @@ export default function PageManage({ data, saveData }) {
     if (editingT) {
       saveData({
         ...data,
-        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), nickname: '', active: tForm.active } : t)),
+        // BUG-5: ไม่ hardcode nickname ทับ — ให้ ...t คงค่าเดิมไว้
+        therapists: therapists.map((t) => (t.id === editingT.id ? { ...t, name: tForm.name.trim(), active: tForm.active } : t)),
         auditLog: pushAudit(data, 'แก้ไขพนักงาน', `${editingT.id} · ${tForm.name.trim()}`, tForm.active ? 'ใช้งาน' : 'พักงาน'),
       });
       alertDialog({ title: `แก้ไข ${tForm.name.trim()} แล้ว` });
@@ -308,13 +309,19 @@ export default function PageManage({ data, saveData }) {
     for (const d of enabled) {
       if (cForm.prices[d] === '' || !Number.isFinite(Number(cForm.prices[d])) || Number(cForm.prices[d]) < 0) { setErr(`กรอกราคาของ ${formatDuration(d)} ให้ถูกต้อง`); return; }
     }
+    // BUG-9: ค่าแรงต้องเป็นตัวเลข ≥ 0 (ค่าว่าง = 0 ได้) — อย่า clamp ค่าติดลบ/NaN เงียบๆ
+    for (const d of enabled) {
+      const cv = cForm.comms[d];
+      if (cv !== '' && cv != null && (!Number.isFinite(Number(cv)) || Number(cv) < 0)) { setErr(`กรอกค่าแรงของ ${formatDuration(d)} ให้ถูกต้อง`); return; }
+    }
     const durs = enabled;
     setErr('');
     // ค่าแรงเป็นบาทต่อช่วงเวลา (ค่าว่าง = 0)
     const commOf = (d) => Math.max(0, Math.round(Number(cForm.comms[d]) || 0));
 
     let nextServices = [...services];
-    let nextCats = [...cats];
+    // BUG-6: seed จาก orderedCats (ไม่ใช่ cats) — กันหมวดที่โผล่จาก services แต่หายจาก nextOrder filter ตอน cats ว่าง
+    let nextCats = [...orderedCats];
     // เปลี่ยนชื่อรายการ: ย้าย services + cats ตาม
     if (editingCat && name !== editingCat) {
       nextCats = nextCats.map((c) => (c === editingCat ? name : c));
@@ -322,6 +329,10 @@ export default function PageManage({ data, saveData }) {
     }
     if (!editingCat) nextCats = [...nextCats, name];
 
+    // BUG-1: เก็บ id แถวบริการที่จะถูกตัดออก — cloud sync เป็น upsert-only จึงต้องลบเอง
+    const removedServiceIds = nextServices
+      .filter((s) => s.category === name && s.duration != null && !durs.includes(s.duration))
+      .map((s) => s.id);
     // sync ช่วงราคาในรายการให้ตรงกับช่วงเวลาที่เลือก
     const oldCat = editingCat || name;
     nextServices = nextServices.filter((s) => !(s.category === name && s.duration != null && !durs.includes(s.duration)));
@@ -376,6 +387,8 @@ export default function PageManage({ data, saveData }) {
     const renamedFrom = editingCat && name !== editingCat ? editingCat : null;
     setShowC(false);
     alertDialog({ title: `${editingCat ? 'แก้ไข' : 'เพิ่ม'}รายการ ${name} แล้ว`, message: durs.map((d) => `${formatDuration(d)} ฿ ${Number(cForm.prices[d]).toLocaleString()} (ค่าแรง ฿ ${commOf(d).toLocaleString()})`).join(' · ') });
+    // BUG-1: ลบช่วงเวลาที่ถูกตัดใน cloud (ส่ง name ว่าง = ลบเฉพาะ service ids ไม่แตะหมวดที่ยังใช้อยู่)
+    if (removedServiceIds.length > 0) mustDeleteCloud(() => deleteCategoryFromCloud('', removedServiceIds), `ช่วงเวลาที่ลบจาก “${name}”`);
     if (renamedFrom) mustDeleteCloud(() => deleteCategoryFromCloud(renamedFrom, []), `ชื่อเก่า “${renamedFrom}”`);
   };
 
@@ -551,8 +564,9 @@ export default function PageManage({ data, saveData }) {
 
   const saveA = () => {
     if (!aForm.name.trim()) { setErr('กรอกชื่อบริการเสริม'); return; }
-    if (aForm.minutes === '' || Number(aForm.minutes) <= 0) { setErr('กรอกนาทีที่เพิ่มให้ถูกต้อง'); return; }
-    if (aForm.price === '' || Number(aForm.price) < 0) { setErr('กรอกราคาให้ถูกต้อง'); return; }
+    // BUG-7: ต้องเช็ก Number.isFinite ไม่งั้น NaN ผ่านการเทียบ <= 0 / < 0 ได้
+    if (aForm.minutes === '' || !Number.isFinite(Number(aForm.minutes)) || Number(aForm.minutes) <= 0) { setErr('กรอกนาทีที่เพิ่มให้ถูกต้อง'); return; }
+    if (aForm.price === '' || !Number.isFinite(Number(aForm.price)) || Number(aForm.price) < 0) { setErr('กรอกราคาให้ถูกต้อง'); return; }
     setErr('');
     const payload = { name: aForm.name.trim(), minutes: Number(aForm.minutes), price: Number(aForm.price), active: aForm.active };
     if (editingA) {
@@ -603,7 +617,8 @@ export default function PageManage({ data, saveData }) {
 
   const saveP = () => {
     if (!pForm.name.trim()) { setErr('กรอกชื่อโปรโมชัน'); return; }
-    if (pForm.amount === '' || Number(pForm.amount) <= 0) { setErr('กรอกยอดส่วนลดให้ถูกต้อง'); return; }
+    // BUG-7: ต้องเช็ก Number.isFinite ไม่งั้น NaN ผ่านการเทียบ <= 0 ได้
+    if (pForm.amount === '' || !Number.isFinite(Number(pForm.amount)) || Number(pForm.amount) <= 0) { setErr('กรอกยอดส่วนลดให้ถูกต้อง'); return; }
     setErr('');
     const payload = { name: pForm.name.trim(), amount: Number(pForm.amount), active: pForm.active };
     if (editingP) {
@@ -658,7 +673,8 @@ export default function PageManage({ data, saveData }) {
       <PushAdminCard />
       <div className="seg seg-icons" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr' }}>
         <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''} aria-label={`พนักงาน ${therapists.length} คน`}><Users size={17} strokeWidth={1.9} /><span>พนักงาน {therapists.length}</span></button>
-        <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''} aria-label={`รายการ ${cats.length} รายการ`}><LayoutGrid size={17} strokeWidth={1.9} /><span>รายการ {cats.length}</span></button>
+        {/* BUG-6: นับจาก orderedCats ให้ตรงกับแถวที่เรนเดอร์จริง (cats อาจว่างแต่ services มีหมวด) */}
+        <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''} aria-label={`รายการ ${orderedCats.length} รายการ`}><LayoutGrid size={17} strokeWidth={1.9} /><span>รายการ {orderedCats.length}</span></button>
         <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''} aria-label={`โปรโมชัน ${promos.length} รายการ`}><Tag size={17} strokeWidth={1.9} /><span>โปร {promos.length}</span></button>
         <button onClick={() => setTab('guarantee')} className={tab === 'guarantee' ? 'on' : ''} aria-label="ประกันมือ"><ShieldCheck size={17} strokeWidth={1.9} /><span>ประกันมือ</span></button>
         <button onClick={() => setTab('pass')} className={tab === 'pass' ? 'on' : ''} aria-label="รหัส"><KeyRound size={17} strokeWidth={1.9} /><span>รหัส</span></button>
@@ -692,7 +708,7 @@ export default function PageManage({ data, saveData }) {
           <CardHead
             title="รายการ + ราคา"
             right={<span style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={cats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
+              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={orderedCats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
               <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC} title="เพิ่มรายการ" aria-label="เพิ่มรายการ"><Plus size={15} /> <span className="btn-t">เพิ่มรายการ</span></button>
             </span>}
           />
@@ -722,7 +738,8 @@ export default function PageManage({ data, saveData }) {
               )}
             </div>
           ))}
-          {cats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="กดเพิ่มรายการ" />}
+          {/* BUG-6: เช็กจาก orderedCats ให้ตรงกับแถวที่เรนเดอร์จริง */}
+          {orderedCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="กดเพิ่มรายการ" />}
         </Card>
       )}
 

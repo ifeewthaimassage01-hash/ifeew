@@ -2,7 +2,9 @@
 import { buildMonthReport, fmtDNum, fmtTime } from '../components/MonthStatement';
 
 const cell = (v) => {
-  const s = String(v ?? '');
+  let s = String(v ?? '');
+  // กัน CSV/Formula injection: ค่าที่ขึ้นต้นด้วยอักขระสูตร → นำหน้าด้วย ' ให้ Excel มองเป็นข้อความ
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const num = (n) => Math.round(n || 0);

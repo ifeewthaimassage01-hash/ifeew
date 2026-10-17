@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
@@ -159,6 +159,11 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authPass, setAuthPass] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
+  // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิกเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: (editTarget || checkoutTarget || voidTarget) ? 1 : 0 } }));
+  }, [editTarget, checkoutTarget, voidTarget]);
+
   // โชว์ชื่อแทนรหัส: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากทะเบียนปัจจุบัน
   // หมอวิ่งตัด prefix เทคนิค (EXT-VIS-) เหลือแค่ชื่อ — ไม่โชว์รหัสดิบใน UI
   const therapistNameOf = (b, rows) => {
@@ -260,14 +265,23 @@ export default function OpenBillsSection({ data, saveData, role }) {
       endTime: c.endTime,
       addons: c.addons || [],
     }));
+    // BUG-OB-01: เพิ่ม/แก้รายการแล้วต้องคำนวณเวลาเริ่ม–จบระดับบิลใหม่ (min start – max end)
+    // เพื่อให้ slot ว่างนับเวลาตรง — กันเวลาบิลค้างของเดิมหลังต่อรายการท้าย
+    const rowStarts = normalized.map((c) => timeToMinutes(c.startTime)).filter((m) => m != null);
+    const rowEnds = normalized.map((c) => timeToMinutes(c.endTime)).filter((m) => m != null);
+    const billStartTime = rowStarts.length ? minutesToTime(Math.min(...rowStarts)) : editTarget.startTime;
+    const billEndTime = rowEnds.length ? minutesToTime(Math.max(...rowEnds)) : editTarget.endTime;
     return {
       meta: { rows: normalized, subtotal, disc },
       bill: {
         ...editTarget,
         discount: disc,
-        promotion: promosActive.find((p) => p.id === editPromoId)?.name || '',
+        // BUG-OB-03: โปรที่ถูกปิดไปแล้ว — คงป้ายโปรเดิมไว้ ไม่ให้หายตอนเซฟ
+        promotion: (promosActive.find((p) => p.id === editPromoId)?.name) ?? editTarget.promotion ?? '',
         paymentMethod: editPay,
         subtotal, total: subtotal - disc,
+        startTime: billStartTime,
+        endTime: billEndTime,
         items: normalized,
       },
     };

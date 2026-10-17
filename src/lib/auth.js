@@ -12,21 +12,28 @@ export function getOwnerPass(custom) {
 }
 
 // ดึงรหัสเจ้าของร้านจาก cloud (หน้า login ยังไม่มี data โหลดไว้ จึง query เอง)
-// ล้ม/ไม่มี = '' ให้ caller fallback ไป env/default
+// คืน { value, error } เพื่อแยก "ยังไม่ตั้ง" ออกจาก "อ่าน cloud ไม่ได้" (S3)
+// ห้าม fallback เป็น default เมื่ออ่าน cloud ล้ม — ไม่งั้นรหัสสาธารณะ '123123' จะถูกยอมรับ
 export async function fetchOwnerPass() {
+  if (!isSupabaseConfigured || !supabase) {
+    return { value: '', error: new Error('supabase ยังไม่ได้ตั้งค่า') };
+  }
   try {
-    if (!isSupabaseConfigured || !supabase) return '';
     const { data, error } = await supabase
       .from('app_settings').select('value').eq('key', 'owner_pass').maybeSingle();
-    if (error || !data) return '';
-    return typeof data.value === 'string' ? data.value : '';
-  } catch { return ''; }
+    if (error) return { value: '', error };
+    return { value: typeof data?.value === 'string' ? data.value : '', error: null };
+  } catch (e) {
+    return { value: '', error: e instanceof Error ? e : new Error(String(e)) };
+  }
 }
 
-// รหัสที่ใช้จริงตอน login: cloud > env > default
+// รหัสที่ใช้จริงตอน login: cloud > default(เฉพาะเมื่อ cloud อ่านได้และว่าง)
+// ถ้าอ่าน cloud ไม่ได้ → throw ให้ UI แจ้งเตือน ไม่ยอมรับ default
 export async function resolveOwnerPass() {
-  const cloud = await fetchOwnerPass();
-  return getOwnerPass(cloud);
+  const { value, error } = await fetchOwnerPass();
+  if (error) throw error;
+  return getOwnerPass(value);
 }
 
 // เตือนว่ายังใช้รหัส default อยู่หรือไม่ (เอาไว้โชว์คำเตือน ไม่ใช่ล็อก)

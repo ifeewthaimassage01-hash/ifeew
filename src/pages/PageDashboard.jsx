@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange, fmtDay } from '../components/ui';
-import { commBaht, isFreelance, GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf } from '../lib/billing';
+// BUG-01/BUG-02 (reports): ใช้ตัวช่วยกลาง (billRows/rowNet/billTotal/billLinesOf) จาก billing.js
+import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf } from '../lib/billing';
 import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
@@ -11,11 +12,7 @@ function localDay(offset = 0) {
   return bkkToday(offset);
 }
 
-const billRows = (b) => b.items || b.customers || [];
-const rowNet = (i) => i.net ?? i.price ?? 0;
-// สูตรยอดบิลมาตรฐานทั้งแอป (ตรงกับยอด total ที่เซฟ)
-const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
-// สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
+// (ย้าย helper billRows/rowNet/billTotal/billLinesOf ไปใช้ตัวกลางใน billing.js)
 
 export default function PageDashboard({ data, saveData }) {
   // วันธุรกิจตัดยอดตี 3 — หลังเที่ยงคืนถึงตี 3 ยังนับเป็นวันก่อนหน้า
@@ -68,16 +65,13 @@ export default function PageDashboard({ data, saveData }) {
   }, [singleDay, data]);
 
   // แยกยอดหมอประจำ / หมอวิ่ง (เฉพาะบิลชำระแล้ว) — M4: เช็กมาตรฐานที่เดียว (isFreelance)
+  // BUG-01/BUG-02 (reports): ใช้ billLinesOf กลาง (ปันส่วนลดท้ายบิล + ลดค่าแรงตามส่วนลด)
+  // ให้ยอดขาย/ค่าแรงตรงกับ MonthStatement (เอกสารทางการ) — เดิมไม่หักส่วนลดทำให้ยอดโป่ง
   const calcSplit = (bills) => {
     let regSales = 0, regComm = 0, extSales = 0, extComm = 0;
-    bills.forEach((b) => billRows(b).forEach((itm) => {
-      const tid = itm.therapistId || b.therapistId;
-      const net = itm.net ?? itm.price ?? 0;
-      const qty = itm.qty || 1;
-      const svc = (data.services || []).find((x) => x.id === itm.serviceId);
-      const comm = svc ? commBaht(svc) * qty : 0;
-      if (!isFreelance(tid, data.therapists)) { regSales += net; regComm += comm; }
-      else { extSales += net; extComm += comm; }
+    bills.forEach((b) => billLinesOf(b, data.services, data.therapists).forEach((l) => {
+      if (l.staff) { regSales += l.price; regComm += l.comm; }
+      else { extSales += l.price; extComm += l.comm; }
     }));
     return { regSales, regComm, extSales, extComm };
   };

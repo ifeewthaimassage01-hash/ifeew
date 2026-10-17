@@ -49,6 +49,52 @@ export function commBaht(s) {
   return Math.round((s.price || 0) * (s.flatRate || 0));
 }
 
+/* ===== ตัวช่วยคำนวณระดับบิล — source of truth เดียวของยอด/ราคา/ค่าแรง =====
+ * เติมให้ทุกหน้า (Statement/Dashboard/Commission/Bills) คิดตรงกัน กัน BUG-01/BUG-02 (reports)
+ * หมายเหตุเจตนาธุรกิจ: ส่วนลดท้ายบิลถูกปันลงแต่ละบรรทัดตามสัดส่วนราคา แล้วลดค่าแรงตามส่วนลด
+ * (ตรงกับ MonthStatement ซึ่งเป็นเอกสารทางการ) — ถ้าเจ้าของเปลี่ยนกฎ ให้แก้ที่ฟังก์ชันนี้ที่เดียว */
+
+// แถวบริการของบิล — ใช้ items ถ้ามี ไม่งั้น customers (กัน items:[] บังข้อมูล legacy)
+export function billRows(b) {
+  if (!b) return [];
+  if (Array.isArray(b.items) && b.items.length > 0) return b.items;
+  return b.customers || [];
+}
+
+export function rowNet(i) {
+  return (i && (i.net ?? i.price)) ?? 0;
+}
+
+// ยอดก่อนหักส่วนลดท้ายบิล
+export function billSubtotal(b) {
+  return billRows(b).reduce((s, i) => s + rowNet(i), 0);
+}
+
+// ยอดบิลสุทธิหลังหักส่วนลด (ตรงกับ total ที่เซฟ)
+export function billTotal(b) {
+  return Math.max(0, billSubtotal(b) - ((b && b.discount) || 0));
+}
+
+/* แตกลายละเอียดต่อบรรทัด: ปันส่วนลดท้ายบิลตามสัดส่วนราคา + ลดค่าแรงตามส่วนลด
+ * คืน [{ it, tid, gross, price, comm, net, staff }]
+ * ใช้ร่วมทุกหน้าเพื่อให้ยอดขาย/ค่าแรงตรงกันทั้งแอป */
+export function billLinesOf(b, services, therapists) {
+  const rows = billRows(b);
+  const subtotal = rows.reduce((s, it) => s + rowNet(it), 0);
+  const disc = Math.max(0, Math.min(subtotal, (b && b.discount) || 0));
+  return rows.map((it) => {
+    const tid = it.therapistId || (b && b.therapistId);
+    const gross = rowNet(it);
+    const share = subtotal > 0 ? gross / subtotal : (rows.length > 0 ? 1 / rows.length : 0);
+    const price = Math.max(0, gross - disc * share);
+    const svc = (services || []).find((x) => x.id === it.serviceId);
+    const fullComm = svc ? commBaht(svc) * (it.qty || 1) : 0;
+    const comm = gross > 0 ? (fullComm * price) / gross : 0;
+    const net = Math.max(0, price - comm);
+    return { it, svc, tid, gross, price, comm, net, staff: !isFreelance(tid, therapists) };
+  });
+}
+
 /* ลำดับหมวดบริการ (รายการ) — source of truth คือ data.serviceCategoryOrder
  * (sync ผ่าน app_settings key 'service_category_order', ดู cloudSync.js)
  * tolerant ข้อมูลเก่า: ชื่อไหนหลุดจาก order ที่เซฟให้ต่อท้ายตามตัวอักษรไทย,
@@ -107,20 +153,16 @@ export function guaranteeTopups(data, dateStr) {
   const dayAtt = (d.attendance || {})[dateStr];
   if (!dayAtt || typeof dayAtt !== 'object' || Array.isArray(dayAtt)) return [];
   const therapists = d.therapists || [];
-  const svcById = new Map(((d.services || [])).map((s) => [String(s && s.id), s]));
   // earned ต่อหมอ — นับเฉพาะงานหมอประจำ (ข้ามงานหมอวิ่งตั้งแต่ตอนสะสม ตรงกับ PageCommission)
+  // BUG-02 (reports): ใช้ billLinesOf กลางให้ค่าแรงหักส่วนลดท้ายบิลเหมือน Statement/Dashboard
   const earned = {};
   for (const b of d.bills || []) {
     if (!b || b.status !== 'paid') continue;
     if (bizDateOf(b.date || b.createdAt) !== dateStr) continue;
-    for (const itm of b.items || b.customers || []) {
-      const tid = (itm && itm.therapistId) || b.therapistId;
-      if (tid == null || tid === '') continue;
-      if (isFreelance(tid, therapists)) continue;
-      const svc = svcById.get(String(itm.serviceId));
-      const comm = svc ? commBaht(svc) * ((itm && itm.qty) || 1) : 0;
-      const k = String(tid);
-      earned[k] = (earned[k] || 0) + comm;
+    for (const l of billLinesOf(b, d.services, therapists)) {
+      if (!l.staff) continue;
+      const k = String(l.tid);
+      earned[k] = (earned[k] || 0) + l.comm;
     }
   }
   const out = [];
@@ -138,10 +180,15 @@ export function guaranteeTopups(data, dateStr) {
  * อ่าน att/bills/expenses จาก d ล้วน (ไม่พึ่ง haveGKeys ภายนอก กันอ่านค่าตัวเก่า) */
 export function guaranteeSigOf(d, dateStr) {
   const dd = d || {};
+  // BUG-001: รวมยอดตั้งค่า guaranteeAmount + ยอดเงินของแต่ละแถวประกัน เพื่อให้แก้ยอดตั้งค่าแล้ว trigger reconcile
+  const gAmt = guaranteeAmountOf(dd);
   const att = Object.keys(((dd.attendance || {})[dateStr]) || {}).sort().join(',');
   const dayBills = (dd.bills || []).filter((b) => b && b.status === 'paid' && bizDateOf(b.date || b.createdAt) === dateStr).map((b) => b.id).sort().join(',');
-  const dayG = ((dd.expenses || []).map((e) => e && e.notes).filter((n) => typeof n === 'string' && n.startsWith('guarantee:'))).filter((k) => k.endsWith(`:${dateStr}`)).sort().join(',');
-  return `${dateStr}|${att}|${dayBills}|${dayG}`;
+  const dayG = ((dd.expenses || [])
+    .filter((e) => e && typeof e.notes === 'string' && e.notes.startsWith('guarantee:') && e.notes.endsWith(`:${dateStr}`))
+    .map((e) => `${e.notes}=${Number(e.amount) || 0}`)
+    .sort().join(','));
+  return `${dateStr}|${gAmt}|${att}|${dayBills}|${dayG}`;
 }
 
 /* สร้าง expense rows ประกันมือให้ทุกคนใน guaranteeTopups ที่ยังไม่มีของคู่นั้น
@@ -154,24 +201,33 @@ export function ensureGuaranteeEntries(data, dateStr) {
   if (!data || !dateStr) return { data, created: 0 };
   const tops = guaranteeTopups(data, dateStr);
   if (tops.length === 0) return { data, created: 0 };
-  const seen = new Set(
-    (data.expenses || []).map((e) => e && e.notes).filter((n) => typeof n === 'string' && n),
-  );
+  // BUG-001: เติมส่วนที่ขาดจริง (delta) แทนการข้ามทั้ง key เมื่อมีแถวเดิม —
+  //   กันยอดประกันค้างต่ำหลังเจ้าของปรับ guaranteeAmount เพิ่ม (reconcile ดูแลเฉพาะกรณีเกิน)
+  const existingByKey = {};
+  (data.expenses || []).forEach((e) => {
+    if (!e || typeof e.notes !== 'string') return;
+    if (!e.notes.startsWith('guarantee:') || !e.notes.endsWith(`:${dateStr}`)) return;
+    existingByKey[e.notes] = (existingByKey[e.notes] || 0) + (Number(e.amount) || 0);
+  });
   const ts = bkkNow();
   const base = Date.now();
   const newExpenses = [];
   const newAudits = [];
+  const createdKeys = new Set();
   tops.forEach((t, i) => {
     const key = `guarantee:${t.therapistId}:${dateStr}`;
-    if (seen.has(key)) return;
     if (!Number.isFinite(t.shortfall) || t.shortfall <= 0) return;
-    seen.add(key);
+    if (createdKeys.has(key)) return; // กันซ้ำใน batch เดียวกัน
+    const already = existingByKey[key] || 0;
+    const delta = t.shortfall - already;
+    if (delta <= 0) return; // พอ/เกินแล้ว → ปล่อยให้ reconcile ปรับลด
+    createdKeys.add(key);
     newExpenses.push({
       id: nextExpenseId(data.expenses),
       date: dateStr,
       category: GUARANTEE_CATEGORY,
       item: `ประกันมือ ${t.name} ${dateStr}`,
-      amount: t.shortfall,
+      amount: delta,
       method: 'เงินสด',
       approvedBy: 'ระบบอัตโนมัติ',
       notes: key,
@@ -184,7 +240,7 @@ export function ensureGuaranteeEntries(data, dateStr) {
       action: 'ประกันมืออัตโนมัติ',
       detail: `${t.therapistId} · ${t.name} · ${dateStr}`,
       oldValue: `฿ ${t.earned}`,
-      newValue: `฿ ${t.shortfall}`,
+      newValue: `฿ ${delta}`,
       approvedBy: 'ระบบอัตโนมัติ',
     });
   });
@@ -196,11 +252,11 @@ export function ensureGuaranteeEntries(data, dateStr) {
       auditLog: [...(data.auditLog || []), ...newAudits],
     },
     created: newExpenses.length,
-    // added: รายชื่อที่สร้างรอบนี้ (ให้ UI โชว์ข้อความ — สัญญากลางเดิม {data, created} ยังครบ)
-    added: tops
-      .filter((t) => seen.has(`guarantee:${t.therapistId}:${dateStr}`)
-        && newExpenses.some((e) => e.notes === `guarantee:${t.therapistId}:${dateStr}`))
-      .map((t) => ({ therapistId: t.therapistId, name: t.name, shortfall: t.shortfall })),
+    // added: รายชื่อที่สร้างรอบนี้ (delta จริง) — สัญญากลางเดิม {data, created} ยังครบ
+    added: newExpenses.map((e) => {
+      const t = tops.find((x) => `guarantee:${x.therapistId}:${dateStr}` === e.notes) || {};
+      return { therapistId: t.therapistId, name: t.name, shortfall: e.amount };
+    }),
   };
 }
 

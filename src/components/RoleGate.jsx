@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
-import { getOwnerPass, resolveOwnerPass } from '../lib/auth';
+import { resolveOwnerPass } from '../lib/auth';
 
 // รหัสผ่านเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (C6)
-// หมายเหตุ: การเช็กฝั่ง client กันได้แค่ระดับ UI ควรย้ายไปตรวจฝั่ง server / Supabase RLS ต่อ
-// เต็มรูปต้อง server auth — sessionStorage ปลอมได้ จึงมีแค่อายุ 12 ชม. กันเครื่องค้าง
-export const OWNER_PASS = getOwnerPass();
+// NOTE(security): การเช็กฝั่ง client กันได้แค่ระดับ UI เต็มรูปต้องย้ายไปตรวจฝั่ง server
+// ห้าม export ค่า default ตายตัว (OWNER_PASS เดิม) เพราะเผยรหัสสาธารณะ '123123' ใน bundle
 const ROLE_KEY = 'ifeew_role';
 // C3-role: อายุ session เจ้าของร้าน 12 ชม. (staff ไม่มีหมดอายุ คงเดิม)
 const ROLE_EXP_KEY = 'ifeew_role_exp';
@@ -60,6 +59,9 @@ export default function RoleGate({ onSelect }) {
       } else {
         setErr('รหัสไม่ถูกต้อง ลองอีกครั้ง');
       }
+    } catch (e) {
+      // S3: อ่าน cloud ไม่ได้ → ห้าม fallback เป็น default เงียบ → แจ้งเตือนให้ผู้ใช้รู้
+      setErr(e?.message || 'ตรวจสอบรหัสไม่สำเร็จ กรุณาลองใหม่');
     } finally {
       setChecking(false);
     }

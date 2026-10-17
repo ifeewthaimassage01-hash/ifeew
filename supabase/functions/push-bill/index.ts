@@ -16,7 +16,23 @@ const baht = (n: unknown) => `฿${Number(n || 0).toLocaleString("th-TH")}`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
   try {
+    // กันคนนอกยิงเข้า function ตรง ๆ แล้วสแปม push (S7/push-bill)
+    // ตั้ง secret ฝั่ง Supabase secrets: PUSH_WEBHOOK_SECRET แล้วใส่ header เดียวกันใน Database Webhook
+    // ถ้ายังไม่ตั้ง env = ข้ามการตรวจ (คงพฤติกรรมเดิม ไม่พังระบบที่ deploy อยู่)
+    const WEBHOOK_SECRET = Deno.env.get("PUSH_WEBHOOK_SECRET") || "";
+    if (WEBHOOK_SECRET) {
+      const got =
+        req.headers.get("x-webhook-secret") ||
+        (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
+      if (got !== WEBHOOK_SECRET) return json({ sent: 0, skipped: "unauthorized" }, 401);
+    }
+
     const VAPID_SUBJECT = Deno.env.get("VAPID_SUBJECT") || "mailto:admin@example.com";
     const VAPID_PUBLIC_KEY = Deno.env.get("VAPID_PUBLIC_KEY") || "";
     const VAPID_PRIVATE_KEY = Deno.env.get("VAPID_PRIVATE_KEY") || "";
@@ -47,8 +63,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // open = เปิดบิล (INSERT ไร้ status ถือว่า default 'open'); paid = เช็คบิล — นอกนั้น (cancelled/void) ข้าม
+    // S7: เดิม `!status && type !== "INSERT"` ทำให้ UPDATE ที่ไม่มี status ถูกตีเป็น paid (ส่ง push ผิด)
+    // ตอนนี้ paid ต้องเป็น status === 'paid' เท่านั้น
     const isOpen = status === "open" || (!status && type === "INSERT");
-    const isPaid = status === "paid" || (!status && type !== "INSERT");
+    const isPaid = status === "paid";
     if (!isOpen && !isPaid) {
       return new Response(JSON.stringify({ sent: 0, skipped: "not-paid" }), {
         status: 200,
@@ -158,6 +176,8 @@ Deno.serve(async (req: Request) => {
     }
 
     let sent = 0;
+    let failed = 0;
+    const stale: string[] = [];
     await Promise.all(
       list.map(async (s: { endpoint: string; p256dh: string; auth: string }) => {
         try {
@@ -166,23 +186,26 @@ Deno.serve(async (req: Request) => {
             payload,
           );
           sent += 1;
-        } catch {
-          // subscription หมดอายุ/ส่งล้ม = ข้าม (เจ้าของลบแถวได้ตาม PUSH_SETUP.md)
+        } catch (err) {
+          failed += 1;
+          const code = (err as { statusCode?: number })?.statusCode;
+          // 404/410 = subscription ตายถาวร → เก็บไว้ลบออกจาก DB
+          if (code === 404 || code === 410) stale.push(s.endpoint);
+          console.error("push-bill send failed", code, s.endpoint);
         }
       }),
     );
+    if (stale.length > 0) {
+      const { error: delErr } = await sb.from("push_subscriptions").delete().in("endpoint", stale);
+      if (delErr) console.error("push-bill prune failed", delErr.message);
+    }
 
-    console.log("push-bill result:", JSON.stringify({ sent, subsCount: list.length }));
+    console.log("push-bill result:", JSON.stringify({ sent, failed, pruned: stale.length, subsCount: list.length }));
 
-    return new Response(JSON.stringify({ sent }), {
-      status: 200,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ sent, failed, pruned: stale.length });
   } catch (e) {
     // return 200 เสมอ กัน webhook retry สแปม
-    return new Response(JSON.stringify({ sent: 0, error: String(e) }), {
-      status: 200,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    console.error("push-bill fatal", String(e));
+    return json({ sent: 0, error: String(e) });
   }
 });
