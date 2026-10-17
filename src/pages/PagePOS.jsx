@@ -184,6 +184,17 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const [err, setErr] = useState('');
   // M7: กันกดเปิดบิลซ้ำ (ดับเบิลแตะสร้างบิลคู่)
   const [creating, setCreating] = useState(false);
+  const wizardGuardRef = useRef(false);
+
+  // บอก App ว่ากำลังเลือกหมอ/เวลา/ตรวจสอบบิล — realtime จะได้ไม่โหลดทับกลางคัน
+  useEffect(() => {
+    const isWizardActive = step >= 3 && step <= 5;
+    const prev = wizardGuardRef.current;
+    wizardGuardRef.current = isWizardActive;
+    if (prev !== isWizardActive) {
+      window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: isWizardActive ? 1 : 0 } }));
+    }
+  }, [step]);
 
   // รายการที่จองได้ = มีบริการแบบมีระยะเวลา — เรียงตามลำดับที่จัดในจัดการร้าน (serviceCategoryOrder)
   const bookableCats = useMemo(() => {
@@ -332,6 +343,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   };
   const pickTherapist = (id) => {
     setSelectedTherapist(id);
+    setSelectedStartTime(null);
     setErr('');
   };
 
@@ -378,6 +390,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
   const openBill = async () => {
     if (creating) return;
+    // ตรวจซ้ำก่อนเซฟ: กันเครื่องอื่นจองช่วงเวลาเดียวกันเข้าไปก่อนแล้ว
+    const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
+    if (clash) {
+      setErr('เวลานี้ชนกับคิวที่จองแล้ว (มีผู้ใช้งานคนอื่นจองไปก่อน) ลองเลือกเวลาว่างถัดไป');
+      return;
+    }
     setCreating(true);
     try {
     const id = generateBillId(data.bills);
