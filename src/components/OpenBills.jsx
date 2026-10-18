@@ -45,11 +45,18 @@ function timeToMinutes(t) {
   return h * 60 + m;
 }
 
+/* แสดงค่าเวลา "HH:mm" แบบนาฬิกา — ค่าที่เกินเที่ยงคืน (≥24:00) วนเป็น 00:xx */
+function clockStr(t) {
+  const m = timeToMinutes(t);
+  return m == null ? t : minutesToTime(((m % 1440) + 1440) % 1440);
+}
+
 /* ข้อความเวลาของรายการ: "12:15 – 14:15 · รวม 2 ชม" */
 function itemTimeText(it) {
   const mins = it.totalMinutes || it.duration || 0;
   const startMin = timeToMinutes(it.startTime);
-  const end = it.endTime || (startMin != null && mins > 0 ? minutesToTime(startMin + mins) : '');
+  const endRaw = it.endTime || (startMin != null && mins > 0 ? minutesToTime(startMin + mins) : '');
+  const end = clockStr(endRaw);
   if (!it.startTime && !end) return '—';
   return `${it.startTime || '?'} – ${end || '?'}${mins > 0 ? ` · รวม ${formatDuration(mins)}` : ''}`;
 }
@@ -420,7 +427,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
               <div className="ob-rows">
               {rows.map((it, i) => (
                 <div key={i} className="ob-row">
-                  <span className="ob-time muted">{(it.startTime || it.endTime) ? `${it.startTime || '?'}–${it.endTime || '?'}` : '—'}</span>
+                  <span className="ob-time muted">{(it.startTime || it.endTime) ? `${it.startTime || '?'}–${clockStr(it.endTime) || '?'}` : '—'}</span>
                   <span className="ob-name">{serviceNameOf(it)}</span>
                   <b className="ob-price">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
                 </div>

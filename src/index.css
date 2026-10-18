@@ -1364,6 +1364,18 @@ label.filebtn {
 .time-menu { display: flex; flex-direction: column; gap: 2px; overflow-x: hidden; overflow-y: auto; max-height: 240px; }
 .time-menu .dropdown-item { flex: none; width: 100%; justify-content: center; font-size: 16px; font-weight: 700; padding: 10px; font-variant-numeric: tabular-nums; }
 .timepick-colon { font-size: 22px; font-weight: 700; color: var(--brown); align-self: center; }
+/* Time slots — เมนูเลือกเวลาเริ่มตัวเดียว + จุดสีบอกสถานะ ว่าง/ชนคิว/เกินเวลา */
+.ts-menu { display: flex; flex-direction: column; gap: 2px; overflow-x: hidden; overflow-y: auto; max-height: 264px; }
+.ts-item { flex: none; width: 100%; justify-content: flex-start; gap: 10px; font-size: 14.5px; font-weight: 700; padding: 10px 12px; font-variant-numeric: tabular-nums; }
+.ts-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: #cfc2b0; }
+.ts-dot.free { background: var(--green-ok); }
+.ts-dot.clash { background: var(--red); }
+.ts-time { flex: 0 0 auto; }
+.ts-tail { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.ts-tag { font-size: 11px; font-weight: 600; }
+.ts-tag.clash { color: var(--red); }
+.ts-tag.oob { color: var(--muted); }
+.ts-item .dd-check { margin-left: 0; }
 .tend-box { font-size: 11.5px; font-weight: 700; color: var(--brown-dark); background: var(--brown-tint-2); border: 1px solid #e7d6c3; border-radius: 8px; padding: 6px 10px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tend-box.full { display: block; text-align: center; font-size: 13.5px; padding: 10px; border-radius: 12px; margin-top: 8px; }
 

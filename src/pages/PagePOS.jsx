@@ -13,6 +13,13 @@ function minutesToTime(m) {
   return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
+/* แสดงเวลานาฬิกา 00:00–23:59 — ค่าที่เกินเที่ยงคืน (≥24:00) วนกลับให้อ่านง่าย
+   (เก็บค่าดิบเกิน 24:00 ไว้คำนวณ/เทียบช่วงเวลาให้เรียงถูก) */
+function clockTime(m) {
+  if (m == null) return '—';
+  return minutesToTime(((m % 1440) + 1440) % 1440);
+}
+
 function timeToMinutes(t) {
   if (!t || !String(t).includes(':')) return null;
   const [h, m] = String(t).split(':').map(Number);
@@ -31,12 +38,17 @@ function snap15(m) {
 }
 
 const OPEN_MIN = 12 * 60;
-const CLOSE_MIN = 23 * 60;
+// รับคิวสุดท้าย 22:30 — เริ่มได้ถึงเวลานี้ทุกความยาวบริการ (อาจจบหลัง 23:00 ได้)
+const LAST_START_MIN = 22 * 60 + 30;
 const GRID_STEP = 15;
 
-/* Dropdown เวลาใบใหญ่ — ตัวเลขใหญ่ + ป้ายชั่วโมง/นาที เข้าธีมร้าน
+/* ป้ายสถานะของแต่ละช่องเวลา — ว่าง = ไม่มีป้าย */
+const SLOT_TAG = { free: '', clash: 'ชนคิว', oob: 'เกินเวลา' };
+
+/* Dropdown เลือกเวลาเริ่มตัวเดียว — เมนูเป็นช่วงละ 15 นาที พร้อมจุดสีบอกสถานะ
+   ว่าง (เขียว) · ชนคิว (แดง) · เกินเวลาร้าน (จาง)
    รองรับคีย์บอร์ด: ↓/↑ เปิดเมนู, Esc ปิด, ลูกศรเลื่อน + Enter เลือก */
-function TimeDropdown({ value, options, onChange, label, sub }) {
+function TimeSlotPicker({ value, slots, onChange, label = 'เวลาเริ่ม', sub = 'เวลาเริ่ม' }) {
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
   const ref = useRef(null);
@@ -44,7 +56,6 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
   const menuRef = useRef(null);
   const itemRefs = useRef([]);
   const menuId = useId();
-  const current = options.find((o) => o.v === value);
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -55,10 +66,10 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
   // เปิดเมนูทีไร ไฮไลต์ค่าปัจจุบัน + ย้ายโฟกัสเข้าเมนูเพื่อกดลูกศรต่อได้เลย
   useEffect(() => {
     if (open) {
-      setHi(Math.max(0, options.findIndex((o) => o.v === value)));
+      setHi(Math.max(0, slots.findIndex((o) => o.v === value)));
       menuRef.current?.focus();
     }
-  }, [open, options, value]);
+  }, [open, slots, value]);
 
   const pick = (v) => {
     onChange(v);
@@ -67,7 +78,7 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
   };
 
   const move = (d) => {
-    const n = Math.min(options.length - 1, Math.max(0, hi + d));
+    const n = Math.min(slots.length - 1, Math.max(0, hi + d));
     setHi(n);
     itemRefs.current[n]?.scrollIntoView({ block: 'nearest' });
   };
@@ -77,8 +88,8 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
     else if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
     else if (e.key === 'Home') { e.preventDefault(); setHi(0); itemRefs.current[0]?.scrollIntoView({ block: 'nearest' }); }
-    else if (e.key === 'End') { e.preventDefault(); const n = options.length - 1; setHi(n); itemRefs.current[n]?.scrollIntoView({ block: 'nearest' }); }
-    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (options[hi]) pick(options[hi].v); }
+    else if (e.key === 'End') { e.preventDefault(); const n = slots.length - 1; setHi(n); itemRefs.current[n]?.scrollIntoView({ block: 'nearest' }); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (slots[hi]) pick(slots[hi].v); }
     else if (e.key === 'Tab') setOpen(false);
   };
 
@@ -95,7 +106,7 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
         aria-expanded={open}
         aria-controls={menuId}
       >
-        <span className="timepick-val">{current?.l ?? '--'}</span>
+        <span className="timepick-val">{value != null ? minutesToTime(value) : '--:--'}</span>
         <span className="timepick-sub">{sub}</span>
         <ChevronDown size={16} strokeWidth={1.9} className="dd-caret" aria-hidden="true" />
       </button>
@@ -103,14 +114,14 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
         <div
           ref={menuRef}
           id={menuId}
-          className="dropdown-menu time-menu"
+          className="dropdown-menu ts-menu"
           role="listbox"
           aria-label={label}
-          aria-activedescendant={options[hi] ? `${menuId}-opt-${hi}` : undefined}
+          aria-activedescendant={slots[hi] ? `${menuId}-opt-${hi}` : undefined}
           tabIndex={-1}
           onKeyDown={onMenuKey}
         >
-          {options.map((o, i) => (
+          {slots.map((o, i) => (
             <button
               key={o.v}
               id={`${menuId}-opt-${i}`}
@@ -118,13 +129,17 @@ function TimeDropdown({ value, options, onChange, label, sub }) {
               type="button"
               role="option"
               aria-selected={value === o.v}
-              className={`dropdown-item${value === o.v ? ' on' : ''}${hi === i ? ' hi' : ''}`}
+              className={`dropdown-item ts-item${value === o.v ? ' on' : ''}${hi === i ? ' hi' : ''}`}
               onClick={() => pick(o.v)}
               onMouseEnter={() => setHi(i)}
               onFocus={() => setHi(i)}
             >
-              {o.l}
-              {value === o.v && <Check size={14} strokeWidth={1.9} className="dd-check" aria-hidden="true" />}
+              <span className={`ts-dot ${o.s}`} aria-hidden="true" />
+              <span className="ts-time">{o.l}</span>
+              <span className="ts-tail">
+                {SLOT_TAG[o.s] ? <span className={`ts-tag ${o.s}`}>{SLOT_TAG[o.s]}</span> : null}
+                {value === o.v && <Check size={14} strokeWidth={1.9} className="dd-check" aria-hidden="true" />}
+              </span>
             </button>
           ))}
         </div>
@@ -279,17 +294,17 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const timeError = useMemo(() => {
     if (selectedStartTime == null || pickedServices.length === 0) return '';
     if (selectedStartTime < OPEN_MIN) return `ร้านเปิด ${minutesToTime(OPEN_MIN)} — เลือกเวลาหลังจากนั้น`;
-    if (billEnd != null && billEnd > CLOSE_MIN) return `เวลานี้จบเกิน ${minutesToTime(CLOSE_MIN)} — ร้านปิดแล้ว`;
+    if (selectedStartTime > LAST_START_MIN) return `รับคิวสุดท้าย ${minutesToTime(LAST_START_MIN)} — เลือกเวลาไม่เกินนี้`;
     const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
     if (clash) return 'เวลานี้ชนกับคิวที่จองแล้ว ลองขยับเวลา';
     return '';
   }, [selectedStartTime, pickedServices.length, billEnd, bookedSlots]);
 
-  // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / เกินเวลาร้าน
+  // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / นอกช่วงรับคิว (เกิน 22:30)
   const slotState = (t) => {
     if (pickedServices.length === 0) return 'oob';
-    // BUG-POS-02: ใช้ billSpan ให้ตรงกับ timeError (อย่าใช้ billMinutes ที่ไม่รวมพักห้อง)
-    if (t < OPEN_MIN || t + billSpan > CLOSE_MIN) return 'oob';
+    // รับคิวสุดท้าย 22:30 — เริ่มได้ถึงเวลานี้ทุกความยาว (อาจจบหลัง 23:00 ได้)
+    if (t < OPEN_MIN || t > LAST_START_MIN) return 'oob';
     const clash = bookedSlots.some((s) => t < s.end && t + billSpan > s.start);
     return clash ? 'clash' : 'free';
   };
@@ -299,11 +314,25 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     if (pickedServices.length === 0) return null;
     const start = Math.max(snap15(base ?? nowMinutes()), OPEN_MIN);
     // BUG-POS-02: ใช้ billSpan ในการกวาดหาช่องว่าง
-    for (let t = start; t + billSpan <= CLOSE_MIN; t += GRID_STEP) {
+    for (let t = start; t <= LAST_START_MIN; t += GRID_STEP) {
       if (slotState(t) === 'free') return t;
     }
     return null;
   };
+
+  // ตัวเลือกเวลาเริ่ม 12:00 → 22:30 (รับคิวสุดท้าย 22:30) + สถานะแต่ละช่อง (ว่าง/ชนคิว)
+  const timeSlots = [];
+  for (let t = OPEN_MIN; t <= LAST_START_MIN; t += GRID_STEP) {
+    const s = slotState(t);
+    if (s === 'oob') continue;
+    timeSlots.push({ v: t, l: minutesToTime(t), s });
+  }
+
+  // เข้าขั้น 4 แล้วยังไม่เลือกเวลา → ตั้งเป็นเวลาปัจจุบัน (ปัดเป็น 15 นาที + ไม่เกิน 22:30)
+  useEffect(() => {
+    if (step !== 4 || pickedServices.length === 0 || selectedStartTime != null) return;
+    setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), LAST_START_MIN));
+  }, [step]);
 
   // เข้าขั้น 4 แล้วเวลาชนคิว → ขยับไปช่วงว่างถัดไปให้เลย (กันกดซ้ำด้วย ref)
   const snapGuard = useRef({ doneFor: null });
@@ -345,7 +374,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       setSelectedAddons([]);
       // default เวลาเริ่ม = เวลาปัจจุบัน (ตั้งครั้งแรกครั้งเดียว ไม่ทับที่เลือกไว้)
       if (selectedStartTime == null) {
-        setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), CLOSE_MIN - 30));
+        setSelectedStartTime(Math.min(Math.max(nowMinutes(), OPEN_MIN), LAST_START_MIN));
       }
     }
     setErr('');
@@ -630,38 +659,13 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           />
           <div className="field">
             <label>เวลาเริ่ม</label>
-            <div className="timepick-row">
-              <TimeDropdown
-                label="ชั่วโมง"
-                sub="ชั่วโมง"
-                value={selectedStartTime != null ? Math.floor(selectedStartTime / 60) : null}
-                onChange={(h) => {
-                  const curMin = selectedStartTime != null ? selectedStartTime % 60 : 0;
-                  setSelectedStartTime(h * 60 + curMin);
-                  setErr('');
-                }}
-                options={Array.from({ length: Math.floor(CLOSE_MIN / 60) - Math.floor(OPEN_MIN / 60) + 1 }, (_, i) => Math.floor(OPEN_MIN / 60) + i).map((h) => ({ v: h, l: String(h).padStart(2, '0') }))}
-              />
-              <span className="timepick-colon">:</span>
-              <TimeDropdown
-                label="นาที"
-                sub="นาที"
-                value={selectedStartTime != null ? selectedStartTime % 60 : 0}
-                onChange={(m) => {
-                  const curH = selectedStartTime != null ? Math.floor(selectedStartTime / 60) : Math.floor(OPEN_MIN / 60);
-                  setSelectedStartTime(curH * 60 + m);
-                  setErr('');
-                }}
-                options={(() => {
-                  const cur = selectedStartTime != null ? selectedStartTime % 60 : 0;
-                  const steps = Array.from({ length: 12 }, (_, i) => i * 5);
-                  const opts = steps.includes(cur) ? steps : [...steps, cur].sort((a, b) => a - b);
-                  return opts.map((m) => ({ v: m, l: String(m).padStart(2, '0') }));
-                })()}
-              />
-            </div>
+            <TimeSlotPicker
+              value={selectedStartTime}
+              slots={timeSlots}
+              onChange={(v) => { setSelectedStartTime(v); setErr(''); }}
+            />
             {selectedStartTime != null && (
-              <div className="tend-box full">จบ {billEnd != null ? minutesToTime(billEnd) : '—'} · รวม {formatDuration(billMinutes)}</div>
+              <div className="tend-box full">จบ {billEnd != null ? clockTime(billEnd) : '—'} · รวม {formatDuration(billMinutes)}</div>
             )}
             {timeError && (
               <div className="alert warn">{timeError}
@@ -681,9 +685,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             <div className="summary-box">
               <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
               {chained.map((p, i) => (
-                <div key={p.key} className="r"><span>{i + 1}. {p.serviceName}</span><b>{minutesToTime(p.start)} – {minutesToTime(p.end)}</b></div>
+                <div key={p.key} className="r"><span>{i + 1}. {p.serviceName}</span><b>{clockTime(p.start)} – {clockTime(p.end)}</b></div>
               ))}
-              <div className="r"><span>เวลารวม</span><b>{minutesToTime(selectedStartTime)} – {billEnd != null ? minutesToTime(billEnd) : '—'} · {formatDuration(billMinutes)}</b></div>
+              <div className="r"><span>เวลารวม</span><b>{clockTime(selectedStartTime)} – {billEnd != null ? clockTime(billEnd) : '—'} · {formatDuration(billMinutes)}</b></div>
               <div className="r"><span>ราคา</span><b>฿ {subtotal.toLocaleString()}</b></div>
             </div>
           )}
@@ -715,7 +719,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 <span className="q">{idx + 1}</span>
                 <span className="tt">
                   <b>{p.serviceName}</b>
-                  <small>{minutesToTime(p.start)}–{minutesToTime(p.end)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
+                  <small>{clockTime(p.start)}–{clockTime(p.end)}{(p.addons || []).length ? ` · +${p.addons.map((a) => `${a.name} ${a.minutes}น`).join(', ')}` : ''}</small>
                 </span>
                 <span className="qty">
                   <button onClick={() => removePickedService(p.key)} aria-label={`ลบบริการ ${p.serviceName}`}><Trash2 size={14} strokeWidth={1.9} /></button>
