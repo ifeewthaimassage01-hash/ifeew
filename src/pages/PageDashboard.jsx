@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
-import { Card, CardHead, PageHeader, DateRange, inDateRange, fmtRange, fmtDay } from '../components/ui';
+import { Card, CardHead, PageHeader, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 // BUG-01/BUG-02 (reports): ใช้ตัวช่วยกลาง (billRows/rowNet/billTotal/billLinesOf) จาก billing.js
 import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf } from '../lib/billing';
 import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
@@ -18,14 +18,13 @@ export default function PageDashboard({ data, saveData }) {
   // วันธุรกิจตัดยอดตี 3 — หลังเที่ยงคืนถึงตี 3 ยังนับเป็นวันก่อนหน้า
   const today = bizToday();
   const [tab, setTab] = useState('day');
-  const [dr, setDr] = useState({ from: today, to: today });
+  const [filterDate, setFilterDate] = useState(today);
   const [stmtMonth, setStmtMonth] = useState(() => today.slice(0, 7));
   const [guaranteeMsg, setGuaranteeMsg] = useState('');
   const paidBills = (data.bills || []).filter((b) => b.status === 'paid');
 
   // เติมรายจ่ายประกันอัตโนมัติเมื่อดูวันเดียว (tab รายวัน) — การ์ด loop แบบเดียวกับหน้าค่าแรง:
-  // strict ตรวจ created>0 ถึง saveData + ลายเซ็นข้อมูลกัน double-invoke เซฟซ้ำ
-  const singleDay = tab === 'day' && dr.from && dr.from === dr.to ? dr.from : null;
+  const singleDay = tab === 'day' ? filterDate : null;
   const ensureSig = useRef('');
   const busyRef = useRef(false);
   const pendingRef = useRef(null);
@@ -78,15 +77,15 @@ export default function PageDashboard({ data, saveData }) {
 
   // บิลนับตาม "วันที่ธุรกิจ" (00:00–02:59 = วันก่อนหน้า); รายจ่ายมีแค่วันที่นับตามปฏิทิน
   // P1-6: ใช้ bizDateOf(b.date||b.createdAt) ให้เหมือน billing.js / PageCommission / PageBills (กันบิล date ว่างหลุด)
-  const rangeBills = paidBills.filter((b) => inDateRange(bizDateOf(b.date || b.createdAt), dr.from, dr.to));
+  const rangeBills = paidBills.filter((b) => inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
   const rangeSplit = calcSplit(rangeBills);
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   // GUARANTEE (พิกัด frontend-agent: PageDashboard.jsx ใต้ rangeSplit/netToday) — กันนับซ้ำ:
   // expense หมวด 'ค่าประกันมือหมอ' หักออกจาก expenseSum แล้วบวกเข้า regComm (net นับครั้งเดียวฝั่ง regComm)
   const guaranteeToday = (data.expenses || [])
-    .filter((e) => e.category === GUARANTEE_CATEGORY && inDateRange(e.date, dr.from, dr.to))
+    .filter((e) => e.category === GUARANTEE_CATEGORY && inSingleDay(e.date, filterDate))
     .reduce((s, e) => s + (e.amount || 0), 0);
-  const expenseTodayRaw = (data.expenses || []).filter((e) => inDateRange(e.date, dr.from, dr.to)).reduce((s, e) => s + (e.amount || 0), 0);
+  const expenseTodayRaw = (data.expenses || []).filter((e) => inSingleDay(e.date, filterDate)).reduce((s, e) => s + (e.amount || 0), 0);
   const expenseToday = expenseTodayRaw - guaranteeToday;
   const regCommAdj = rangeSplit.regComm + guaranteeToday;
   const freelanceToday = rangeSplit.extComm;
@@ -106,7 +105,7 @@ export default function PageDashboard({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={tab === 'day' ? `สรุป ${fmtRange(dr.from, dr.to)}` : `สรุป${month.monthLabel}`} />
+      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={tab === 'day' ? `สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}` : `สรุป${month.monthLabel}`} />
 
       <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
         <button onClick={() => setTab('day')} className={tab === 'day' ? 'on' : ''}>รายวัน</button>
@@ -115,11 +114,11 @@ export default function PageDashboard({ data, saveData }) {
 
       {tab === 'day' && (
       <>
-      <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+      <DatePicker date={filterDate} onChange={setFilterDate} />
       {guaranteeMsg && singleDay && <div className="alert ok">{guaranteeMsg}</div>}
 
       <div className="hero-dark">
-        <div className="hero-top"><span>สรุป {fmtRange(dr.from, dr.to)}</span><span>{rangeBills.length} บิล</span></div>
+        <div className="hero-top"><span>สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>

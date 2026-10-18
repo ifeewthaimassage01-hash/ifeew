@@ -15,7 +15,7 @@ function isPdfUrl(url) {
 }
 
 export default function PageExpenses({ data, saveData, role }) {
-  const [form, setForm] = useState({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
+  const [form, setForm] = useState({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', receiptFile: null, notes: '' });
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -47,26 +47,14 @@ export default function PageExpenses({ data, saveData, role }) {
   const handleFile = async (file) => {
     if (!file) return;
     setErr('');
-    // โชว์รูปทันที + เริ่ม % (ไม่รอ compress/upload)
+    // เลือกไฟล์ก่อน โชว์ตัวอย่างทันที ค่อยอัปโหลดเป็น payload ตอนกดบันทึก
     setLocalIsPdf(file.type === 'application/pdf');
     try {
       const blobUrl = URL.createObjectURL(file);
       setLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return blobUrl; });
-    } catch { /* preview ไม่ได้ก็ข้าม — อัปโหลดต่อ */ }
-    setProgress(0);
-    setUploading(true);
-    try {
-      const url = await uploadReceipt(file, (p) => setProgress(p));
-      setForm((f) => ({ ...f, receiptUrl: url }));
-      setLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
-      setProgress(100);
-    } catch (e) {
-      setErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
-        ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
-        : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
-    } finally {
-      setUploading(false);
-    }
+    } catch { /* preview ไม่ได้ก็ข้าม — เลือกไฟล์ต่อได้ */ }
+    setForm((f) => ({ ...f, receiptFile: file, receiptUrl: '' }));
+    // ไม่เรียก uploadReceipt ที่นี่ — จะส่งเป็น payload พร้อมบันทึกรายจ่าย
   };
 
   const handleEditFile = async (file) => {
@@ -77,20 +65,8 @@ export default function PageExpenses({ data, saveData, role }) {
       const blobUrl = URL.createObjectURL(file);
       setEditLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return blobUrl; });
     } catch { /* ignore */ }
-    setEditProgress(0);
-    setEditUploading(true);
-    try {
-      const url = await uploadReceipt(file, (p) => setEditProgress(p));
-      setEditForm((f) => ({ ...f, receiptUrl: url }));
-      setEditLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
-      setEditProgress(100);
-    } catch (e) {
-      setEditErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
-        ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
-        : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
-    } finally {
-      setEditUploading(false);
-    }
+    setEditForm((f) => ({ ...f, receiptFile: file, receiptUrl: '' }));
+    // ไม่เรียก uploadReceipt ที่นี่ — จะส่งเป็น payload พร้อมบันทึกการแก้ไข
   };
   const allExpenses = data.expenses || [];
   const grandTotal = allExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -113,7 +89,7 @@ export default function PageExpenses({ data, saveData, role }) {
   const isSysRow = (exp) => typeof (exp && exp.notes) === 'string' && String(exp.notes).startsWith('guarantee:');
   const isOwner = role === 'owner';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     // M2: รับเฉพาะจำนวนเงิน > 0 ที่ finite (กัน 0/ติดลบ/NaN/Infinity)
     const amt = Number(form.amount);
@@ -121,7 +97,28 @@ export default function PageExpenses({ data, saveData, role }) {
     if (!form.notes.trim()) { setErr('กรอกหมายเหตุว่าใช้จ่ายอะไร'); return; }
     setErr('');
     const label = form.notes.trim();
-    const newExpense = { id: nextExpenseId(data.expenses), ...form, item: label, category: 'ทั่วไป', amount: amt };
+    // อัปโหลดไฟล์แนบก่อน ถ้ายังมีไฟล์ที่เลือกไว้แต่ยังไม่อัปโหลด (payload ก่อนอัปโหลด)
+    let finalReceiptUrl = form.receiptUrl;
+    if (form.receiptFile) {
+      setUploading(true);
+      try {
+        finalReceiptUrl = await uploadReceipt(form.receiptFile, (p) => setProgress(p));
+      } catch (e) {
+        setUploading(false);
+        setProgress(0);
+        setErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
+          ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
+          : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
+        return;
+      }
+      setUploading(false);
+      setProgress(0);
+      // ไม่ต้องใช้ blob URL ตัวอย่างแล้ว
+      setLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch {} return null; });
+      setLocalIsPdf(false);
+    }
+    const { receiptFile, ...restForm } = form;
+    const newExpense = { id: nextExpenseId(data.expenses), ...restForm, item: label, category: 'ทั่วไป', amount: amt, receiptUrl: finalReceiptUrl };
     saveData({
       ...data,
       expenses: [...(data.expenses || []), newExpense],
@@ -130,9 +127,7 @@ export default function PageExpenses({ data, saveData, role }) {
         action: 'บันทึกค่าใช้จ่าย', detail: `${newExpense.id} · ${newExpense.item}`, oldValue: '-', newValue: `฿ ${newExpense.amount}`, approvedBy: form.approvedBy || '-',
       }],
     });
-    setForm({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', notes: '' });
-    setLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
-    setLocalIsPdf(false);
+    setForm({ date: bkkToday(), amount: '', method: 'เงินสด', approvedBy: '', receiptUrl: '', receiptFile: null, notes: '' });
     setProgress(0);
     setSaved(true);
     alertDialog({ title: 'บันทึกค่าใช้จ่ายแล้ว', message: `${label} · ฿ ${newExpense.amount.toLocaleString()}` });
@@ -154,6 +149,7 @@ export default function PageExpenses({ data, saveData, role }) {
       method: exp.method || 'เงินสด',
       approvedBy: exp.approvedBy || '',
       receiptUrl: exp.receiptUrl || '',
+      receiptFile: null,
       notes: exp.notes || exp.item || '',
     });
   };
@@ -174,13 +170,34 @@ export default function PageExpenses({ data, saveData, role }) {
     if (!editForm.notes.trim()) { setEditErr('กรอกหมายเหตุว่าใช้จ่ายอะไร'); return; }
     setEditErr('');
     const label = editForm.notes.trim();
+    // อัปโหลดไฟล์แนบใหม่ก่อน ถ้ามีไฟล์ที่เลือกไว้แต่ยังไม่อัปโหลด (payload ก่อนอัปโหลด)
+    let finalReceiptUrl = editForm.receiptUrl;
+    if (editForm.receiptFile) {
+      setEditUploading(true);
+      try {
+        finalReceiptUrl = await uploadReceipt(editForm.receiptFile, (p) => setEditProgress(p));
+      } catch (e) {
+        setEditUploading(false);
+        setEditProgress(0);
+        setEditErr(e.message === 'ยังไม่ได้ตั้งค่า Cloudinary (.env)'
+          ? 'ยังไม่ได้ตั้งค่า Cloudinary — ใส่ VITE_CLOUDINARY_* ใน .env แล้ว restart dev server'
+          : `อัปโหลดรูปไม่สำเร็จ: ${e.message}`);
+        return;
+      }
+      setEditUploading(false);
+      setEditProgress(0);
+      setEditLocalPreview((prev) => { try { prev && URL.revokeObjectURL(prev); } catch {} return null; });
+      setEditLocalIsPdf(false);
+    }
+    const { receiptFile, ...restEditForm } = editForm;
     const updated = {
       ...editing,
+      ...restEditForm,
       date: editForm.date || editing.date,
       amount: amt,
       method: editForm.method,
       approvedBy: editForm.approvedBy,
-      receiptUrl: editForm.receiptUrl,
+      receiptUrl: finalReceiptUrl,
       notes: label,
       item: label,
     };
@@ -339,10 +356,10 @@ export default function PageExpenses({ data, saveData, role }) {
                   </div>
                   <div className="field"><label>ลงชื่อ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้จ่าย" className="input" /></div>
                 </div>
-                <div className="field"><label>ใบเสร็จ</label>
-                  <label className="filebtn">
-                    {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
-                    <span>{uploading ? (progress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${progress}%`) : form.receiptUrl || localPreview ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
+                  <div className="field"><label>ใบเสร็จ</label>
+                    <label className="filebtn">
+                      {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
+                      <span>{uploading ? (progress <= 1 ? 'กำลังอัปโหลดไฟล์…' : `กำลังอัปโหลดไฟล์… ${progress}%`) : form.receiptFile ? `เลือกไฟล์: ${form.receiptFile.name}` : form.receiptUrl || localPreview ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
                     <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} onChange={(e) => handleFile(e.target.files[0])} />
                   </label>
                   {uploading && (
@@ -448,7 +465,7 @@ export default function PageExpenses({ data, saveData, role }) {
             <div className="field"><label>ใบเสร็จ / หลักฐาน</label>
               <label className="filebtn">
                 {editUploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
-                <span>{editUploading ? (editProgress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${editProgress}%`) : editForm.receiptUrl || editLocalPreview ? (editPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${editForm.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
+                <span>{editUploading ? (editProgress <= 1 ? 'กำลังอัปโหลดไฟล์…' : `กำลังอัปโหลดไฟล์… ${editProgress}%`) : editForm.receiptFile ? `เลือกไฟล์: ${editForm.receiptFile.name}` : editForm.receiptUrl || editLocalPreview ? (editPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${editForm.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
                 <input type="file" accept="image/*,application/pdf" hidden disabled={editUploading} onChange={(e) => handleEditFile(e.target.files[0])} />
               </label>
               {editUploading && (

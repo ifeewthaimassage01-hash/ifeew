@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
-import { Card, CardHead, EmptyState, DateRange, inDateRange, fmtDay } from '../components/ui';
+import { Card, CardHead, EmptyState, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 import AttendanceCard from '../components/AttendanceCard';
 import { bizDateOf, bizToday } from '../utils/bkk';
 import { svcLabel, commBaht, freelanceDisplayName, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY, billLinesOf } from '../lib/billing';
@@ -11,11 +11,11 @@ export default function PageCommission({ data, saveData, role }) {
   // M3: viewTab เป็น state ดูข้อมูลอย่างเดียว ไม่เขียนทับ commissionSettings ใน DB
   const [viewTab, setViewTab] = useState('regular'); // regular | freelance | rates
   const todayStr = bizToday();
-  const [dr, setDr] = useState({ from: todayStr, to: todayStr });
+  const [filterDate, setFilterDate] = useState(todayStr);
   const [guaranteeMsg, setGuaranteeMsg] = useState('');
   const therapists = data.therapists || [];
   // ประกันมือคิดรายวัน — range วันเดียวเท่านั้นถึงมี topup
-  const singleDay = dr.from && dr.from === dr.to ? dr.from : null;
+  const singleDay = filterDate ? filterDate : null;
   const guaranteeAmt = guaranteeAmountOf(data);
   const topups = singleDay ? guaranteeTopups(data, singleDay) : [];
   const topupById = {};
@@ -68,7 +68,7 @@ export default function PageCommission({ data, saveData, role }) {
     runApply(data, singleDay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleDay, data]);
-  const bills = (data.bills || []).filter((b) => b.status === 'paid' && inDateRange(bizDateOf(b.date || b.createdAt), dr.from, dr.to));
+  const bills = (data.bills || []).filter((b) => b.status === 'paid' && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
 
   const stats = {};
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, total: 0, services: {}, svcDetail: {}, history: [] }; });
@@ -125,10 +125,10 @@ export default function PageCommission({ data, saveData, role }) {
   const ranked = [...therapists].sort((a, b) => stats[b.id].totalSales - stats[a.id].totalSales);
   const sumSalesPaid = Object.values(stats).reduce((s, t) => s + t.totalSales, 0);
   const sumSales = sumSalesPaid + freelanceTotal;
-  // P0-1: ช่วงหลายวัน — รวมรายจ่ายประกันที่สร้างไว้ตามช่วง dr.from–dr.to (กันประกันหาย)
-  // (ลอกวิธี PageDashboard: filter category===GUARANTEE_CATEGORY + inDateRange แล้วบวกกลับ)
+  // P0-1: วัดวันเดียว — รวมรายจ่ายประกันที่สร้างไว้ตามวันที่ filterDate (กันประกันหาย)
+  // (ลอกวิธี PageDashboard: filter category===GUARANTEE_CATEGORY + inSingleDay แล้วบวกกลับ)
   const guaranteeSum = (data.expenses || [])
-    .filter((e) => e && e.category === GUARANTEE_CATEGORY && inDateRange(e.date, dr.from, dr.to))
+    .filter((e) => e && e.category === GUARANTEE_CATEGORY && inSingleDay(e.date, filterDate))
     .reduce((s, e) => s + (e.amount || 0), 0);
   // รายได้หมอรวมส่วนต่างประกัน (วันเดียวใช้ topup ที่คำนวณสด / หลายวันใช้ยอด expense ที่สร้างไว้)
   const sumComm = Object.values(stats).reduce((s, t) => s + t.total, 0) + (singleDay ? topupSum : guaranteeSum);
@@ -261,7 +261,7 @@ export default function PageCommission({ data, saveData, role }) {
           <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
         </div>
 
-        <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+        <DatePicker date={filterDate} onChange={setFilterDate} />
 
         {freelanceJobs === 0 ? (
           <Card>
@@ -323,7 +323,7 @@ export default function PageCommission({ data, saveData, role }) {
         <button onClick={() => setViewTab('rates')} className={viewTab === 'rates' ? 'on' : ''}>ราคาบริการ</button>
       </div>
 
-      <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+      <DatePicker date={filterDate} onChange={setFilterDate} />
 
       {guaranteeMsg && singleDay && <div className="alert ok">{guaranteeMsg}</div>}
 

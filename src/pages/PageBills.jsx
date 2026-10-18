@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DateRange, inDateRange } from '../components/ui';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
 import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
@@ -63,10 +63,10 @@ export default function PageBills({ data, saveData, role }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [payFilter, setPayFilter] = useState('all');
-  const [dr, setDr] = useState({ from: bizToday(), to: bizToday() });
+  const [filterDate, setFilterDate] = useState(bizToday());
   const [showFilters, setShowFilters] = useState(false);
-  const activeFilterCount = ((dr.from || dr.to) ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (payFilter !== 'all' ? 1 : 0);
-  const clearFilters = () => { setDr({ from: '', to: '' }); setStatusFilter('all'); setPayFilter('all'); };
+  const activeFilterCount = (filterDate ? 1 : 0) + (statusFilter !== 'all' ? 1 : 0) + (payFilter !== 'all' ? 1 : 0);
+  const clearFilters = () => { setFilterDate(''); setStatusFilter('all'); setPayFilter('all'); };
   const [detailBill, setDetailBill] = useState(null);
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
@@ -79,7 +79,7 @@ export default function PageBills({ data, saveData, role }) {
     if (b.status === 'open') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    return matchQ && inDateRange(bizDateOf(b.date || b.createdAt), dr.from, dr.to) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 
@@ -191,7 +191,7 @@ export default function PageBills({ data, saveData, role }) {
               </div>
             </div>
             <div style={{ marginTop: 10 }}>
-              <DateRange from={dr.from} to={dr.to} onChange={setDr} />
+              <DatePicker date={filterDate} onChange={setFilterDate} />
             </div>
             <div className="filter-bar" style={{ marginTop: 10 }}>
               <Dropdown
