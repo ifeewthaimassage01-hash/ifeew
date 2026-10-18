@@ -509,9 +509,41 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .cash-amt input:focus { outline: none; border-color: var(--brown); }
 .formula { border-radius: 12px; background: var(--surface-2); border: 0; padding: 12px 14px; font-size: 12px; color: var(--muted); line-height: 1.7; font-variant-numeric: tabular-nums; }
 
-.exp-row { display: flex; align-items: center; gap: 11px; padding: 9px 4px; border-bottom: 1px solid var(--line-soft); }
+/* ประวัติรายจ่าย: 1 บรรทัดชื่อ + 1 บรรทัดเมตา (ไม่ซ้ำวันที่ — กลุ่มวันมีหัวแล้ว) */
+.exp-row { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 11px; padding: 11px 4px; border-bottom: 1px solid var(--line-soft); }
 .exp-row:last-child { border-bottom: 0; }
-.exp-ic { width: 37px; height: 37px; border-radius: 11px; background: var(--brown-tint); color: var(--brown-dark); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.exp-ic { width: 38px; height: 38px; border-radius: 11px; background: var(--brown-tint); color: var(--brown-dark); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+.exp-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* รูปย่อ = ปุ่มดูรูปใหญ่ (lightbox) — มือถือไม่มี cursor จึงมีป้ายขยายมุมล่างขวาบอกว่ากดได้ */
+.exp-ic-btn { position: relative; padding: 0; border: 0; cursor: zoom-in; }
+.exp-ic-btn:active { transform: scale(0.96); }
+.exp-ic-btn:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.exp-zoom { position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; border-radius: 5px; background: rgba(77, 66, 56, 0.62); color: #fff; display: flex; align-items: center; justify-content: center; }
+/* lightbox ใบเสร็จ */
+.lb-img { display: block; width: 100%; max-height: 72vh; object-fit: contain; border-radius: 12px; background: var(--surface-2); margin-top: 10px; }
+.lb-bar { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--brown-dark); text-decoration: none; }
+.lb-bar:hover { text-decoration: underline; }
+.exp-main { min-width: 0; }
+.exp-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.exp-title b { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-tag { flex-shrink: 0; font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em; color: var(--brown-dark); background: var(--brown-tint); border-radius: 999px; padding: 2px 7px; line-height: 1.3; }
+.exp-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 11.5px; color: var(--muted); min-width: 0; overflow: hidden; }
+.exp-meta > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.exp-dot { width: 3px; height: 3px; border-radius: 99px; background: currentColor; opacity: 0.5; flex-shrink: 0; }
+.exp-link { display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0; color: var(--brown-dark); font-weight: 600; text-decoration: none; }
+.exp-link:hover { text-decoration: underline; }
+.exp-side { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+.exp-amt { font-size: 14px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.exp-acts { display: flex; gap: 4px; }
+.exp-act { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
+.exp-act:hover { background: var(--surface-2); color: var(--ink); }
+.exp-act.danger { color: var(--red); }
+.exp-act.danger:hover { background: var(--red-bg); }
+.exp-act:disabled { opacity: 0.45; }
+/* หัวกลุ่มวันในมุมมองรายเดือน — แถบจาง ช่วยกวาดตาหาวันได้เร็ว */
+.exp-day-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 16px -4px 2px; padding: 7px 8px; background: var(--surface-2); border-radius: 9px; }
+.exp-day-head b { font-size: 12px; font-weight: 700; color: var(--muted); }
+.exp-day-head .num { font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
 
 .bar-track { height: 7px; border-radius: 99px; background: var(--line-soft); overflow: hidden; margin: 11px 0; }
 .bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--brown); }
@@ -702,8 +734,8 @@ label.filebtn {
   .cash-row .tt small { font-size: 10.5px; }
   .cash-amt input { width: 100px; font-size: 14px; }
   .formula { font-size: 11.5px; padding: 11px 13px; }
-  .exp-row { padding: 10px 4px; }
-  .exp-ic { width: 35px; height: 35px; }
+  .exp-row { padding: 10px 2px; gap: 10px; }
+  .exp-ic { width: 34px; height: 34px; }
   .mini-box { padding: 9px 4px; }
   .mini-box .v { font-size: 12px; }
   .refbox { padding: 10px 12px; }

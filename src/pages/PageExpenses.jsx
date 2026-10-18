@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Plus, Upload, CheckCircle2, Receipt, ExternalLink, Loader2, Pencil, Trash2, X } from 'lucide-react';
-import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog } from '../components/ui';
+import { Plus, Upload, CheckCircle2, Receipt, ExternalLink, Loader2, Pencil, Trash2, X, Maximize2 } from 'lucide-react';
+import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, fmtDay } from '../components/ui';
 import { bkkToday, bkkNow } from '../utils/bkk';
 import { uploadReceipt, resolveImageUrl, isCloudinaryConfigured } from '../lib/images';
 import { nextExpenseId } from '../lib/ids';
@@ -22,6 +22,13 @@ export default function PageExpenses({ data, saveData, role }) {
   const [localPreview, setLocalPreview] = useState(null); // blob URL โชว์ทันที ไม่รอ cloud
   const [localIsPdf, setLocalIsPdf] = useState(false);
   const [err, setErr] = useState('');
+  // รูปใบเสร็จที่กำลังเปิดดูแบบเต็มจอ (lightbox) — null = ปิด
+  const [viewImg, setViewImg] = useState(null);
+  // แท็บ: บันทึกรายจ่าย | ประวัติการจ่าย (ประวัติแยกมุมมองรายวัน/รายเดือน)
+  const [tab, setTab] = useState('entry');
+  const [histView, setHistView] = useState('day');
+  const [dayDate, setDayDate] = useState(bkkToday());
+  const [monthSel, setMonthSel] = useState(bkkToday().slice(0, 7));
   const receiptPreview = localPreview || resolveImageUrl(form.receiptUrl);
   const receiptIsPdf = form.receiptUrl ? isPdfUrl(receiptPreview) : localIsPdf;
 
@@ -85,8 +92,23 @@ export default function PageExpenses({ data, saveData, role }) {
       setEditUploading(false);
     }
   };
-  const expenses = [...(data.expenses || [])].reverse();
-  const grandTotal = (data.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const allExpenses = data.expenses || [];
+  const grandTotal = allExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // ประวัติ: เรียงวันที่ใหม่ → เก่า (วันเดียวกัน: รายการที่เพิ่มล่าสุดอยู่บน — เหมือนพฤติกรรม reverse() เดิม)
+  const historySorted = allExpenses
+    .map((e, i) => ({ e, i }))
+    .sort((a, b) => String(b.e.date || '').localeCompare(String(a.e.date || '')) || (b.i - a.i))
+    .map((x) => x.e);
+  const dayList = historySorted.filter((e) => String(e.date || '').slice(0, 10) === dayDate);
+  const dayTotal = dayList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const monthList = historySorted.filter((e) => String(e.date || '').slice(0, 7) === monthSel);
+  const monthTotal = monthList.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const monthByDay = monthList.reduce((acc, e) => {
+    const d = String(e.date || '').slice(0, 10);
+    (acc[d] || (acc[d] = [])).push(e);
+    return acc;
+  }, {});
+  const monthDayKeys = Object.keys(monthByDay).sort((a, b) => b.localeCompare(a));
   // P0-4/P1-9: แถวระบบประกันมือ (notes ขึ้นต้น 'guarantee:') — สร้างอัตโนมัติ ห้ามแก้ notes/amount/date
   const isSysRow = (exp) => typeof (exp && exp.notes) === 'string' && String(exp.notes).startsWith('guarantee:');
   const isOwner = role === 'owner';
@@ -219,106 +241,189 @@ export default function PageExpenses({ data, saveData, role }) {
     }
   };
 
-  return (
-    <div>
-      <div className="kpi-grid">
-        <div className="kpi dark span2">
-          <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
-          <div className="kpi-value">฿ {grandTotal.toLocaleString()}</div>
-          <div className="kpi-sub">{(data.expenses || []).length} รายการ</div>
+  // แถวรายการ — ใช้ร่วมกันทั้งมุมมองรายวันและรายเดือน
+  // โครง: [ไอคอนใบเสร็จ] [ชื่อรายการ + เมตา] [ยอด + ปุ่มแก้/ลบ]
+  // ไม่แสดงวันที่ซ้ำ (รายวันเลือกวันอยู่แล้ว / รายเดือนมีหัวกลุ่มวัน)
+  // รูปย่อซ้าย = ปุ่มดูรูปใหญ่ (lightbox) — เฉพาะกรณีเป็น "รูป" เท่านั้น
+  // ส่วน PDF คงพฤติกรรมเดิม (ลิงก์ในบรรทัดเมตา เปิดแท็บใหม่) ตามที่ตกลง
+  const renderExpense = (exp) => {
+    const url = resolveImageUrl(exp.receiptUrl);
+    const busy = busyId === exp.id;
+    const sys = isSysRow(exp);
+    const title = exp.item || exp.notes || exp.id;
+    const isImg = !!url && !isPdfUrl(url);
+    return (
+      <div key={exp.id} className="exp-row">
+        {isImg ? (
+          <button
+            type="button"
+            className="exp-ic exp-ic-btn"
+            onClick={() => setViewImg(url)}
+            title="ดูรูปใหญ่"
+            aria-label={`ดูรูปใบเสร็จของ ${title}`}
+          >
+            <img src={url} alt="" />
+            <span className="exp-zoom" aria-hidden="true"><Maximize2 size={9} /></span>
+          </button>
+        ) : (
+          <span className="exp-ic"><Receipt size={16} /></span>
+        )}
+        <div className="exp-main">
+          <div className="exp-title">
+            <b title={title}>{title}</b>
+            {sys && <span className="exp-tag">ระบบ</span>}
+          </div>
+          <div className="exp-meta">
+            <span>{exp.method || 'เงินสด'}</span>
+            {exp.approvedBy ? (<><i className="exp-dot" /><span>{exp.approvedBy}</span></>) : null}
+            {/* รูป: ดูได้จากรูปย่อซ้าย ไม่ต้องซ้ำในเมตา — PDF/ไฟล์ที่แสดงเป็นรูปไม่ได้ คงลิงก์เดิม */}
+            {!isImg && url ? (
+              <><i className="exp-dot" /><a href={url} target="_blank" rel="noopener noreferrer" className="exp-link" title="เปิดใบเสร็จ (PDF)"><ExternalLink size={11} /> ดูใบเสร็จ (PDF)</a></>
+            ) : !isImg && exp.receiptUrl ? (
+              <><i className="exp-dot" /><span title={exp.receiptUrl}>มีไฟล์: {exp.receiptUrl}</span></>
+            ) : null}
+          </div>
+        </div>
+        <div className="exp-side">
+          <b className="exp-amt">฿ {Number(exp.amount || 0).toLocaleString()}</b>
+          {isOwner && (
+            <div className="exp-acts">
+              {!sys && (
+                <button type="button" className="exp-act" title="แก้ไข" aria-label={`แก้ไข ${title}`} disabled={!!busyId} onClick={() => openEdit(exp)}>
+                  <Pencil size={14} />
+                </button>
+              )}
+              <button type="button" className="exp-act danger" title={sys ? 'ลบ (ระบบจะสร้างกลับมาใหม่ถ้าเงื่อนไขยังเข้า)' : 'ลบ'} aria-label={`ลบ ${title}`} disabled={!!busyId} onClick={() => deleteExp(exp)}>
+                {busy ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />}
+              </button>
+            </div>
+          )}
         </div>
       </div>
+    );
+  };
 
-      <div className="cols-32">
-        <Card>
-          <CardHead title="บันทึกค่าใช้จ่าย" />
-          {err && <div className="err-banner">⚠ {err}</div>}
-          <form onSubmit={handleSubmit}>
-            <div className="f2">
-              <div className="field"><label>วันที่ *</label><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" /></div>
-              <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
-            </div>
-            <div className="field"><label>หมายเหตุ *</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="ใช้จ่ายอะไร… เช่น ซื้อน้ำมันนวดร้านสมุนไพร" className="input" rows={2} /></div>
-            <div className="f2">
-              <div className="field"><label>วิธีจ่าย</label>
-                <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="input">
-                  <option>เงินสด</option><option>QR Code / โอนเงิน</option>
-                </select>
-              </div>
-              <div className="field"><label>ลงชื่อ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้จ่าย" className="input" /></div>
-            </div>
-            <div className="field"><label>ใบเสร็จ</label>
-              <label className="filebtn">
-                {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
-                <span>{uploading ? (progress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${progress}%`) : form.receiptUrl || localPreview ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
-                <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} onChange={(e) => handleFile(e.target.files[0])} />
-              </label>
-              {uploading && (
-                <div className="bar-track" style={{ margin: '8px 0 0' }}><span className="bar-fill" style={{ width: `${Math.max(2, progress)}%` }} /></div>
-              )}
-              {receiptPreview && !receiptIsPdf && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                  {form.receiptUrl && (
-                  <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <ExternalLink size={13} /> เปิดดูรูปเต็ม
-                  </a>
-                  )}
-                  {uploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {progress}%</span>}
-                </div>
-              )}
-              {receiptPreview && receiptIsPdf && (
-                <div style={{ marginTop: 8 }}>
-                  {form.receiptUrl ? (
-                  <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <ExternalLink size={13} /> เปิดดูใบเสร็จ (PDF)
-                  </a>
-                  ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>แนบ PDF แล้ว กำลังอัปโหลด… {progress}%</span>
-                  )}
-                </div>
-              )}
-            </div>
-            <button type="submit" className="btn btn-primary btn-block" disabled={uploading}><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
-            {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
-          </form>
-        </Card>
-
-        <Card>
-          <CardHead title="ประวัติล่าสุด" hint={`${expenses.length} รายการ`} />
-          <div style={{ maxHeight: 560, overflowY: 'auto' }}>
-            {expenses.map((exp) => {
-              const url = resolveImageUrl(exp.receiptUrl);
-              const busy = busyId === exp.id;
-              const sys = isSysRow(exp);
-              return (
-              <div key={exp.id} className="exp-row">
-                <span className="exp-ic">{url && !isPdfUrl(url) ? <img src={url} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 6 }} /> : <Receipt size={16} />}</span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <b style={{ fontSize: 13.5, fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{exp.item}</b>
-                  <span className="muted">{exp.date} · {exp.method}{exp.approvedBy ? ` · ${exp.approvedBy}` : ''}{url ? <> · <a href={url} target="_blank" rel="noopener noreferrer">ดูใบเสร็จ{isPdfUrl(url) ? ' (PDF)' : ''}</a></> : exp.receiptUrl ? ` · มีไฟล์: ${exp.receiptUrl}` : ''}</span>
-                  {sys && <span className="muted" style={{ display: 'block', fontSize: 11 }}>ระบบอัตโนมัติ</span>}
-                </span>
-                <span style={{ textAlign: 'right', flexShrink: 0 }}><b>฿ {Number(exp.amount || 0).toLocaleString()}</b>{sys && <span className="badge info" style={{ display: 'block', marginTop: 2 }}>ระบบ</span>}</span>
-                {isOwner ? (
-                <span style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {!sys && (
-                  <button type="button" className="icon-btn" title="แก้ไข" aria-label={`แก้ไข ${exp.item}`} disabled={!!busyId} onClick={() => openEdit(exp)} style={{ width: 32, height: 32 }}>
-                    <Pencil size={15} />
-                  </button>
-                  )}
-                  <button type="button" className="icon-btn" title={sys ? 'ลบ (ระบบจะสร้างกลับมาใหม่ถ้าเงื่อนไขยังเข้า)' : 'ลบ'} aria-label={`ลบ ${exp.item}`} disabled={!!busyId} onClick={() => deleteExp(exp)} style={{ width: 32, height: 32, color: busy ? undefined : 'var(--red)' }}>
-                    {busy ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />}
-                  </button>
-                </span>
-                ) : null}
-              </div>
-              );
-            })}
-            {expenses.length === 0 && <EmptyState icon={Receipt} title="ยังไม่มีรายจ่าย" subtitle="บันทึกผ่านฟอร์มด้านข้าง" />}
-          </div>
-        </Card>
+  return (
+    <div>
+      {/* แท็บหลัก */}
+      <div className="seg" style={{ marginBottom: 16 }}>
+        <button type="button" onClick={() => setTab('entry')} className={tab === 'entry' ? 'on' : ''}>บันทึกรายจ่าย</button>
+        <button type="button" onClick={() => setTab('history')} className={tab === 'history' ? 'on' : ''}>ประวัติการจ่าย</button>
       </div>
+
+      {tab === 'entry' && (
+        <>
+          <div className="kpi-grid">
+            <div className="kpi dark span2">
+              <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
+              <div className="kpi-value">฿ {grandTotal.toLocaleString()}</div>
+              <div className="kpi-sub">{allExpenses.length} รายการ</div>
+            </div>
+          </div>
+
+          <div style={{ maxWidth: 720 }}>
+            <Card>
+              <CardHead title="บันทึกค่าใช้จ่าย" />
+              {err && <div className="err-banner">⚠ {err}</div>}
+              <form onSubmit={handleSubmit}>
+                <div className="f2">
+                  <div className="field"><label>วันที่ *</label><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" /></div>
+                  <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
+                </div>
+                <div className="field"><label>หมายเหตุ *</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="ใช้จ่ายอะไร… เช่น ซื้อน้ำมันนวดร้านสมุนไพร" className="input" rows={2} /></div>
+                <div className="f2">
+                  <div className="field"><label>วิธีจ่าย</label>
+                    <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="input">
+                      <option>เงินสด</option><option>QR Code / โอนเงิน</option>
+                    </select>
+                  </div>
+                  <div className="field"><label>ลงชื่อ</label><input value={form.approvedBy} onChange={(e) => setForm({ ...form, approvedBy: e.target.value })} placeholder="ชื่อผู้จ่าย" className="input" /></div>
+                </div>
+                <div className="field"><label>ใบเสร็จ</label>
+                  <label className="filebtn">
+                    {uploading ? <Loader2 size={19} className="spin" /> : <Upload size={19} />}
+                    <span>{uploading ? (progress <= 1 ? 'กำลังเตรียมรูป…' : `กำลังอัปโหลด… ${progress}%`) : form.receiptUrl || localPreview ? (receiptPreview ? 'เปลี่ยนรูปใบเสร็จ' : `แนบแล้ว: ${form.receiptUrl}`) : 'แตะเพื่อถ่ายรูป / แนบใบเสร็จ'}</span>
+                    <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} onChange={(e) => handleFile(e.target.files[0])} />
+                  </label>
+                  {uploading && (
+                    <div className="bar-track" style={{ margin: '8px 0 0' }}><span className="bar-fill" style={{ width: `${Math.max(2, progress)}%` }} /></div>
+                  )}
+                  {receiptPreview && !receiptIsPdf && (
+                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                      {form.receiptUrl && (
+                      <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                        <ExternalLink size={13} /> เปิดดูรูปเต็ม
+                      </a>
+                      )}
+                      {uploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {progress}%</span>}
+                    </div>
+                  )}
+                  {receiptPreview && receiptIsPdf && (
+                    <div style={{ marginTop: 8 }}>
+                      {form.receiptUrl ? (
+                      <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                        <ExternalLink size={13} /> เปิดดูใบเสร็จ (PDF)
+                      </a>
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>แนบ PDF แล้ว กำลังอัปโหลด… {progress}%</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button type="submit" className="btn btn-primary btn-block" disabled={uploading}><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
+                {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
+              </form>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {tab === 'history' && (
+        <>
+          {/* ตัวกรองย่อย (chip) แยกจากแท็บหลัก เพื่อไม่ให้ดูเป็นแท็บซ้อนแท็บ */}
+          <div className="chip-row" style={{ marginBottom: 12 }}>
+            <button type="button" className={`chip${histView === 'day' ? ' on' : ''}`} onClick={() => setHistView('day')}>รายวัน</button>
+            <button type="button" className={`chip${histView === 'month' ? ' on' : ''}`} onClick={() => setHistView('month')}>รายเดือน</button>
+          </div>
+
+          <Card>
+            {histView === 'day' ? (
+              <>
+                <CardHead title="ประวัติรายวัน" hint={`${dayList.length} รายการ · ฿ ${dayTotal.toLocaleString()}`} />
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <label>เลือกวันที่</label>
+                  <input type="date" value={dayDate} onChange={(e) => e.target.value && setDayDate(e.target.value)} className="input" />
+                </div>
+                {dayList.length > 0
+                  ? dayList.map(renderExpense)
+                  : <EmptyState icon={Receipt} title="ไม่มีรายจ่ายวันนี้" subtitle="เลือกวันอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
+              </>
+            ) : (
+              <>
+                <CardHead title="ประวัติรายเดือน" hint={`${monthList.length} รายการ · ฿ ${monthTotal.toLocaleString()}`} />
+                <div className="field" style={{ marginBottom: 12 }}>
+                  <label>เลือกเดือน</label>
+                  <input type="month" value={monthSel} onChange={(e) => e.target.value && setMonthSel(e.target.value)} className="input" />
+                </div>
+                {monthDayKeys.length > 0 ? monthDayKeys.map((d) => {
+                  const list = monthByDay[d];
+                  const total = list.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+                  return (
+                    <div key={d}>
+                      <div className="exp-day-head">
+                        <b>{fmtDay(d)}</b>
+                        <b className="num">฿ {total.toLocaleString()}</b>
+                      </div>
+                      {list.map(renderExpense)}
+                    </div>
+                  );
+                }) : <EmptyState icon={Receipt} title="ไม่มีรายจ่ายเดือนนี้" subtitle="เลือกเดือนอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
+              </>
+            )}
+          </Card>
+        </>
+      )}
 
       {editing && (
         <Modal onClose={closeEdit}>
@@ -379,6 +484,18 @@ export default function PageExpenses({ data, saveData, role }) {
               </button>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {/* lightbox: ดูรูปใบเสร็จเต็มจอ — แตะพื้นหลัง/Esc/ปุ่ม X ปิด (พฤติกรรม Modal เดิม) */}
+      {viewImg && (
+        <Modal onClose={() => setViewImg(null)}>
+          <button className="modal-x" onClick={() => setViewImg(null)} aria-label="ปิด"><X size={16} /></button>
+          <h3>ใบเสร็จ</h3>
+          <img src={viewImg} alt="ใบเสร็จ" className="lb-img" />
+          <a href={viewImg} target="_blank" rel="noopener noreferrer" className="lb-bar">
+            <ExternalLink size={13} /> เปิดในแท็บใหม่
+          </a>
         </Modal>
       )}
     </div>
