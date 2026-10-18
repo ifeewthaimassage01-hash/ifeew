@@ -1443,24 +1443,26 @@ label.filebtn {
 .stmt-meta-bottom { border-bottom: 0; border-top: 2px solid #111; margin-bottom: 0; padding-top: 10px; }
 .stmt-meta-net { font-size: 12.5px; }
 .stmt h2 { font-size: 13px; margin: 14px 0 5px; }
-/* C1: statement 7 คอลัมน์ — fixed layout + สัดส่วนคอลัมน์ + ตัดคำ กันล้น A4 (CSS อย่างเดียว ไม่เปลี่ยนคอลัมน์) */
+/* C1: statement 7 คอลัมน์ — fixed layout + สัดส่วนคอลัมน์ + ตัดคำ กันล้น A4
+   (วันที่/เวลาแคบ · หมอนวดอยู่ก่อนรายการ · รายการกว้างสุด) */
 .stmt-tbl { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10px; font-variant-numeric: tabular-nums; }
 .stmt-tbl th, .stmt-tbl td { border: 0; padding: 4px 6px; text-align: left; word-break: break-word; overflow-wrap: anywhere; }
 .stmt-tbl thead th { border-top: 1px solid #999; border-bottom: 1px solid #999; color: #333; font-weight: 700; }
-.stmt-tbl th:nth-child(1), .stmt-tbl td:nth-child(1) { width: 24%; }
-.stmt-tbl th:nth-child(2), .stmt-tbl td:nth-child(2) { width: 12%; }
-.stmt-tbl th:nth-child(3), .stmt-tbl td:nth-child(3) { width: 12%; }
-.stmt-tbl th:nth-child(4), .stmt-tbl td:nth-child(4) { width: 13%; }
-.stmt-tbl th:nth-child(5), .stmt-tbl td:nth-child(5) { width: 13%; }
-.stmt-tbl th:nth-child(6), .stmt-tbl td:nth-child(6) { width: 13%; }
+.stmt-tbl th:nth-child(1), .stmt-tbl td:nth-child(1) { width: 11%; }
+.stmt-tbl th:nth-child(2), .stmt-tbl td:nth-child(2) { width: 8%; }
+.stmt-tbl th:nth-child(3), .stmt-tbl td:nth-child(3) { width: 14%; }
+.stmt-tbl th:nth-child(4), .stmt-tbl td:nth-child(4) { width: 29%; }
+.stmt-tbl th:nth-child(5), .stmt-tbl td:nth-child(5) { width: 12.5%; }
+.stmt-tbl th:nth-child(6), .stmt-tbl td:nth-child(6) { width: 12.5%; }
 .stmt-tbl th:nth-child(7), .stmt-tbl td:nth-child(7) { width: 13%; }
 .stmt-tbl thead th { border-top: 1px solid #999; border-bottom: 1px solid #999; color: #333; font-weight: 700; }
 .stmt-tbl .r { text-align: right; }
 .stmt-tbl .c { text-align: center; }
 .stmt-tbl .muted { color: #666; }
 .stmt-foot { display: flex; justify-content: space-between; margin-top: 16px; padding-top: 8px; border-top: 1px solid #999; font-size: 11px; color: #444; }
+/* A4 แนวตั้ง — ประกาศระดับบนสุด ให้ print engine ใช้แน่นอน (บางเครื่องไม่รับ @page ที่ซ้อนใน @media) */
+@page { size: A4 portrait; margin: 10mm; }
 @media print {
-  @page { size: A4 landscape; margin: 12mm; }
   #root { display: none !important; }
   .print-only { display: block !important; }
   .stmt-tbl thead { display: table-header-group; }

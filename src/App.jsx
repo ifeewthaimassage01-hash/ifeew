@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
@@ -67,9 +68,11 @@ function prevDayStr(ymd) {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
 }
 
-export default function App() {
+function AppShell() {
+  // URL (hash) คือ source ของหน้าปัจจุบัน — path เช่น /bills ↔ key 'bills'
+  const location = useLocation();
+  const routerNavigate = useNavigate();
   const [role, setRole] = useState(loadRole);
-  const [activePage, setActivePage] = useState(() => DEFAULT_PAGE[loadRole()] || 'pos');
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [cloudMode, setCloudMode] = useState('cloud');
@@ -214,28 +217,38 @@ export default function App() {
     scheduleSync(newData);
   }, []);
 
-  // เปลี่ยนหน้าทีไร scroll กลับบนสุดเสมอ (รวม BottomNav มือถือ)
+  // ยังรับ key เดิม (dashboard/pos/…) — Sidebar และ PagePOS เรียกเหมือนเดิม
+  // กัน history ซ้ำ: กดเมนูหน้าเดิมซ้ำไม่ push entry ใหม่
   const navigate = useCallback((key) => {
-    setActivePage(key);
+    if (location.pathname !== `/${key}`) routerNavigate(`/${key}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [routerNavigate, location.pathname]);
 
+  // เลือกบทบาทแล้ว: คง path ที่ขอไว้ (deep link) ถ้าอยู่ในสิทธิ์ ไม่งั้นไปหน้า default
   const selectRole = useCallback((r) => {
     if (!VALID_ROLES.includes(r)) return;
     saveRole(r);
     setRole(r);
-    setActivePage(DEFAULT_PAGE[r]);
+    const allowed = NAV_ITEMS.filter((i) => i.roles.includes(r)).map((i) => i.key);
+    const requested = location.pathname.replace(/^\/+/, '');
+    routerNavigate(allowed.includes(requested) ? `/${requested}` : `/${DEFAULT_PAGE[r]}`, { replace: true });
     window.scrollTo({ top: 0 });
-  }, []);
+  }, [routerNavigate, location.pathname]);
 
   const exitRole = useCallback(() => {
     clearRole();
     setRole(null);
   }, []);
 
+  // เปลี่ยน path (รวมกด back) → กลับบนสุด
+  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+
   const navItems = useMemo(() => NAV_ITEMS.filter((i) => i.roles.includes(role)), [role]);
-  const safeKey = navItems.some((i) => i.key === activePage) ? activePage : navItems[0]?.key;
-  const PageComponent = PAGES[safeKey] || PagePOS;
+  // หน้าปัจจุบันมาจาก URL — path ที่ไม่มีสิทธิ์/ไม่รู้จัก → ใช้หน้าแรกของ role
+  const requestedKey = location.pathname.replace(/^\/+/, '');
+  const activePage = navItems.some((i) => i.key === requestedKey)
+    ? requestedKey
+    : (navItems[0]?.key || DEFAULT_PAGE[role]);
   const badges = useMemo(() => {
     const openCount = (data?.bills || []).filter((b) => b.status === 'open').length;
     return openCount > 0 ? { bills: openCount } : null;
@@ -293,7 +306,24 @@ export default function App() {
               )}
               <div className="rise" key={activePage}>
                 <Suspense fallback={<div className="loadbar" role="status" aria-label="กำลังโหลดหน้า"><i /></div>}>
-                  <PageComponent data={data} saveData={saveData} onNavigate={navigate} role={role} />
+                  <Routes>
+                    {/* deep link/refresh เข้า / → เด้งไปหน้า default ของ role */}
+                    <Route path="/" element={<Navigate to={`/${DEFAULT_PAGE[role]}`} replace />} />
+                    {NAV_ITEMS.map((item) => {
+                      const Page = PAGES[item.key];
+                      return (
+                        <Route
+                          key={item.key}
+                          path={`/${item.key}`}
+                          element={item.roles.includes(role)
+                            ? <Page data={data} saveData={saveData} onNavigate={navigate} role={role} />
+                            : <Navigate to={`/${DEFAULT_PAGE[role]}`} replace />}
+                        />
+                      );
+                    })}
+                    {/* path ที่ไม่รู้จัก → หน้า default ของ role */}
+                    <Route path="*" element={<Navigate to={`/${DEFAULT_PAGE[role]}`} replace />} />
+                  </Routes>
                 </Suspense>
               </div>
             </div>
@@ -313,3 +343,5 @@ export default function App() {
     </div>
   );
 }
+
+export default AppShell;

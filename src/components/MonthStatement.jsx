@@ -128,9 +128,13 @@ export function buildMonthReport(data, month) {
     });
   });
   expenses.forEach((e) => {
+    // notes ของรายการประกันมือเป็น key ภายใน (guarantee:{tid}:{date}) — ไม่ต้องโชว์ใน PDF
+    const noteText = e.notes && e.notes !== e.item && !String(e.notes).startsWith('guarantee:')
+      ? ` · ${e.notes}`
+      : '';
     ledger.push({
       ts: `${String(e.date || '').slice(0, 10)}T23:59`,
-      label: `${e.item || ''}${e.notes && e.notes !== e.item ? ` · ${e.notes}` : ''}`,
+      label: `${e.item || ''}${noteText}`,
       therapist: '',
       inAmt: 0, outAmt: e.amount || 0,
     });
@@ -182,14 +186,14 @@ export default function MonthStatement({ data, month }) {
 
       <h2>รายการเดินบัญชี</h2>
       <table className="stmt-tbl">
-        <thead><tr><th>วันที่</th><th>เวลา</th><th>รายการ</th><th>หมอนวด</th><th className="r">รายรับ</th><th className="r">รายจ่าย</th><th className="r">ยอดสะสม</th></tr></thead>
+        <thead><tr><th>วันที่</th><th>เวลา</th><th>หมอนวด</th><th>รายการ</th><th className="r">รายรับ</th><th className="r">รายจ่าย</th><th className="r">ยอดสะสม</th></tr></thead>
         <tbody>
           {ledger.map((r, i) => (
             <tr key={i}>
               <td style={{ whiteSpace: 'nowrap' }}>{fmtDNum(r.ts.slice(0, 10))}</td>
               <td style={{ whiteSpace: 'nowrap' }}>{fmtTime(r.ts)}</td>
-              <td>{r.label}</td>
               <td>{r.therapist}</td>
+              <td>{r.label}</td>
               <td className="r">{r.inAmt ? num2(r.inAmt) : ''}</td>
               <td className="r">{r.outAmt ? num2(r.outAmt) : ''}</td>
               <td className="r">{num2(r.balance)}</td>
