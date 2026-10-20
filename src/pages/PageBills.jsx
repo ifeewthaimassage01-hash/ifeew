@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
+import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
 import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
@@ -243,6 +243,25 @@ export default function PageBills({ data, saveData, role }) {
                       <td className="r"><b>฿ {billTotal(b).toLocaleString()}</b></td>
                       <td><StatusBadge status={b.status} /></td>
                       <td className="c">
+                        {/* รูปย่อสลิป = ปุ่มเปิด lightbox ทันที (PDF = ไอคอนเปิดแท็บใหม่) — บอกให้เห็นว่าการ์ดนี้มีรูปแนบ */}
+                        {(() => {
+                          const slipUrl = resolveImageUrl(b.slip);
+                          if (!slipUrl) return null;
+                          if (isPdfUrl(slipUrl)) {
+                            return (
+                              <a href={slipUrl} target="_blank" rel="noopener noreferrer" title="เปิดสลิป (PDF)" className="icon-btn" style={{ width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
+                                <ExternalLink size={14} />
+                              </a>
+                            );
+                          }
+                          return (
+                            <button type="button" onClick={() => setViewImg(slipUrl)} title="ดูสลิปใหญ่" aria-label={`ดูสลิปของบิล ${b.id}`} className="icon-btn" style={{ width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative' }}>
+                              <img src={slipUrl} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--line)', display: 'block' }} />
+                              <span className="exp-zoom" aria-hidden="true" style={{ width: 13, height: 13 }}><Maximize2 size={8} /></span>
+                            </button>
+                          );
+                        })()}
+                        {' '}
                         <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
                         {canVoid && b.status === 'paid' && <> <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button></>}
                         {role !== 'staff' && <> <button onClick={() => deleteBill(b)} className="btn-soft-danger" title="ลบบิลถาวร (เจ้าของร้าน)">ลบ</button></>}
@@ -264,7 +283,40 @@ export default function PageBills({ data, saveData, role }) {
               return (
                 <div key={b.id} className="hcard" onClick={() => setDetailBill(b)} style={{ cursor: 'pointer' }}>
                   <div className="hcard-head">
-                    <div className="hcard-ava"><ReceiptText size={18} strokeWidth={1.8} /></div>
+                    {(() => {
+                      // รูปย่อสลิปแทนไอคอนใบเสร็จ — แตะเปิด lightbox ทันที (PDF = ไอคอนเปิดแท็บใหม่)
+                      const slipUrl = resolveImageUrl(b.slip);
+                      if (slipUrl && !isPdfUrl(slipUrl)) {
+                        return (
+                          <button
+                            type="button"
+                            className="hcard-ava exp-ic-btn"
+                            style={{ width: 40, height: 40, padding: 0, position: 'relative' }}
+                            onClick={(e) => { e.stopPropagation(); setViewImg(slipUrl); }}
+                            title="ดูสลิปใหญ่"
+                            aria-label={`ดูสลิปของบิล ${b.id}`}
+                          >
+                            <img src={slipUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
+                            <span className="exp-zoom" aria-hidden="true"><Maximize2 size={9} /></span>
+                          </button>
+                        );
+                      }
+                      if (slipUrl) {
+                        return (
+                          <a
+                            href={slipUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hcard-ava"
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            onClick={(e) => e.stopPropagation()}
+                            title="เปิดสลิป (PDF)"
+                            aria-label={`เปิดสลิป (PDF) ของบิล ${b.id}`}
+                          ><ExternalLink size={16} strokeWidth={1.8} /></a>
+                        );
+                      }
+                      return <div className="hcard-ava"><ReceiptText size={18} strokeWidth={1.8} /></div>;
+                    })()}
                     <div className="hcard-title">
                       <b>{docName}{docExtra}</b>
                       <span className="muted"><Calendar size={11} /> {fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}{b.startTime ? ` · เริ่ม ${b.startTime}` : ''} · {b.paymentMethod}</span>
