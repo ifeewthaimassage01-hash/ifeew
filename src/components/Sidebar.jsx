@@ -12,8 +12,9 @@ export const NAV_ITEMS = [
   { label: 'POS', short: 'POS', icon: ReceiptText, key: 'pos', roles: ['owner', 'staff'] },
   { label: 'บิล', short: 'บิล', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
   { label: 'รายจ่าย', short: 'รายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
-  { label: 'จัดการร้าน', short: 'จัดการ', icon: Store, key: 'manage', roles: ['owner'] },
   { label: 'ค่าแรง', short: 'ค่าแรง', icon: Calculator, key: 'commission', roles: ['owner', 'staff'] },
+  // "จัดการร้าน" ไว้ท้ายสุด — เป็นเมนูตั้งค่า ไม่ใช่งานประจำวัน
+  { label: 'จัดการร้าน', short: 'จัดการ', icon: Store, key: 'manage', roles: ['owner'] },
 ];
 
 export function RailDesktop({ active, items, onNavigate, onExit, badges, data, saveData, role }) {
