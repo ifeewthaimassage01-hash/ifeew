@@ -513,14 +513,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
           />
           {mergeMode && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              display: 'flex', alignItems: 'center', gap: 8,
               margin: '0 0 12px', padding: '10px 12px',
               background: 'var(--brown-tint)', borderRadius: 12, border: '1px solid var(--line)',
             }}>
-              <span style={{ fontSize: 13, fontWeight: 700 }}>เลือกแล้ว {mergeSel.length} บิล</span>
-              <span style={{ flex: 1 }} />
-              <button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13 }} onClick={() => setMergeSel([])} disabled={mergeSel.length === 0}>ล้าง</button>
-              <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={openMergeReview} disabled={mergeSel.length < 2}>
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }}>เลือกแล้ว {mergeSel.length} บิล</span>
+              <button className="btn btn-ghost auto" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }} onClick={() => setMergeSel([])} disabled={mergeSel.length === 0}>ล้าง</button>
+              <button className="btn btn-primary auto" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0, whiteSpace: 'nowrap' }} onClick={openMergeReview} disabled={mergeSel.length < 2}>
                 รวม {mergeSel.length} บิล
               </button>
             </div>
