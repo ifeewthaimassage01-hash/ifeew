@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Upload, CheckCircle2, Receipt, ExternalLink, Loader2, Pencil, Trash2, X, Maximize2 } from 'lucide-react';
-import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, fmtDay } from '../components/ui';
+import { Card, CardHead, EmptyState, Modal, Lightbox, alertDialog, confirmDialog, fmtDay } from '../components/ui';
 import { bkkToday, bkkNow } from '../utils/bkk';
 import { uploadReceipt, resolveImageUrl, isCloudinaryConfigured } from '../lib/images';
 import { nextExpenseId } from '../lib/ids';
@@ -369,9 +369,9 @@ export default function PageExpenses({ data, saveData, role }) {
                     <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
                       {form.receiptUrl && (
-                      <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(receiptPreview)}>
                         <ExternalLink size={13} /> เปิดดูรูปเต็ม
-                      </a>
+                      </button>
                       )}
                       {uploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {progress}%</span>}
                     </div>
@@ -475,9 +475,9 @@ export default function PageExpenses({ data, saveData, role }) {
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <img src={editPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
                   {editForm.receiptUrl && (
-                  <a href={editPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(editPreview)}>
                     <ExternalLink size={13} /> เปิดดูรูปเต็ม
-                  </a>
+                  </button>
                   )}
                   {editUploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {editProgress}%</span>}
                 </div>
@@ -504,17 +504,8 @@ export default function PageExpenses({ data, saveData, role }) {
         </Modal>
       )}
 
-      {/* lightbox: ดูรูปใบเสร็จเต็มจอ — แตะพื้นหลัง/Esc/ปุ่ม X ปิด (พฤติกรรม Modal เดิม) */}
-      {viewImg && (
-        <Modal onClose={() => setViewImg(null)}>
-          <button className="modal-x" onClick={() => setViewImg(null)} aria-label="ปิด"><X size={16} /></button>
-          <h3>ใบเสร็จ</h3>
-          <img src={viewImg} alt="ใบเสร็จ" className="lb-img" />
-          <a href={viewImg} target="_blank" rel="noopener noreferrer" className="lb-bar">
-            <ExternalLink size={13} /> เปิดในแท็บใหม่
-          </a>
-        </Modal>
-      )}
+      {/* lightbox: ดูรูปใบเสร็จเต็มจอ — มาตรฐานเดียวกันทั้งแอป (แตะพื้นหลัง/Esc/ปุ่ม X ปิด) */}
+      <Lightbox url={viewImg} title="ใบเสร็จ" onClose={() => setViewImg(null)} />
     </div>
   );
 }

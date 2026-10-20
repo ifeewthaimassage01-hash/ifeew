@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
@@ -165,6 +165,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [voidErr, setVoidErr] = useState('');
+  // สลิปที่กำลังเปิดดูแบบเต็มจอ (lightbox) — null = ปิด
+  const [viewSlip, setViewSlip] = useState(null);
 
   // รวมบิล: โหมดเลือกบิลเปิด ≥ 2 บิล (วันเดียวกัน) → พรีวิว → ยืนยันรวมเป็นบิลเดียว
   // บิลตัวถูกกลืน = status 'merged' + mergedInto (ไม่ลบทิ้งเพราะ cloud sync เป็น upsert-only
@@ -716,11 +718,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
               )}
               {slipPreview && !slipIsPdf && (
                 <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <img src={slipPreview} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                  <button type="button" onClick={() => setViewSlip(slipPreview)} title="ดูสลิปใหญ่" aria-label="ดูสลิปใหญ่" style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}>
+                    <img src={slipPreview} alt="สลิป" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)', display: 'block' }} />
+                  </button>
                   {slipName && (
-                  <a href={slipPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewSlip(slipPreview)}>
                     <ExternalLink size={13} /> เปิดดูสลิป
-                  </a>
+                  </button>
                   )}
                   {slipUploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {slipProgress}%</span>}
                 </div>
@@ -789,6 +793,9 @@ export default function OpenBillsSection({ data, saveData, role }) {
           </div>
         </Modal>
       )}
+
+      {/* lightbox สลิปเต็มจอ — มาตรฐานเดียวกันทั้งแอป */}
+      <Lightbox url={viewSlip} title="สลิปโอนเงิน" onClose={() => setViewSlip(null)} />
     </div>
   );
 }

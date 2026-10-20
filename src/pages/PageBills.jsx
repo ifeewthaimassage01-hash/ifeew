@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
+import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
 import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
@@ -71,6 +71,8 @@ export default function PageBills({ data, saveData, role }) {
   const [voidTarget, setVoidTarget] = useState(null);
   const [authPass, setAuthPass] = useState('');
   const [voidErr, setVoidErr] = useState('');
+  // สลิป/รูปที่กำลังเปิดดูแบบเต็มจอ (lightbox) — null = ปิด
+  const [viewImg, setViewImg] = useState(null);
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
@@ -309,8 +311,10 @@ export default function PageBills({ data, saveData, role }) {
               <div className="r"><span>สลิป</span>
                 {resolveImageUrl(detailBill.slip) && !isPdfUrl(resolveImageUrl(detailBill.slip)) ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
-                    <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู</a>
+                    <button type="button" onClick={() => setViewImg(resolveImageUrl(detailBill.slip))} title="ดูสลิปใหญ่" aria-label="ดูสลิปใหญ่" style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}>
+                      <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)', display: 'block' }} />
+                    </button>
+                    <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(resolveImageUrl(detailBill.slip))}><ExternalLink size={13} /> เปิดดู</button>
                   </span>
                 ) : resolveImageUrl(detailBill.slip) ? (
                   <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู (PDF)</a>
@@ -358,6 +362,9 @@ export default function PageBills({ data, saveData, role }) {
           </div>
         </Modal>
       )}
+
+      {/* lightbox สลิปเต็มจอ — มาตรฐานเดียวกันทั้งแอป */}
+      <Lightbox url={viewImg} title="สลิป" onClose={() => setViewImg(null)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CheckCircle2, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, TriangleAlert, X, ExternalLink } from 'lucide-react';
 
 export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
   return (
@@ -63,6 +63,22 @@ export function StatusBadge({ status }) {
   return <span className="badge info">◷ {status}</span>;
 }
 
+/* Lightbox ดูรูปเต็มจอ (มาตรฐานเดียวทั้งแอป เหมือนแท็บ "ประวัติการจ่าย")
+   — url null/ว่าง = ไม่ render · สำหรับ "รูป" เท่านั้น (PDF ให้ caller คงลิงก์เปิดแท็บใหม่) */
+export function Lightbox({ url, title = 'รูป', onClose }) {
+  if (!url) return null;
+  return (
+    <Modal onClose={onClose}>
+      <button className="modal-x" onClick={onClose} aria-label="ปิด"><X size={16} /></button>
+      <h3>{title}</h3>
+      <img src={url} alt={title} className="lb-img" />
+      <a href={url} target="_blank" rel="noopener noreferrer" className="lb-bar">
+        <ExternalLink size={13} /> เปิดในแท็บใหม่
+      </a>
+    </Modal>
+  );
+}
+
 /* ระยะเวลา — แสดงให้ลูกค้า/พนักงานอ่านง่าย เช่น 60 → "1 ชม", 90 → "1.5 ชม", 120 → "2 ชม" */
 export function formatDuration(min) {
   if (min == null || min === '') return '';
@@ -110,9 +126,13 @@ export function fmtDay(ymd) {
   return `${Number(m[3])} ${TH_M[Number(m[2]) - 1]} ${String(Number(m[1]) + 543).slice(2)}`;
 }
 
+// modal stack — Esc ปิดเฉพาะ modal บนสุด (กัน modal ซ้อน modal เช่น lightbox บน checkout
+// ถูก Esc ปิดพร้อมกันทั้งคู่ เพราะทุก modal ฟัง keydown ที่ document)
+const modalStack = [];
 export function Modal({ children, onClose }) {
   const boxRef = useRef(null);
   const prevRef = useRef(null);
+  const stackRef = useRef({});
   // เก็บ onClose ล่าสุดใน ref — effect ต้องรันครั้งเดียวตอน mount เท่านั้น
   // (ทุกที่ส่ง onClose เป็น inline arrow = reference ใหม่ทุก render ถ้าใส่ใน deps
   // effect จะรันซ้ำทุกครั้งที่พิมพ์ → โฟกัสโดนดึงกลับไปปุ่ม X พิมพ์ต่อไม่ได้)
@@ -121,10 +141,15 @@ export function Modal({ children, onClose }) {
   useEffect(() => {
     prevRef.current = document.activeElement;
     const box = boxRef.current;
+    const id = stackRef.current;
+    modalStack.push(id);
     // โฟกัสช่องกรอกก่อน (ถ้ามี) ไม่ใช่ปุ่ม X — กันคีย์บอร์ดมือถือหลุดตอนพิมพ์
     (box?.querySelector('input, select, textarea') || box?.querySelector('button'))?.focus?.();
     const onKey = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); closeRef.current?.(); }
+      if (e.key === 'Escape') {
+        if (modalStack[modalStack.length - 1] !== id) return; // ไม่ใช่ modal บนสุด — ข้าม
+        e.preventDefault(); closeRef.current?.();
+      }
       else if (e.key === 'Tab' && box) {
         const f = [...box.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')]
           .filter((el) => !el.disabled);
@@ -137,6 +162,8 @@ export function Modal({ children, onClose }) {
     };
     document.addEventListener('keydown', onKey);
     return () => {
+      const i = modalStack.indexOf(id);
+      if (i >= 0) modalStack.splice(i, 1);
       document.removeEventListener('keydown', onKey);
       if (prevRef.current?.focus) prevRef.current.focus();
     };
