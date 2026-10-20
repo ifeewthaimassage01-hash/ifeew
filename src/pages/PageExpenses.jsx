@@ -236,7 +236,7 @@ export default function PageExpenses({ data, saveData, role }) {
     syncState.pending += 1;
     try {
       try {
-        await deleteExpenseFromCloud(exp.id);
+        await deleteExpenseFromCloud(exp.id, [resolveImageUrl(exp.receiptUrl)]);
       } catch {
         alertDialog({ title: 'ลบใน cloud ไม่สำเร็จ', message: 'เช็กเน็ตแล้วลองลบอีกครั้ง — รายการอาจโผล่กลับมา' });
         return;

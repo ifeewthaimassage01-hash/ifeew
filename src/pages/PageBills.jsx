@@ -154,7 +154,7 @@ export default function PageBills({ data, saveData, role }) {
     syncState.pending += 1;
     try {
       try {
-        await deleteBillFromCloud(b.id);
+        await deleteBillFromCloud(b.id, [resolveImageUrl(b.slip)]);
       } catch (e) {
         // rollback: ไม่ saveData คง state เดิมไว้ + แจ้งเหมือนเดิม
         alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });

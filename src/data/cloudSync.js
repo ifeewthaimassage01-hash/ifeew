@@ -737,21 +737,37 @@ export function retrySync(data) {
     });
 }
 
+// ลบไฟล์รูป/สลิปบน Cloudinary ตามบิล/รายจ่ายที่ถูกลบ (รูปเดิมค้างกินพื้นที่ตลอดไป)
+// ยิงแล้วลืม (fire & forget) — ถ้า fail ก็แค่รูปค้าง ไม่กระทบการลบข้อมูล
+export async function purgeCloudMedia(urls) {
+  try {
+    const list = [...new Set((urls || []).filter((u) => /^https?:\/\/[^/]+cloudinary\.com\//i.test(String(u))))];
+    if (list.length === 0 || !isSupabaseConfigured || !supabase) return;
+    await supabase.functions.invoke('delete-cloudinary-asset', { body: { urls: list } });
+  } catch (e) {
+    // ไม่ต้องบล็อกผู้ใช้ — ฝั่ง cloud แค่กินพื้นที่ต่อไปจนกว่าจะล้างครั้งถัดไป
+    console.warn('purgeCloudMedia: ลบรูปบน Cloudinary ไม่สำเร็จ (ไม่กระทบการลบข้อมูล)', e?.message || e);
+  }
+}
+
 // Hard delete a bill (owner only) — upsert sync can't propagate deletions,
 // so remove items + header from cloud explicitly. App state is updated by caller.
-export async function deleteBillFromCloud(id) {
+// mediaUrls = ลิงก์รูป/สลิปที่แนบกับบิลนี้ — ลบไฟล์บน Cloudinary ตามด้วย
+export async function deleteBillFromCloud(id, mediaUrls = []) {
   if (!isSupabaseConfigured || !supabase || !id) return;
   const { error: itemErr } = await withRetryOnce(() => supabase.from('bill_items').delete().eq('bill_id', id));
   if (itemErr) throw itemErr;
   const { error: billErr } = await withRetryOnce(() => supabase.from('bills').delete().eq('id', id));
   if (billErr) throw billErr;
+  purgeCloudMedia(mediaUrls);
 }
 
 // ลบค่าใช้จ่าย — upsert sync ลบให้ไม่ได้ ต้องลบใน cloud เอง ไม่งั้นของที่ลบจะโผล่กลับมาตอนโหลด/realtime reload
-export async function deleteExpenseFromCloud(id) {
+export async function deleteExpenseFromCloud(id, mediaUrls = []) {
   if (!isSupabaseConfigured || !supabase || !id) return;
   const { error } = await withRetryOnce(() => supabase.from('expenses').delete().eq('id', id));
   if (error) throw error;
+  purgeCloudMedia(mediaUrls);
 }
 
 // ลบแถว master (พนักงาน/บริการ/หมวด/เสริม/โปร) — upsert sync ลบให้ไม่ได้
