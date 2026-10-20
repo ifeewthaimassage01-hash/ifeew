@@ -39,6 +39,17 @@ function validateFile(file) {
   }
 }
 
+/* BUG-IMG-01: อัปโหลดที่ไม่ระบุ public_id — Cloudinary ตั้ง public ID จากชื่อไฟล์
+   → ไฟล์ที่กล้องส่งมาชื่อเดิม (เช่น image.jpg) จะใช้ public ID ซ้ำกัน
+   และการอัปโหลดแบบ unsigned overwrite ไฟล์เดิมเป็น default → สลิปของ "บิลเก่า" ทุกใบกลายเป็นรูปใหม่ล่าสุด
+   แก้: ตั้ง public_id เฉพาะตัวต่อครั้ง (timestamp + random) ไม่มีทางทับกัน */
+function newUploadPublicId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return `s-${crypto.randomUUID()}`;
+  } catch { /* ตกหล่นด้านล่าง */ }
+  return `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 // บีบอัดรูปฝั่ง client: ย่อด้านยาวสุดเหลือ MAX_DIM + export JPEG q0.8
 // PDF / ไฟล์ไม่ใช่รูป / บีบอัดล้ม (เช่น HEIC) → คืนไฟล์เดิม ไม่พัง
 async function compressImage(file, onPhase) {
@@ -131,6 +142,8 @@ export async function uploadImage(file, kind = 'receipts', onProgress) {
   form.append('file', compact);
   form.append('upload_preset', uploadPreset);
   form.append('folder', folder);
+  form.append('public_id', newUploadPublicId()); // BUG-IMG-01: ชื่อเฉพาะตัว — กันทับสลิปบิลอื่น
+  form.append('overwrite', 'false'); // เกราะชั้นสอง: ถ้าเกิดชนชื่อจะแจ้ง error ไม่แอบทับของเดิม
   // 2) อัปโหลดพร้อม progress
   const text = await xhrUpload(form, onProgress);
   let json;
