@@ -577,11 +577,26 @@ async function replaceBillItems(billId, wantRows) {
 }
 
 // BUG-09: mutex — กัน sync ซ้อนกัน (debounce + retrySync + realtime) ให้ใช้ promise เดิม
+// BUG-01: แต่แค่ reuse อย่างเดียวทำให้ snapshot ใหม่ที่มาระหว่างรอบเดิม "ไม่ถูกยิงตาม"
+// (caller ได้ promise เก่า, d ใหม่หายไปเฉย ๆ) — จึงจอง pendingSync ไว้ แล้วยิงรอบตามทันทีที่รอบเดิมจบ
 let inFlight = null;
+let pendingSync = null; // snapshot ล่าสุดที่รอซิงก์ต่อ (มาจาก caller ที่เข้าระหว่าง inFlight)
 export function syncDataToCloud(d) {
   if (!isSupabaseConfigured || !supabase) return Promise.resolve();
-  if (inFlight) return inFlight; // มี sync วิ่งอยู่แล้ว — reuse promise ไม่ยิง write ซ้อน
-  inFlight = doSyncDataToCloud(d).finally(() => { inFlight = null; });
+  if (inFlight) {
+    pendingSync = d; // เก็บล่าสุดทับเดิมได้ — รอบตามจะส่ง snapshot ล่าสุดเสมอ
+    return inFlight; // คงคืน promise เดิมให้ caller (คงเดิม ไม่แตะ contract ฝั่งเรียก)
+  }
+  inFlight = doSyncDataToCloud(d).finally(() => {
+    inFlight = null;
+    if (pendingSync) {
+      const next = pendingSync;
+      pendingSync = null;
+      // รอบตาม: ยิงถัดไปทันที (ไม่ debounce) — ห้ามจบเฉย ๆ ไม่งั้นงานใน outbox ค้างจนมีการแก้รอบใหม่
+      // catch ไว้เงียบ ๆ เพราะ doSyncDataToCloud ตั้ง cloudStatus error ให้แล้ว + banner โชว์ให้กด retry เองได้
+      setTimeout(() => { syncDataToCloud(next).catch(() => {}); }, 0);
+    }
+  });
   return inFlight;
 }
 async function doSyncDataToCloud(d) {
