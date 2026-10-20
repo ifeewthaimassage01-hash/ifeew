@@ -75,8 +75,13 @@ export default function PageBills({ data, saveData, role }) {
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
   // แท็บประวัติ = เฉพาะบิลที่ปิดแล้ว (ชำระแล้ว / ยกเลิก)
+  // รวมบิล v1.3: ซ่อนบิลที่ถูกกลืน (status 'merged') ออกจากรายการทุกสถานะ
+  // — ข้อมูลยังเก็บครบ (ไม่ลบไม่แตะ DB) รายงานคิดจาก status 'paid' เท่านั้นจึงไม่กระทบ
+  // ดูได้เมื่อเลือกสถานะ "รวมแล้ว" ในตัวกรอง หรือกดปุ่มในการ์ด "รวมบิล" ด้านล่าง
+  const mergedBills = bills.filter((b) => b.status === 'merged');
   const history = bills.filter((b) => {
     if (b.status === 'open') return false;
+    if (b.status === 'merged' && statusFilter !== 'merged') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
     return matchQ && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
@@ -176,6 +181,45 @@ export default function PageBills({ data, saveData, role }) {
 
       {tab === 'history' && (
         <>
+          {/* การ์ดรวมบิล — โชว์เฉพาะเมื่อมีบิลที่ถูกกลืน จัดรายการให้ลื่นตาโดยไม่ลบข้อมูล */}
+          {mergedBills.length > 0 && (
+            <Card>
+              <CardHead title="รวมบิล" right={<span className="badge neutral">{mergedBills.length} บิลถูกกลืน</span>} />
+              <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+                บิลที่ถูกรวมเข้าบิลอื่นจะถูกซ่อนจากรายการปกติให้ประวัติสะอาด — ข้อมูลยังเก็บครบทุกอย่าง และยอดรายงานไม่คิดซ้ำ
+              </p>
+              {mergedBills.slice(0, 4).map((m) => (
+                <div
+                  key={m.id}
+                  className="mrow"
+                  onClick={() => setDetailBill(m)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <span className="grow">
+                    <b style={{ fontSize: 13 }}>{m.id}</b>
+                    <small className="muted" style={{ display: 'block' }}>
+                      {fmtBkk(m.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ฿ {billTotal(m).toLocaleString()} → รวมเข้า {m.mergedInto || '?'}
+                    </small>
+                  </span>
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <StatusBadge status="merged" />
+                  </span>
+                </div>
+              ))}
+              {mergedBills.length > 4 && (
+                <small className="muted">และอีก {mergedBills.length - 4} บิล…</small>
+              )}
+              {statusFilter !== 'merged' ? (
+                <button className="btn btn-ghost btn-block" onClick={() => { setStatusFilter('merged'); setFilterDate(''); setShowFilters(false); }}>
+                  ดูบิลที่ถูกกลืนทั้งหมด ({mergedBills.length})
+                </button>
+              ) : (
+                <button className="btn btn-ghost btn-block" onClick={() => { setStatusFilter('all'); setFilterDate(bizToday()); setShowFilters(false); }}>
+                  กลับไปดูรายการปกติ
+                </button>
+              )}
+            </Card>
+          )}
           <Card>
             <button className="filter-toggle" onClick={() => setShowFilters(!showFilters)} type="button">
               <Filter size={14} />
