@@ -46,6 +46,9 @@ body {
   max-width: 100vw;
 }
 @supports (overflow: clip) { body { overflow-x: clip; } }
+/* ซ่อน scrollbar ทุกจอ (เลื่อนได้ปกติ แต่ไม่เห็นแถบ) — ใช้ * เพื่อครอบคลุมทั้งหน้าและกล่องเลื่อนภายใน */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
 h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: 0; }
 p { margin: 0; }
 button { font-family: inherit; cursor: pointer; color: inherit; }
@@ -69,7 +72,7 @@ a[href^="tel:"] { color: inherit !important; text-decoration: none !important; }
 .app { min-height: 100vh; min-height: 100dvh; max-width: 100vw; overflow-x: visible; }
 .shell { display: block; min-height: 100vh; min-height: 100dvh; max-width: 100%; overflow-x: visible; }
 .main-col { min-width: 0; max-width: 100%; display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
-.page { flex: 1; padding: 20px 16px 140px; min-width: 0; max-width: 100%; }
+.page { flex: 1; padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); min-width: 0; max-width: 100%; }
 .container { max-width: 1180px; width: 100%; max-width: min(1180px, 100%); margin: 0 auto; min-width: 0; }
 img { max-width: 100%; }
 .foot { display: none; }
@@ -104,16 +107,17 @@ img { max-width: 100%; }
 /* (ลบ .date-chip แล้ว — ข้อความซ้ำกับ page header; TopBar เหลือโลโก้ + role + ปุ่มลัด) */
 
 /* bottom nav — light */
-/* M6: safe-area นับที่เดียว (ที่ margin ของ .bottomnav-in) — ไม่บวกซ้ำที่ padding นี้ */
+/* M6: safe-area นับที่เดียว (ใน padding ของ .bottomnav-in) — แถบติดขอบล่างจอเต็มขอบ (flush) */
 .bottomnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; padding-bottom: 0; width: 100%; max-width: 100vw; box-sizing: border-box; }
 .bottomnav-in {
-  margin: 0 10px calc(10px + env(safe-area-inset-bottom));
-  max-width: calc(100vw - 20px); box-sizing: border-box; overflow: hidden;
-  background: rgba(255, 255, 255, 0.96);
+  margin: 0;
+  width: 100%; max-width: 100%; box-sizing: border-box; overflow: hidden;
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(14px);
-  border: 1px solid var(--line);
-  border-radius: 18px; box-shadow: var(--sh-pop);
-  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px 4px; align-items: stretch;
+  border: 0; border-top: 1px solid var(--line);
+  border-radius: 16px 16px 0 0; box-shadow: 0 -8px 22px -12px rgba(100, 81, 62, 0.35);
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
+  padding: 10px 8px calc(10px + env(safe-area-inset-bottom)); align-items: stretch;
 }
 .bottomnav-in button {
   border: 0; background: transparent; color: var(--muted);
@@ -747,7 +751,7 @@ label.filebtn {
   .search-wrap .input { padding-left: 38px; }
   .topbar-in { padding: 12px 16px; }
   .brand-name { font-size: 18px; }
-  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); padding: 6px 4px; }
+  .bottomnav-in { margin: 0; padding: 10px 8px calc(10px + env(safe-area-inset-bottom)); }
   .bottomnav-in button { padding: 8px 2px 7px; min-height: 56px; }
   .modal { padding: 24px 20px calc(24px + env(safe-area-inset-bottom)); }
   .gate-card { padding: 26px 20px 20px; }
@@ -858,11 +862,9 @@ label.filebtn {
   .mcard-btns > * { flex: 1; }
   .ob-total { flex-direction: column; align-items: stretch; }
   .ob-btns > * { flex: 1; }
-  /* ซ่อน scrollbar เฉพาะมือถือ (desktop ใช้ scrollbar ปกติ) */
-  * { scrollbar-width: none; -ms-overflow-style: none; }
-  *::-webkit-scrollbar { display: none !important; }
+  /* (ซ่อน scrollbar ย้ายไปที่กฎ global แล้ว — ครอบคลุมทุกขนาดจอ) */
   /* --- POS mobile (ย้ายมาจากบล็อกท้ายไฟล์) --- */
-  .page { padding: 20px 20px 160px; }
+  .page { padding: 20px 20px calc(96px + env(safe-area-inset-bottom)); }
   .steps { padding: 10px; position: sticky; top: 59px; z-index: 20; }
   .step { gap: 8px; padding: 4px; }
   .step:not(.cur) { display: none; }
@@ -907,7 +909,7 @@ label.filebtn {
 }
 
 @media (min-width: 720px) {
-  .page { padding: 22px 20px 60px; }
+  .page { padding: 22px 20px calc(96px + env(safe-area-inset-bottom)); }
   .thera-scroll .thera { min-width: 150px; }
   .hscroll { grid-auto-columns: minmax(170px, 190px); }
   .refgrid { grid-template-columns: repeat(3, 1fr); }
@@ -919,6 +921,7 @@ label.filebtn {
 @media (min-width: 1080px) {
   .shell { display: flex; }
   .bottomnav { display: none; }
+  .page { padding-bottom: 60px; } /* ไม่มี bottomnav บนจอใหญ่ — ไม่ต้องเว้นที่ท้ายจอ */
   .rail {
     display: flex; flex-direction: column; flex-shrink: 0;
     position: sticky; top: 0; height: 100vh; height: 100dvh; width: 242px; padding: 14px 0 14px 14px;
@@ -995,14 +998,14 @@ label.filebtn {
 
 /* ---------- tablet 768–1024: ไม่มี rail (rail เริ่ม 1080) จึงจัด topbar + content ไม่ให้โล่ง ---------- */
 @media (min-width: 768px) and (max-width: 1079px) {
-  .page { padding: 20px 20px 130px; }
+  .page { padding: 20px 20px calc(96px + env(safe-area-inset-bottom)); }
   .container { max-width: 780px; }
   .topbar-in { max-width: 780px; }
   .kpi-grid { grid-template-columns: repeat(4, 1fr); }
   .kpi-grid > .kpi { grid-column: span 2; }
   .kpi-grid > .kpi.span2 { grid-column: span 4; }
   .cat-grid { grid-template-columns: 1fr 1fr; }
-  .bottomnav-in { max-width: 780px; margin-left: auto; margin-right: auto; }
+  .bottomnav-in { max-width: 100%; margin-left: 0; margin-right: 0; } /* แถบติดขอบล่างจอเต็มขอบ */
   .modal { max-width: 520px; }
 }
 /* ---------- role gate ---------- */
@@ -1268,6 +1271,185 @@ label.filebtn {
 .switch.on i { background: var(--brown); }
 .switch.on i::after { left: 15px; }
 .switch:active { transform: scale(0.96); }
+
+/* ---------- หน้าจัดการร้าน (PageManage) ---------- */
+/* DOM เดียวทุกขนาดจอ — สลับการมองเห็นด้วย CSS อย่างเดียว (ไม่ใช้ matchMedia / resize listener)
+   - มือถือ (≤719px): ใช้ dropdown .mg-picker เลือกหมวด — แถบแท็บ .mg-tabrow ถูกซ่อน
+   - จอใหญ่ (≥720px): ซ่อน dropdown แล้วแสดงแถบแท็บแบบ chip กระจายเต็มความกว้าง */
+
+/* dropdown มือถือ — ไอคอนซ้ายคือไอคอนของแท็บที่ active */
+.mg-picker {
+  display: block;
+  position: relative;
+  margin-bottom: 14px;
+}
+.mg-picker-ic {
+  position: absolute;
+  left: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+  display: flex;
+}
+/* select ใช้ลูกศร native ของ OS (ห้าม appearance:none)
+   - เว้นขวา 34px ให้ลูกศรไม่ทับข้อความ · เว้นซ้าย 38px ให้ไอคอนไม่ทับข้อความ */
+.mg-picker .mg-select {
+  width: 100%;
+  padding: 12px 34px 12px 38px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.mg-picker .mg-select:focus {
+  outline: none;
+  border-color: var(--brown);
+  box-shadow: 0 0 0 3px rgba(176, 136, 95, 0.10);
+}
+
+/* แถบแท็บ — มือถือซ่อนไว้ (ใช้ dropdown แทน) */
+.mg-tabrow { display: none; }
+
+.mg-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;                    /* chip กว้างเท่าข้อความ ไม่โดนบีบ */
+  min-height: 38px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;               /* ห้ามตัดป้าย — ใช้ overflow ของแถวแทน */
+  transition: background .15s, color .15s, border-color .15s;
+}
+.mg-tab > svg { flex-shrink: 0; }
+.mg-tab .n {
+  font-style: normal;                /* <i> เป็น italic โดย default */
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: .75;
+}
+.mg-tab.on { background: var(--brown-950); color: #fff; border-color: var(--brown-950); }
+.mg-tab.on .n { opacity: .9; }
+.mg-tab:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.mg-tab:active { transform: scale(0.98); }
+
+/* ช่องค้นหาพนักงาน — ใช้ .search-wrap ของแอป (position/padding ของ input อยู่ที่นั่นแล้ว) */
+.mg-search { margin-bottom: 12px; }
+
+/* การ์ดยอดประกันมือ */
+.mg-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 18px;
+  margin-bottom: 16px;
+  background: var(--brown-tint-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+}
+.mg-hero-l {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: var(--muted);
+}
+.mg-hero-v {
+  margin-top: 4px;
+  font-size: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+  color: var(--brown-dark);
+}
+
+/* จอใหญ่ (≥720px): ซ่อน dropdown + แท็บกระจายเต็มความกว้าง ไม่ต้องเลื่อน
+   - overflow-x/overflow-y: visible คงไว้ (CSS บังคับว่าถ้าแกนหนึ่งเป็น auto อีกแกน visible
+     จะถูกคำนวณเป็น auto → outline ของปุ่มโฟกัสจะถูกตัด)
+   - flex-wrap: wrap เป็นแผนสำรอง: ถ้าความกว้างจอแคบจนแท็บ 6 อันยังไม่พอดีแถวเดียว
+     แท็บสุดท้ายจะลงบรรทัดใหม่ (ขยายเต็มบรรทัด) แทนที่จะล้น/ถูกตัด — ป้ายยังครบเสมอ
+   - max-width: 320px กันแท็บที่ลงบรรทัดใหม่ยืดเต็มจอจนดูแปลก */
+@media (min-width: 720px) {
+  .mg-picker { display: none; }
+  .mg-tabrow {
+    display: flex;
+    overflow-x: visible;
+    overflow-y: visible;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 14px;
+    padding: 4px 2px;                 /* เผื่อ outline ของปุ่ม (offset 2 + ขนาด 2) ไม่ให้ถูกตัดตอนโฟกัส */
+  }
+  .mg-tab { flex: 1 1 0; justify-content: center; max-width: 320px; }
+}
+
+/* มือถือ: ย่อการ์ดยอดให้พอดีจอแคบ */
+@media (max-width: 719px) {
+  .mg-hero { padding: 15px; }
+  .mg-hero-v { font-size: 26px; }
+}
+
+/* ---------- รายการโปรโมชัน (แถวบนจอใหญ่ / การ์ดบนมือถือ) ---------- */
+/* (ก) ฐาน = จอใหญ่ (≥720px) เป็นแถวเหมือนเดิมทุกพิกเซล
+   - เดิม .mrow gap 10px คั่น: ชื่อ → ยอด → สวิตช์ → แก้ไข → ลบ (4 ช่อง = 10px ทั้งหมด)
+   - ตอนนี้ .promo-acts (gap 10px) คั่นสวิตช์กับ .promo-acts-btns (gap 10px)
+     → ระยะห่างรวมเท่าเดิมทุกช่อง หน้าตาไม่ขยับ */
+.promo-list { display: block; }
+.promo-name { min-width: 0; }
+/* ย้าย inline style เดิม (fontSize: 13.5) มาไว้ที่นี่ */
+.promo-name b { font-size: 13.5px; }
+/* ยอดส่วนลดเป็นป้าย pill สีน้ำตาล ให้เข้ากับแท็บ "รายการ" (.mcat-hourly) ในหน้าเดียวกัน */
+.promo-amt {
+  flex-shrink: 0;
+  font-size: 14px; font-weight: 800;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  color: var(--brown-dark); background: var(--brown-tint);
+  border: 1px solid #e7d6c3; border-radius: 999px; padding: 4px 10px;
+}
+.promo-acts { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.promo-acts-btns { display: flex; gap: 10px; }
+
+/* (ข) มือถือ (≤719px) — โปรแต่ละใบเป็นการ์ดแยกใบ
+   - เขียน selector เป็น .promo-list .promo-item (0,2,0) เพื่อชนะ .mrow (0,1,0)
+   - และ .promo-list .promo-item:last-child (0,3,0) ชนะ .mrow:last-child (0,2,0)
+     → ขอบล่างของการ์ดใบสุดท้ายไม่หาย */
+@media (max-width: 719px) {
+  .promo-list { display: grid; gap: 10px; }
+  .promo-list .promo-item {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name amt"
+      "acts acts";
+    align-items: center;
+    gap: 10px 8px;
+    padding: 13px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .promo-list .promo-item:last-child { border-bottom: 1px solid var(--line); }
+  .promo-name { grid-area: name; }
+  .promo-name b { font-size: 14.5px; font-weight: 700; }
+  .promo-amt { grid-area: amt; }
+  .promo-acts { grid-area: acts; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+  .promo-acts-btns { gap: 8px; }
+}
 
 /* ---------- bill cards (finance-app style) ---------- */
 .bill-card { padding: 0; overflow: hidden; }
@@ -1572,7 +1754,7 @@ label.filebtn {
 
 /* ---------- FIX มือถือล้นแนวนอน POS ขั้น 1 (ต้องอยู่ท้ายสุด ชนะกฎ base .cat-grid 2 คอลัมน์) ---------- */
 @media (max-width: 719px) {
-  .page { padding-left: 14px; padding-right: 14px; padding-bottom: 170px; }
+  .page { padding-left: 14px; padding-right: 14px; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .container { padding: 0; max-width: 100%; }
   /* การ์ดเลือกรายการ: คอลัมน์เดียวบนมือถือ กันชื่ออังกฤษยาวดันล้น */
   .cat-grid { grid-template-columns: 1fr; gap: 10px; max-width: 100%; }
@@ -1583,20 +1765,20 @@ label.filebtn {
   .cat-price { white-space: normal; overflow-wrap: normal; word-break: keep-all; }
   .cat-card-arrow { align-self: center; }
   /* M3: stepnav ลอยเหนือ BottomNav โชว์ตลอดจนกว่าจะเลือกรายการ — นิยาม sticky ครั้งเดียวที่นี่
-     bottom 94px = ความสูง BottomNav จริง (~56 ปุ่ม + 12 padding + 12 margin + 2 border + เผื่อ) */
+     bottom 76px = ความสูง BottomNav จริง (~56 ปุ่ม + 12 padding + 1 เส้นบน + เผื่อ) */
   .stepnav {
-    position: sticky; bottom: calc(94px + env(safe-area-inset-bottom)); z-index: 25;
+    position: sticky; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 25;
     background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
     padding: 10px; margin-top: 14px; margin-bottom: 8px; box-shadow: var(--sh-pop);
   }
   .stepnav .btn { min-height: 44px; }
   /* การ์ดสุดท้ายไม่โดน stepnav ลอยทับ + scroll-margin กัน anchor จม */
-  .page .card:last-child { scroll-margin-bottom: 190px; }
+  .page .card:last-child { scroll-margin-bottom: calc(130px + env(safe-area-inset-bottom)); }
   .card .cat-grid:last-child { margin-bottom: 2px; }
   /* แถว tline: ราคา nowrap + ไม่หด — ชื่อ ellipsis รับข้อมือถือแคบ */
   .tline { min-width: 0; max-width: 100%; }
   .tline .tt { min-width: 0; flex: 1; }
   .tline .num { flex-shrink: 0; white-space: nowrap; max-width: none; text-align: right; }
   /* BottomNav พอดีจอ 360px */
-  .bottomnav-in { margin: 0 12px calc(12px + env(safe-area-inset-bottom)); max-width: calc(100vw - 24px); }
+  .bottomnav-in { margin: 0; max-width: 100%; }
 }

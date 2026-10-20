@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck, Bell, BellOff, RefreshCw } from 'lucide-react';
-import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Sparkles, Tag, ShieldCheck, SlidersHorizontal, Settings2, Search, Bell, BellOff, RefreshCw } from 'lucide-react';
+import { Card, CardHead, EmptyState, Modal, PageHeader, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { commBaht, categoryEn, serviceCategoryOrder, guaranteeAmountOf } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { bkkNow } from '../utils/bkk';
@@ -186,9 +186,20 @@ function UpdateAppCard() {
   );
 }
 
+/* แท็บหน้าจัดการร้าน — DOM เดียวทุกขนาดจอ (เลื่อนแนวนอนได้บนมือถือ) ไม่ตัดป้าย */
+const TABS = [
+  { id: 'staff', label: 'พนักงาน', icon: Users },
+  { id: 'services', label: 'รายการ', icon: LayoutGrid },
+  { id: 'addons', label: 'บริการเสริม', icon: Sparkles },
+  { id: 'promos', label: 'โปร', icon: Tag },
+  { id: 'guarantee', label: 'ประกันมือ', icon: ShieldCheck },
+  { id: 'settings', label: 'ตั้งค่า', icon: SlidersHorizontal },
+];
+
 export default function PageManage({ data, saveData }) {
   const [tab, setTab] = useState('staff');
   const [err, setErr] = useState('');
+  const [staffQuery, setStaffQuery] = useState(''); // ค้นหาพนักงานในแท็บทีมงาน
 
   const [showT, setShowT] = useState(false);
   const [editingT, setEditingT] = useState(null);
@@ -272,6 +283,27 @@ export default function PageManage({ data, saveData }) {
       return { name: c, en: categoryEn(c, data.serviceCategoryEn), rows, timed, hourly: hourlyOf(rows) };
     });
   }, [orderedCats, services, data.serviceCategoryEn]);
+
+  // ค้นหาพนักงาน (ไม่สนตัวพิมพ์ / ตัดช่องว่าง)
+  const staffKey = staffQuery.trim().toLowerCase();
+  const shownTherapists = useMemo(() => {
+    if (!staffKey) return therapists;
+    return therapists.filter((t) => (t.name || '').toLowerCase().includes(staffKey));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [therapists, staffKey]);
+
+  // จำนวนรายการในแท็บ (badge) — คำนวณจาก data จริง
+  const tabs = TABS.map((t) => ({
+    ...t,
+    count: t.id === 'staff' ? therapists.length
+      : t.id === 'services' ? orderedCats.length
+      : t.id === 'addons' ? addons.length
+      : t.id === 'promos' ? promos.length
+      : null,
+  }));
+
+  // ไอคอนของแท็บที่ active (ใช้กับ dropdown สำหรับมือถือ)
+  const ActiveIcon = (tabs.find((t) => t.id === tab) || tabs[0]).icon;
 
   /* ---------- therapists (เดิม) ---------- */
   const openAddT = () => { setEditingT(null); setTForm(EMPTY_THERAPIST); setErr(''); setShowT(true); };
@@ -739,15 +771,40 @@ export default function PageManage({ data, saveData }) {
 
   return (
     <div>
-      <PushAdminCard />
-      <UpdateAppCard />
-      <div className="seg seg-icons" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr' }}>
-        <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''} aria-label={`พนักงาน ${therapists.length} คน`}><Users size={17} strokeWidth={1.9} /><span>พนักงาน {therapists.length}</span></button>
-        {/* BUG-6: นับจาก orderedCats ให้ตรงกับแถวที่เรนเดอร์จริง (cats อาจว่างแต่ services มีหมวด) */}
-        <button onClick={() => setTab('services')} className={tab === 'services' ? 'on' : ''} aria-label={`รายการ ${orderedCats.length} รายการ`}><LayoutGrid size={17} strokeWidth={1.9} /><span>รายการ {orderedCats.length}</span></button>
-        <button onClick={() => setTab('promos')} className={tab === 'promos' ? 'on' : ''} aria-label={`โปรโมชัน ${promos.length} รายการ`}><Tag size={17} strokeWidth={1.9} /><span>โปร {promos.length}</span></button>
-        <button onClick={() => setTab('guarantee')} className={tab === 'guarantee' ? 'on' : ''} aria-label="ประกันมือ"><ShieldCheck size={17} strokeWidth={1.9} /><span>ประกันมือ</span></button>
-        <button onClick={() => setTab('pass')} className={tab === 'pass' ? 'on' : ''} aria-label="รหัส"><KeyRound size={17} strokeWidth={1.9} /><span>รหัส</span></button>
+      <PageHeader icon={Settings2} title="จัดการร้าน" eyebrow="ทีมงาน · บริการ · ระบบ" />
+
+      {/* มือถือ: dropdown เลือกหมวด (แท็บ 6 อันล้นจอเล็ก) */}
+      <div className="mg-picker">
+        <span className="mg-picker-ic"><ActiveIcon size={16} strokeWidth={1.9} /></span>
+        <select
+          className="input mg-select"
+          value={tab}
+          onChange={(e) => setTab(e.target.value)}
+          aria-label="หมวดการจัดการ"
+        >
+          {tabs.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.label}{t.count != null ? ` (${t.count})` : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mg-tabrow" role="tablist" aria-label="หมวดการจัดการ">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            type="button"
+            aria-selected={tab === t.id}
+            className={`mg-tab${tab === t.id ? ' on' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            <t.icon size={15} strokeWidth={1.9} />
+            <span>{t.label}</span>
+            {t.count != null && <i className="n">{t.count}</i>}
+          </button>
+        ))}
       </div>
 
       {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
@@ -755,7 +812,11 @@ export default function PageManage({ data, saveData }) {
       {tab === 'staff' && (
         <Card>
           <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddT} title="เพิ่มพนักงาน" aria-label="เพิ่มพนักงาน"><Plus size={15} /> <span className="btn-t">เพิ่มพนักงาน</span></button>} />
-          {therapists.map((t) => (
+          <div className="search-wrap mg-search">
+            <Search size={16} />
+            <input value={staffQuery} onChange={(e) => setStaffQuery(e.target.value)} placeholder="ค้นหาพนักงาน…" className="input" />
+          </div>
+          {shownTherapists.map((t) => (
             <div key={t.id} className="mrow">
               <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.name || '?').charAt(0)}</span>
               <span className="grow">
@@ -764,12 +825,13 @@ export default function PageManage({ data, saveData }) {
                   <span className={`badge ${t.active === false ? 'void' : 'neutral'}`}>{t.active === false ? 'พักงาน' : 'ใช้งาน'}</span>
                 </span>
               </span>
-              <button className={`toggle${t.active === false ? '' : ' on'}`} onClick={() => toggleT(t)} title="สลับสถานะ">{t.active === false ? 'พัก' : 'ใช้'}</button>
+              <button className={`switch${t.active === false ? '' : ' on'}`} onClick={() => toggleT(t)} title={t.active === false ? 'แตะเพื่อเปิดใช้' : 'แตะเพื่อปิด'} aria-label={`สลับเปิดปิด ${t.name}`}><i /><span>{t.active === false ? 'ปิด' : 'เปิด'}</span></button>
               <button className="icon-btn" onClick={() => openEditT(t)} aria-label={`แก้ไข ${t.name}`}><Pencil size={15} /></button>
               <button className="icon-btn danger" onClick={() => deleteT(t)} aria-label={`ลบ ${t.name}`}><Trash2 size={15} /></button>
             </div>
           ))}
-          {therapists.length === 0 && <EmptyState title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
+          {staffKey && shownTherapists.length === 0 && <EmptyState title="ไม่พบพนักงาน" subtitle="ลองค้นหาด้วยคำอื่น" />}
+          {!staffKey && therapists.length === 0 && <EmptyState title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
         </Card>
       )}
 
@@ -813,7 +875,7 @@ export default function PageManage({ data, saveData }) {
         </Card>
       )}
 
-      {tab === 'services' && (
+      {tab === 'addons' && (
         <Card>
           <CardHead
             title="บริการเสริม"
@@ -841,42 +903,59 @@ export default function PageManage({ data, saveData }) {
             title="โปรโมชัน"
             right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP} title="เพิ่มโปรโมชัน" aria-label="เพิ่มโปรโมชัน"><Plus size={15} /> <span className="btn-t">เพิ่มโปร</span></button>}
           />
-          {promos.map((p) => (
-            <div key={p.id} className="mrow">
-              <span className="grow">
-                <b style={{ fontSize: 13.5 }}>{p.name}</b>
-              </span>
-              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>−฿ {(p.amount || 0).toLocaleString()}</b>
-              <button className={`toggle${p.active === false ? '' : ' on'}`} onClick={() => toggleP(p)} title="สลับสถานะ">{p.active === false ? 'พัก' : 'ใช้'}</button>
-              <button className="icon-btn" onClick={() => openEditP(p)} aria-label={`แก้ไข ${p.name}`}><Pencil size={15} /></button>
-              <button className="icon-btn danger" onClick={() => deleteP(p)} aria-label={`ลบ ${p.name}`}><Trash2 size={15} /></button>
-            </div>
-          ))}
+          <div className="promo-list">
+            {promos.map((p) => (
+              <div key={p.id} className="mrow promo-item">
+                <span className="grow promo-name">
+                  <b>{p.name}</b>
+                </span>
+                <b className="promo-amt">−฿ {(p.amount || 0).toLocaleString()}</b>
+                <span className="promo-acts">
+                  <button className={`switch${p.active === false ? '' : ' on'}`} onClick={() => toggleP(p)} title={p.active === false ? 'แตะเพื่อเปิดใช้' : 'แตะเพื่อปิด'} aria-label={`สลับเปิดปิด ${p.name}`}><i /><span>{p.active === false ? 'ปิด' : 'เปิด'}</span></button>
+                  <span className="promo-acts-btns">
+                    <button className="icon-btn" onClick={() => openEditP(p)} aria-label={`แก้ไข ${p.name}`}><Pencil size={15} /></button>
+                    <button className="icon-btn danger" onClick={() => deleteP(p)} aria-label={`ลบ ${p.name}`}><Trash2 size={15} /></button>
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
           {promos.length === 0 && <EmptyState title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
         </Card>
       )}
 
       {tab === 'guarantee' && (
-        <Card>
-          <CardHead
-            title="ประกันมือ"
-            right={<span className="badge info">฿ {guaranteeAmountOf(data).toLocaleString()}/วัน</span>}
-          />
-          <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
-          <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
-        </Card>
+        <>
+          <div className="mg-hero">
+            <div>
+              <div className="mg-hero-l">ยอดประกันมือต่อวัน</div>
+              <div className="mg-hero-v">฿ {guaranteeAmountOf(data).toLocaleString()}</div>
+            </div>
+            <span className="badge paid">ใช้งานอยู่</span>
+          </div>
+          <Card>
+            <CardHead title="ปรับยอดประกันมือ" />
+            <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
+            <p className="muted" style={{ margin: '0 0 10px' }}>ใช้เช็กชื่อให้ครบตามยอดนี้ต่อวัน</p>
+            <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
+          </Card>
+        </>
       )}
 
-      {tab === 'pass' && (
-        <Card>
-          <CardHead title="รหัสเจ้าของร้าน" right={data.ownerPass ? <span className="badge paid">ตั้งเองแล้ว</span> : <span className="badge neutral">เริ่มต้น 123123</span>} />
-          <div className="field"><label>รหัสปัจจุบัน *</label><input type="password" value={ownerForm.cur} onChange={(e) => setOwnerForm({ ...ownerForm, cur: e.target.value })} placeholder="กรอกรหัสปัจจุบัน" className="input" autoComplete="current-password" /></div>
-          <div className="f2">
-            <div className="field"><label>รหัสใหม่ (≥ 4 ตัว) *</label><input type="password" value={ownerForm.next} onChange={(e) => setOwnerForm({ ...ownerForm, next: e.target.value })} placeholder="รหัสใหม่" className="input" autoComplete="new-password" /></div>
-            <div className="field"><label>ยืนยันรหัสใหม่ *</label><input type="password" value={ownerForm.confirm} onChange={(e) => setOwnerForm({ ...ownerForm, confirm: e.target.value })} placeholder="กรอกอีกครั้ง" className="input" autoComplete="new-password" /></div>
-          </div>
-          <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัส</button>
-        </Card>
+      {tab === 'settings' && (
+        <>
+          <Card>
+            <CardHead title="รหัสเจ้าของร้าน" right={data.ownerPass ? <span className="badge paid">ตั้งเองแล้ว</span> : <span className="badge neutral">เริ่มต้น 123123</span>} />
+            <div className="field"><label>รหัสปัจจุบัน *</label><input type="password" value={ownerForm.cur} onChange={(e) => setOwnerForm({ ...ownerForm, cur: e.target.value })} placeholder="กรอกรหัสปัจจุบัน" className="input" autoComplete="current-password" /></div>
+            <div className="f2">
+              <div className="field"><label>รหัสใหม่ (≥ 4 ตัว) *</label><input type="password" value={ownerForm.next} onChange={(e) => setOwnerForm({ ...ownerForm, next: e.target.value })} placeholder="รหัสใหม่" className="input" autoComplete="new-password" /></div>
+              <div className="field"><label>ยืนยันรหัสใหม่ *</label><input type="password" value={ownerForm.confirm} onChange={(e) => setOwnerForm({ ...ownerForm, confirm: e.target.value })} placeholder="กรอกอีกครั้ง" className="input" autoComplete="new-password" /></div>
+            </div>
+            <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัส</button>
+          </Card>
+          <PushAdminCard />
+          <UpdateAppCard />
+        </>
       )}
 
       {showOrder && (
@@ -985,7 +1064,7 @@ export default function PageManage({ data, saveData }) {
               return (
                 <div key={d} className="dur-edit">
                   <div className="dur-edit-top">
-                    <span className="toggle on">{formatDuration(d)}</span>
+                    <span className="chip on">{formatDuration(d)}</span>
                     <button type="button" className="icon-btn danger" onClick={() => deleteDur(d)} aria-label={`ลบ ${formatDuration(d)}`}><Trash2 size={15} /></button>
                   </div>
                   <div className="dur-edit-grid">
