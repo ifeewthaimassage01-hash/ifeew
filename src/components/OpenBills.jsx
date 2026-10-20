@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2 } from 'lucide-react';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, fmtBkk } from '../utils/bkk';
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
@@ -166,10 +166,17 @@ export default function OpenBillsSection({ data, saveData, role }) {
   const [authPass, setAuthPass] = useState('');
   const [voidErr, setVoidErr] = useState('');
 
-  // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิกเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
+  // รวมบิล: โหมดเลือกบิลเปิด ≥ 2 บิล (วันเดียวกัน) → พรีวิว → ยืนยันรวมเป็นบิลเดียว
+  // บิลตัวถูกกลืน = status 'merged' + mergedInto (ไม่ลบทิ้งเพราะ cloud sync เป็น upsert-only
+  // การเปลี่ยนสถานะ sync ผ่าน upsert เอง และ push-bill webhook ข้ามสถานะ merged ให้อยู่แล้ว)
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSel, setMergeSel] = useState([]); // id ของบิลที่เลือก
+  const [mergeReview, setMergeReview] = useState(null); // { bill, absorbedIds, count } — พรีวิวก่อนยืนยัน
+
+  // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิก/รวมบิลเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: (editTarget || checkoutTarget || voidTarget) ? 1 : 0 } }));
-  }, [editTarget, checkoutTarget, voidTarget]);
+    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: (editTarget || checkoutTarget || voidTarget || mergeReview) ? 1 : 0 } }));
+  }, [editTarget, checkoutTarget, voidTarget, mergeReview]);
 
   // โชว์ชื่อแทนรหัส: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากทะเบียนปัจจุบัน
   // หมอวิ่งตัด prefix เทคนิค (EXT-VIS-) เหลือแค่ชื่อ — ไม่โชว์รหัสดิบใน UI
@@ -187,7 +194,7 @@ export default function OpenBillsSection({ data, saveData, role }) {
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
     return 'บริการที่ลบแล้ว';
   };
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget) {
+  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !mergeReview) {
     return (
       <div id="open-bills" style={{ scrollMarginTop: 16 }}>
         <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
@@ -404,20 +411,148 @@ export default function OpenBillsSection({ data, saveData, role }) {
     alertDialog({ title: 'ยกเลิกบิลแล้ว', message: 'สถานะเปลี่ยนเป็นยกเลิกแล้ว' });
   };
 
+  /* ---------- รวมบิล ----------
+     กติกา: รวมได้เฉพาะบิล "open" วันเดียวกัน (กันเพี้ยนสรุปคอม/ประกันมือรายวัน)
+     - target = บิลที่เก่าสุดในกลุ่ม (เก็บ id/date เดิม บิลใหม่ตามลำดับเดิมในรายงาน)
+     - items = เรียงต่อจากทุกบิล โดยแต่ละแถวคง therapistId/therapistName/เวลา/addons ของตัวเอง
+       → คอม/ค่าแรงเดิมคิดต่อแถว (billing.js: it.therapistId || b.therapistId) จึงยังให้หมอถูกคน
+     - ส่วนลดรวม = ผลรวมส่วนลดที่ใช้ได้จริงของแต่ละบิล (clamp ต่อบิลก่อน ไม่ให้ติดลบ)
+     - startTime/endTime ระดับบิล = เริ่มสุด – จบสุดของทุกแถว (เทียบเท่า buildUpdatedBill)
+     - bill.therapistId ระดับบิล: ถ้าหมอเดียวคงเดิม, หลายหมอ = ว่าง (ให้ POS บล็อกสล็อตเฉพาะตามแถวของหมอแต่ละคน) */
+  const mergePlanOf = (sel) => {
+    const sorted = [...sel].sort((a, z) =>
+      String(a.date || '').localeCompare(String(z.date || '')) || String(a.id || '').localeCompare(String(z.id || '')));
+    const target = sorted[sorted.length - 1]; // บิลล่าสุดเป็นตัวตั้ง
+    const rows = sorted.flatMap((b) => billRows(b));
+    const subtotal = rows.reduce((s, i) => s + rowNet(i), 0);
+    const discount = sorted.reduce((s, b) => s + Math.max(0, Math.min(b.discount || 0, billRows(b).reduce((x, i) => x + rowNet(i), 0))), 0);
+    const tids = [...new Set(rows.map((i) => i.therapistId).filter(Boolean))];
+    const names = [...new Set(rows.map((i) => freelanceDisplayName(i.therapistName || i.therapistId || '')).filter(Boolean))];
+    const starts = rows.map((i) => timeToMinutes(i.startTime)).filter((m) => m != null);
+    const ends = rows.map((i) => timeToMinutes(i.endTime)).filter((m) => m != null);
+    const promoNames = [...new Set(sorted.map((b) => b.promotion).filter(Boolean))];
+    const customer = target.customer
+      || sorted.map((b) => b.customer).find((c) => c && c !== 'ลูกค้าหน้าร้าน')
+      || 'ลูกค้าหน้าร้าน';
+    return {
+      bill: {
+        ...target,
+        customer,
+        items: rows,
+        subtotal,
+        discount,
+        total: subtotal - discount,
+        promotion: promoNames.join(' + '),
+        startTime: starts.length ? minutesToTime(Math.min(...starts)) : target.startTime,
+        endTime: ends.length ? minutesToTime(Math.max(...ends)) : target.endTime,
+        therapistId: tids.length === 1 ? tids[0] : '',
+        therapistName: names.length === 1 ? (target.therapistName || names[0]) : names.join(' + '),
+      },
+      absorbedIds: sorted.map((b) => b.id).filter((id) => id !== target.id),
+      count: sorted.length,
+      summaryRows: sorted.map((b) => ({ id: b.id, total: billTotal(b), rows: billRows(b).length })),
+    };
+  };
+
+  const toggleMergeSel = (id) => {
+    setMergeSel((sel) => (sel.includes(id) ? sel.filter((x) => x !== id) : [...sel, id]));
+  };
+
+  const openMergeReview = () => {
+    const sel = openBills.filter((b) => mergeSel.includes(b.id));
+    if (sel.length < 2) return;
+    // บังคับวันเดียวกัน — รายวัน (สรุปคอม/ประกันมือ/สเตตเมนต์) นับตามวันของบิล ข้ามวันจะเลื่อนยอดข้ามวันเอง
+    const day1 = String((sel[0].date || '').slice(0, 10));
+    const sameDay = sel.every((b) => String((b.date || '').slice(0, 10)) === day1);
+    if (!sameDay) {
+      alertDialog({ title: 'รวมได้เฉพาะบิลวันเดียวกัน', message: 'บิลที่เลือกมีหลายวัน — กรุณาเลือกเฉพาะบิลของวันเดียวกัน' });
+      return;
+    }
+    setMergeReview(mergePlanOf(sel));
+  };
+
+  const confirmMerge = () => {
+    if (!mergeReview) return;
+    const { bill, absorbedIds, count } = mergeReview;
+    saveData({
+      ...data,
+      bills: data.bills.map((b) => {
+        if (absorbedIds.includes(b.id)) return { ...b, status: 'merged', mergedInto: bill.id };
+        if (b.id === bill.id) return bill;
+        return b;
+      }),
+      auditLog: [...(data.auditLog || []), {
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'เจ้าของร้าน',
+        action: 'รวมบิล', detail: `${count} บิล → บิลเดียว · ฿ ${bill.total.toLocaleString()} (${[bill.id, ...absorbedIds].join(' + ')})`,
+        oldValue: 'open', newValue: 'open', approvedBy: '-',
+      }],
+    });
+    setMergeReview(null);
+    setMergeMode(false);
+    setMergeSel([]);
+    setExpandedKey(null);
+    alertDialog({ title: `รวม ${count} บิลแล้ว`, message: `บิลรวม ฿ ${bill.total.toLocaleString()} — เช็คบิลได้จากการ์ด "บิลที่เปิดอยู่"` });
+  };
+
   return (
     <div id="open-bills" style={{ scrollMarginTop: 16 }}>
       {openBills.length > 0 && (
         <Card>
-          <CardHead title="บิลที่เปิดอยู่" hint={`${openBills.length} บิล · รอเช็คบิล`} />
+          <CardHead
+            title="บิลที่เปิดอยู่"
+            hint={mergeMode ? 'แตะการ์ดเพื่อเลือกบิลที่จะรวม' : `${openBills.length} บิล · รอเช็คบิล`}
+            right={openBills.length >= 2 ? (
+              <button
+                className={mergeMode ? 'btn btn-primary auto' : 'btn btn-ghost auto'}
+                style={{ padding: '9px 15px', fontSize: 13 }}
+                onClick={() => { setMergeMode(!mergeMode); setMergeSel([]); }}
+              >
+                {mergeMode ? 'ปิดโหมดรวม' : 'รวมบิล'}
+              </button>
+            ) : null}
+          />
+          {mergeMode && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+              margin: '0 0 12px', padding: '10px 12px',
+              background: 'var(--brown-tint)', borderRadius: 12, border: '1px solid var(--line)',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>เลือกแล้ว {mergeSel.length} บิล</span>
+              <span style={{ flex: 1 }} />
+              <button className="btn btn-ghost" style={{ padding: '8px 14px', fontSize: 13 }} onClick={() => setMergeSel([])} disabled={mergeSel.length === 0}>ล้าง</button>
+              <button className="btn btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={openMergeReview} disabled={mergeSel.length < 2}>
+                รวม {mergeSel.length} บิล
+              </button>
+            </div>
+          )}
           
           {openBills.map((b) => {
             const rows = billRows(b);
             const docName = therapistNameOf(b, rows);
             const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
+            const msel = mergeMode && mergeSel.includes(b.id);
             return (
-            <div key={b.id} className="ob-card">
+            <div
+              key={b.id}
+              className="ob-card"
+              style={msel ? { outline: '2px solid var(--brown)', outlineOffset: '-2px' } : undefined}
+              onClick={mergeMode ? () => toggleMergeSel(b.id) : undefined}
+            >
               <div className="ob-head">
-                <span className="ob-ava">{(docName || '?').charAt(0)}</span>
+                {mergeMode ? (
+                  <span
+                    aria-label={msel ? `เลือกบิล ${docName} อยู่` : `แตะเพื่อเลือกบิล ${docName}`}
+                    style={{
+                      width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, color: '#fff',
+                      border: msel ? 'none' : '1.5px dashed var(--line)',
+                      background: msel ? 'var(--brown)' : 'transparent',
+                    }}
+                  >{msel ? '✓' : ''}</span>
+                ) : (
+                  <span className="ob-ava">{(docName || '?').charAt(0)}</span>
+                )}
                 <span className="ob-who">
                   <b>{docName}{docExtra}</b>
                   <span className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</span>
@@ -438,11 +573,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
                 <span className="ob-sum">
                   <span className="ob-grand">฿ {billTotal(b).toLocaleString()}</span>
                 </span>
-                <span className="ob-btns">
-                  <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
-                  <button onClick={() => startCheckoutBill(b)} className="btn btn-primary">เช็คบิล</button>
-                  {canVoid && <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button>}
-                </span>
+                {!mergeMode && (
+                  <span className="ob-btns">
+                    <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
+                    <button onClick={() => startCheckoutBill(b)} className="btn btn-primary">เช็คบิล</button>
+                    {canVoid && <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button>}
+                  </span>
+                )}
               </div>
             </div>
             );
@@ -620,6 +757,36 @@ export default function OpenBillsSection({ data, saveData, role }) {
           <div className="field"><label>รหัสเจ้าของร้าน</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสเจ้าของร้าน" className="input" /></div>
           <div className="modal-row">
             <button onClick={confirmVoid} disabled={!authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>
+          </div>
+        </Modal>
+      )}
+
+      {mergeReview && (
+        <Modal onClose={() => setMergeReview(null)}>
+          <button className="modal-x" onClick={() => setMergeReview(null)} aria-label="ปิด"><X size={16} /></button>
+          <div className="mcard-top" style={{ paddingRight: 34 }}>
+            <div>
+              <h3 style={{ fontSize: 17 }}>รวมบิล · {mergeReview.count} บิล</h3>
+              <div className="muted">{mergeReview.bill.customer || 'ลูกค้าหน้าร้าน'} · {mergeReview.bill.items.length} รายการรวมกัน</div>
+            </div>
+          </div>
+          <ReceiptCard
+            items={mergeReview.bill.items}
+            services={data.services}
+            therapists={data.therapists}
+            subtotal={mergeReview.bill.subtotal}
+            disc={mergeReview.bill.discount}
+            discLabel={mergeReview.bill.promotion || ''}
+            total={mergeReview.bill.total}
+            expandedKey={expandedKey}
+            onToggle={setExpandedKey}
+          />
+          <p className="muted" style={{ margin: '0 0 10px', fontSize: 12.5 }}>
+            ค่าแรง/คอมยังนับให้หมอแต่ละคนตามรายการของตัวเอง · บิลที่ถูกรวมจะปิดเป็น "รวมเข้าบิลอื่นแล้ว" ไม่นับซ้ำในรายงาน
+          </p>
+          <div className="modal-row">
+            <button onClick={() => setMergeReview(null)} className="btn btn-ghost">ยกเลิก</button>
+            <button onClick={confirmMerge} className="btn btn-primary"><CheckCircle2 size={16} /> ยืนยันรวม {mergeReview.count} บิล · ฿ {mergeReview.bill.total.toLocaleString()}</button>
           </div>
         </Modal>
       )}

@@ -59,6 +59,7 @@ export function StatusBadge({ status }) {
   if (status === 'paid') return <span className="badge paid">● ชำระแล้ว</span>;
   if (status === 'open') return <span className="badge open">◷ เปิดบิลอยู่</span>;
   if (status === 'cancelled') return <span className="badge void">✕ ยกเลิกแล้ว</span>;
+  if (status === 'merged') return <span className="badge neutral">⇉ รวมเข้าบิลอื่นแล้ว</span>;
   return <span className="badge info">◷ {status}</span>;
 }
 

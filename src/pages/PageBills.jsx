@@ -199,7 +199,7 @@ export default function PageBills({ data, saveData, role }) {
                 label="เลือกสถานะ"
                 value={statusFilter}
                 onChange={setStatusFilter}
-                options={[{ v: 'all', l: 'ทุกสถานะ' }, { v: 'paid', l: 'ชำระแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }]}
+                options={[{ v: 'all', l: 'ทุกสถานะ' }, { v: 'paid', l: 'ชำระแล้ว' }, { v: 'cancelled', l: 'ยกเลิก' }, { v: 'merged', l: 'รวมแล้ว' }]}
               />
               <Dropdown
                 icon={Filter}
