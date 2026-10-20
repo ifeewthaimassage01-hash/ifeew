@@ -1,9 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import pkg from './package.json';
 
 export default defineConfig({
   base: './',
+  // เวอร์ชันแอป (static ตอน build) — bump ที่ package.json ทุกครั้งที่อัปเดต แล้วเลขจะขึ้นในหน้าจัดการร้าน
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     VitePWA({

@@ -980,6 +980,10 @@ export default function PageManage({ data, saveData }) {
           </div>
         </Modal>
       )}
+
+      <p className="muted" style={{ textAlign: 'center', fontSize: 11.5, margin: '18px 0 4px' }}>
+        I'FEEW POS · เวอร์ชัน {__APP_VERSION__}
+      </p>
     </div>
   );
 }
