@@ -3,12 +3,14 @@ import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'r
 import { TriangleAlert, WifiOff } from 'lucide-react';
 import { RailDesktop, TopBar, BottomNav, NAV_ITEMS } from './components/Sidebar';
 import { DialogHost } from './components/ui';
+import UpdateBanner from './components/UpdateBanner';
 import RoleGate, { saveRole, clearRole, isOwnerSessionExpired } from './components/RoleGate';
 import { loadCloudData, scheduleSync, cloudStatus, syncState, subscribeSyncStatus, retrySync, deleteExpenseFromCloud } from './data/cloudSync';
 import { isSupabaseConfigured } from './lib/supabase';
 import { subscribePosTables } from './lib/realtime';
 import { bkkYear, bizToday } from './utils/bkk';
 import { ensureGuaranteeEntries, reconcileGuaranteeEntries, guaranteeSigOf } from './lib/billing';
+import { checkForUpdate, applyUpdate, CHECK_INTERVAL_MS, markUpdateAttempt, getUpdateAttempt, setAutoReloadGuard } from './lib/updateCheck';
 import * as billingMod from './lib/billing';
 
 // แยก chunk รายหน้า — โหลดเฉพาะหน้าที่เปิด (React.lazy + Suspense)
@@ -22,6 +24,10 @@ const PageManage = lazy(() => import('./pages/PageManage'));
 const ROLE_KEY = 'ifeew_role';
 const VALID_ROLES = ['owner', 'staff'];
 const DEFAULT_PAGE = { owner: 'dashboard', staff: 'pos' };
+
+// อัปเดตแอป: นับถอยหลังก่อนรีเฟรชอัตโนมัติ + เวลาที่เลื่อนออกเมื่อมี modal เปิดอยู่
+const UPDATE_COUNTDOWN_SEC = 30;
+const UPDATE_DEFER_SEC = 5;
 
 const PAGES = {
   dashboard: PageDashboard,
@@ -81,6 +87,10 @@ function AppShell() {
   // เตือนเน็ตหลุด / อัปโหลดล้ม — cloud-only จึงต้องบอก user ทันที ไม่เงียบ
   const [online, setOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [syncErr, setSyncErr] = useState('');
+  // แจ้งเตือน deployment ใหม่: เวอร์ชันที่เจอ + นับถอยหลังก่อนรีเฟรชอัตโนมัติ
+  const [latestVersion, setLatestVersion] = useState('');
+  const [updateSeconds, setUpdateSeconds] = useState(UPDATE_COUNTDOWN_SEC);
+  const [updateBusy, setUpdateBusy] = useState(false);
   const dataRef = useRef(null);
   // minor: อัปเดต ref ใน effect (ไม่ assign ระหว่าง render)
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -93,6 +103,16 @@ function AppShell() {
     const onModal = (e) => { modalOpenRef.current = e.detail?.open || 0; };
     window.addEventListener('ifeew-modal', onModal);
     return () => window.removeEventListener('ifeew-modal', onModal);
+  }, []);
+
+  // มี modal เปิดอยู่ไหม — modalOpenRef นับเฉพาะ dialog กลางของแอป (DialogHost)
+  // แต่ modal ฟอร์มทั่วไป (เช่น wizard เปิดบิล) ก็ต้องกันรีเฟรชเหมือนกัน → เช็ค .modal-ov ด้วย
+  const hasOpenModal = () => modalOpenRef.current > 0 || !!document.querySelector('.modal-ov');
+
+  // ตอน SW อัปเดตเองแล้วจะรีเฟรช (กู้หน้าค้างเป็นของเก่า) — ถ้ามี modal เปิดอยู่ให้รอก่อน กันทับงาน
+  useEffect(() => {
+    setAutoReloadGuard(() => !hasOpenModal());
+    return () => setAutoReloadGuard(() => true);
   }, []);
 
   // ฟังสถานะเน็ต + สถานะ sync (เน็ตกลับเมื่อไร sync ทันที)
@@ -108,6 +128,100 @@ function AppShell() {
     setCloudError(s.mode === 'error' ? s.error : '');
     setSyncErr(s.mode === 'error' ? (s.error || 'อัปโหลดไม่สำเร็จ') : '');
   }), []);
+
+  /* ---------- ตรวจ deployment ใหม่ + อัปเดตแอปตัวเอง ---------- */
+  // เวอร์ชันที่ผู้ใช้กดปิดแบนเนอร์ ("ไว้ก่อน") — ไม่โผล่ซ้ำจนกว่าจะมีเวอร์ชันใหม่กว่านี้
+  const dismissedVersionRef = useRef('');
+  // กันกด/รีเฟรชซ้ำ (applyUpdate จะ reload หน้าเลย)
+  const updateBusyRef = useRef(false);
+  // เวอร์ชันที่เคยพยายามอัปเดตแล้วแต่ไม่สำเร็จ — กันรีเฟรชวนไม่รู้จบ
+  const attemptedRef = useRef(getUpdateAttempt());
+
+  // poll version.json ที่ปล่อยตอน build (ไม่ถูก precache → ได้ของล่าสุดจาก server เสมอ)
+  // — dev ไม่ต้องเช็ค (build ใหม่ทุกครั้งที่ save + กันรีเฟรชตอนพัฒนา)
+  useEffect(() => {
+    if (!import.meta.env.PROD) return undefined;
+    let alive = true;
+    const check = async () => {
+      try {
+        const v = await checkForUpdate();
+        if (!alive || !v) return;
+        if (v === dismissedVersionRef.current) return; // ผู้ใช้สั่ง "ไว้ก่อน" เวอร์ชันนี้
+        if (v === attemptedRef.current) {
+          // เคยพยายามอัปเดตเวอร์ชันนี้แล้วแต่แอปยังเป็นเวอร์ชันเก่า → ห้ามรีเฟรชวนซ้ำ
+          // (แก้ได้ด้วยปุ่ม "ตรวจสอบอัปเดต" ในหน้าจัดการร้าน)
+          console.warn('[update] อัปเดตเวอร์ชัน', v, 'มาแล้วแต่ยังไม่สำเร็จ — งดรีเฟรชอัตโนมัติ');
+          return;
+        }
+        setLatestVersion((prev) => (prev === v ? prev : v));
+        setUpdateSeconds(UPDATE_COUNTDOWN_SEC);
+      } catch (e) {
+        console.warn('[update] ตรวจเวอร์ชันไม่สำเร็จ:', e);
+      }
+    };
+    check();
+    const timer = setInterval(check, CHECK_INTERVAL_MS);
+    // กลับมาแท็บที่มองเห็น / เน็ตกลับมา → เช็คทันที ไม่รอรอบถัดไป
+    const onVisible = () => { if (document.visibilityState === 'visible') check(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('online', check);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', check);
+    };
+  }, []);
+
+  // นับถอยหลังขึ้นลง (วินาที) ตอนมีเวอร์ชันใหม่รออยู่
+  useEffect(() => {
+    if (!latestVersion) return undefined;
+    const t = setInterval(() => {
+      setUpdateSeconds((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [latestVersion]);
+
+  // อัปเดตจริง: จำเวอร์ชันไว้กันลูป + อัปเดต SW → รอคว้าควบคุม → ล้าง cache → รีเฟรช
+  const runUpdate = useCallback((v) => {
+    if (updateBusyRef.current) return;
+    updateBusyRef.current = true;
+    setUpdateBusy(true);
+    markUpdateAttempt(v);
+    applyUpdate();
+  }, []);
+
+  // ครบเวลาแล้วรีเฟรชอัตโนมัติ — แต่ถ้ามี modal เปิดอยู่ (wizard/checkout) ให้เลื่อนออกไปก่อน
+  useEffect(() => {
+    if (!latestVersion || updateSeconds > 0) return;
+    if (updateBusyRef.current) return;
+    if (hasOpenModal()) { setUpdateSeconds(UPDATE_DEFER_SEC); return; } // มี modal เปิดอยู่ — เลื่อนออกไปก่อน อย่ารีเฟรชทับงาน
+    runUpdate(latestVersion);
+  }, [latestVersion, updateSeconds, runUpdate]);
+
+  // ผู้ใช้โต้ตอบอยู่ (คลิก/พิมพ์) → ยืดเวลารอ กันรีเฟรชกลางออเดอร์
+  useEffect(() => {
+    if (!latestVersion) return undefined;
+    const reset = () => { if (!updateBusyRef.current) setUpdateSeconds(UPDATE_COUNTDOWN_SEC); };
+    window.addEventListener('pointerdown', reset);
+    window.addEventListener('keydown', reset);
+    return () => {
+      window.removeEventListener('pointerdown', reset);
+      window.removeEventListener('keydown', reset);
+    };
+  }, [latestVersion]);
+
+  // กด "อัปเดตเลย" ในแบนเนอร์ → อัปเดต SW + ล้าง cache + รีเฟรชทันที
+  const applyUpdateNow = useCallback(() => {
+    runUpdate(latestVersion);
+  }, [latestVersion, runUpdate]);
+
+  // กด X ที่แบนเนอร์ → เลือก "ไว้ก่อน" (ยกเลิก auto-reload) แต่ watcher ยังเช็คอยู่
+  const dismissUpdate = useCallback(() => {
+    dismissedVersionRef.current = latestVersion;
+    setLatestVersion('');
+    setUpdateSeconds(UPDATE_COUNTDOWN_SEC);
+  }, [latestVersion]);
 
   // กัน role แปลกปลอม (เช่น storage ถูกแก้เอง) — ล้างแล้วเด้งกลับหน้าเลือกบทบาท
   useEffect(() => {
@@ -254,9 +368,21 @@ function AppShell() {
     return openCount > 0 ? { bills: openCount } : null;
   }, [data]);
 
+  // แบนเนอร์แจ้งเวอร์ชันใหม่ (ลอยบนสุดจอ) — ใช้ทั้งหน้าเลือกบทบาท/หน้า error/หน้าหลัก
+  const updateBanner = (
+    <UpdateBanner
+      latest={latestVersion}
+      seconds={updateSeconds}
+      busy={updateBusy}
+      onApply={applyUpdateNow}
+      onClose={dismissUpdate}
+    />
+  );
+
   if (!role) {
     return (
       <div className="app">
+        {updateBanner}
         <RoleGate onSelect={selectRole} />
       </div>
     );
@@ -265,6 +391,7 @@ function AppShell() {
   if (loadError) {
     return (
       <div className="loading-screen">
+        {updateBanner}
         <div className="card" style={{ maxWidth: 380, width: '100%', textAlign: 'center' }}>
           <h2>เกิดข้อผิดพลาด</h2>
           <p className="muted">{loadError}</p>
@@ -281,6 +408,7 @@ function AppShell() {
 
   return (
     <div className="app">
+      {updateBanner}
       <div className="shell">
         <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} badges={badges} data={data} saveData={saveData} role={role} />
         <div className="main-col">

@@ -1,11 +1,12 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck, Bell, BellOff } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Tag, ShieldCheck, Bell, BellOff, RefreshCw } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { commBaht, categoryEn, serviceCategoryOrder, guaranteeAmountOf } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { bkkNow } from '../utils/bkk';
 import { isPushSupported, getSubscription, subscribeOwner, unsubscribeOwner } from '../lib/push';
 import { deleteCategoryFromCloud, deleteTherapistFromCloud, deleteAddonFromCloud, deletePromoFromCloud, syncState } from '../data/cloudSync';
+import { checkForUpdate, applyUpdate, hardClearCacheAndReload, markUpdateAttempt } from '../lib/updateCheck';
 
 // ลบใน cloud ไม่สำเร็จ = ของจะโผล่กลับมาตอนโหลดใหม่ จึงต้องเตือนให้รู้
 // คืน true ถ้าลบสำเร็จ / false ถ้าล้ม (caller ใช้ตัดสินใจ rollback — ไม่ saveData ต่อ)
@@ -113,6 +114,74 @@ function PushAdminCard() {
       )}
       {msg && <p className="muted" style={{ margin: '8px 0 0' }}>{msg}</p>}
       <p className="muted" style={{ margin: '8px 0 0' }}>iOS ต้องติดตั้งแอปลงหน้าจอหลักก่อน</p>
+    </Card>
+  );
+}
+
+/* การ์ดอัปเดตแอป — ตรวจ deployment ใหม่ + ล้าง cache (หน้านี้ owner-only อยู่แล้ว ไม่ต้อง gate เพิ่ม) */
+function UpdateAppCard() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+
+  // เช็คเวอร์ชันล่าสุดจาก server (version.json) — เจอใหม่ = มี deployment ใหม่
+  const check = async () => {
+    if (busy) return;
+    setBusy(true);
+    setMsg('');
+    try {
+      const v = await checkForUpdate();
+      if (!v) {
+        setMsg('เป็นเวอร์ชันล่าสุดแล้ว');
+        await alertDialog({
+          title: 'เป็นเวอร์ชันล่าสุดแล้ว',
+          message: `เครื่องนี้ใช้เวอร์ชัน ${__APP_VERSION__} ซึ่งเป็นเวอร์ชันล่าสุดแล้ว ไม่ต้องอัปเดต`,
+        });
+        return;
+      }
+      const ok = await confirmDialog({
+        title: `พบเวอร์ชันใหม่ (${v})`,
+        message: 'รีเฟรชเลยไหม? หน้าจะโหลดใหม่และใช้เวอร์ชันล่าสุด (ข้อมูลใน cloud ไม่หาย)',
+        confirmLabel: 'รีเฟรชเลย',
+      });
+      if (!ok) { setMsg(`มีเวอร์ชันใหม่ (${v}) รออยู่`); return; }
+      markUpdateAttempt(v); // จำไว้กันรีเฟรชวนไม่รู้จบ ถ้า SW อัปเดตไม่ได้
+      await applyUpdate(); // รีเฟรชหน้าเลย (ไม่กลับมาที่ฟังก์ชันนี้)
+    } catch (e) {
+      setMsg(e?.message || 'ตรวจสอบอัปเดตไม่สำเร็จ');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // ล้าง cache แบบหนัก: ถอด SW ออก + ลบ cache ทั้งหมด → รีเฟรช (ใช้ตอนแอปเน่า/โหลดไม่ขึ้น)
+  const hardClear = async () => {
+    if (busy) return;
+    const ok = await confirmDialog({
+      title: 'ล้างแคช & รีเฟรช',
+      message: 'หน้าจะโหลดใหม่ แคชไฟล์เก่าและ Service Worker จะถูกลบทิ้งทั้งหมด (ข้อมูลใน cloud ไม่หาย)',
+      confirmLabel: 'ล้างแคช',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    await hardClearCacheAndReload();
+  };
+
+  return (
+    <Card>
+      <CardHead title="อัปเดตแอป" hint={`เวอร์ชันปัจจุบัน: ${__APP_VERSION__}`} />
+      <p className="muted" style={{ margin: '0 0 10px' }}>
+        แอปเช็คเวอร์ชันใหม่อัตโนมัติ — ถ้ามีการอัปเดตเซิร์ฟเวอร์ แอปจะรีเฟรชตัวเองเมื่อไม่มีงานค้าง
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button onClick={check} disabled={busy} className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }}>
+          <RefreshCw size={15} /> {busy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบอัปเดต'}
+        </button>
+        <button onClick={hardClear} disabled={busy} className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }}>
+          <Trash2 size={15} /> ล้างแคช &amp; รีเฟรช
+        </button>
+      </div>
+      {msg && <p className="muted" style={{ margin: '8px 0 0' }}>{msg}</p>}
     </Card>
   );
 }
@@ -671,6 +740,7 @@ export default function PageManage({ data, saveData }) {
   return (
     <div>
       <PushAdminCard />
+      <UpdateAppCard />
       <div className="seg seg-icons" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr' }}>
         <button onClick={() => setTab('staff')} className={tab === 'staff' ? 'on' : ''} aria-label={`พนักงาน ${therapists.length} คน`}><Users size={17} strokeWidth={1.9} /><span>พนักงาน {therapists.length}</span></button>
         {/* BUG-6: นับจาก orderedCats ให้ตรงกับแถวที่เรนเดอร์จริง (cats อาจว่างแต่ services มีหมวด) */}

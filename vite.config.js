@@ -3,6 +3,22 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json';
 
+// ปล่อยไฟล์ version.json ตอน build (ไม่ถูก precache เพราะ globPatterns ไม่รวม json)
+// — frontend ใช้ poll ไฟล์นี้เพื่อรู้ว่า deploy ใหม่แล้วหรือยัง แล้วรีเฟรชตัวเอง
+function buildVersionFile(version) {
+  return {
+    name: 'ifeew-version-file',
+    apply: 'build',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({ version, builtAt: new Date().toISOString() }),
+      });
+    },
+  };
+}
+
 export default defineConfig({
   base: './',
   // เวอร์ชันแอป (static ตอน build) — bump ที่ package.json ทุกครั้งที่อัปเดต แล้วเลขจะขึ้นในหน้าจัดการร้าน
@@ -10,6 +26,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [
+    buildVersionFile(pkg.version),
     react(),
     VitePWA({
       registerType: 'autoUpdate',

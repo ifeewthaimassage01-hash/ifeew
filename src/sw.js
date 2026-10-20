@@ -7,6 +7,11 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
 
+// อัปเดตแอปทันที — SW ใหม่คว้าควบคุมหน้าที่เปิดอยู่เลย ไม่ต้องรอผู้ใช้ปิดทุกแท็บ
+// (registerSW.js ที่ vite สร้างมีแค่ register() ไม่มี autoUpdate จึงต้องทำเอง)
+self.addEventListener('install', () => { self.skipWaiting(); });
+self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
+
 // Payload จาก Edge Functions: { title, body, kind, url }
 self.addEventListener('push', (event) => {
   let data = {};
