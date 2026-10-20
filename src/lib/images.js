@@ -143,7 +143,7 @@ export async function uploadImage(file, kind = 'receipts', onProgress) {
   form.append('upload_preset', uploadPreset);
   form.append('folder', folder);
   form.append('public_id', newUploadPublicId()); // BUG-IMG-01: ชื่อเฉพาะตัว — กันทับสลิปบิลอื่น
-  form.append('overwrite', 'false'); // เกราะชั้นสอง: ถ้าเกิดชนชื่อจะแจ้ง error ไม่แอบทับของเดิม
+  // NOTE: ห้ามส่ง 'overwrite' บน unsigned upload — Cloudinary ปฏิเสธพารามิเตอร์นี้ (อัปโหลดล้มทั้งแอป)
   // 2) อัปโหลดพร้อม progress
   const text = await xhrUpload(form, onProgress);
   let json;

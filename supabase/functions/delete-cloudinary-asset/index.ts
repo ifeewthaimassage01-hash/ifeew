@@ -16,15 +16,21 @@ function extractFromUrl(url: string, cloud: string) {
   try {
     const u = new URL(url.trim());
     if (!/(^|\.)cloudinary\.com$/i.test(u.hostname)) return null;
-    if (!cloud || !u.hostname.toLowerCase().startsWith(cloud.toLowerCase() + ".")) return null;
-    const m = u.pathname.match(/\/(image|raw|video|auto)\/upload\/(.+?)(?:\.([a-z0-9]+))?$/i);
+    // รูปแบบเต็ม: res.cloudinary.com/<cloud_name>/<resource>/upload/[v<ver>/]<public_id>.<ext>
+    // ชื่อ cloud_name อยู่ใน path segment แรก — ตรวจให้ตรงบัญชีเราก่อนแตะไฟล์ใด ๆ
+    const seg = u.pathname.split('/').filter(Boolean);
+    if (!cloud || seg[0] !== cloud) return null;
+    const m = u.pathname.match(/^\/[^/]+\/(image|raw|video|auto)\/upload\/(.+?)(?:\.([a-z0-9]+))?$/i);
     if (!m) return null;
     let rest = m[2];
     rest = rest.replace(/^v\d+\//, ""); // ตัด version segment
-    const pid = decodeURIComponent(rest);
+    let pid = decodeURIComponent(rest);
     if (!pid) return null;
     const type = m[1].toLowerCase() === "auto" ? "image" : m[1].toLowerCase();
-    return { pid: `${pid}.${m[3] || ""}`.replace(/\.$/, ""), type };
+    // public_id ไม่รวมนามสกุลไฟล์ — .png ท้าย URL เป็น format marker ที่ Cloudinary strip ให้
+    // (raw เก็บชื่อพร้อมนามสกุลไว้ตามจริง)
+    if (type !== "raw") pid = pid.replace(/\.[a-z0-9]+$/i, "");
+    return { pid, type };
   } catch {
     return null;
   }
