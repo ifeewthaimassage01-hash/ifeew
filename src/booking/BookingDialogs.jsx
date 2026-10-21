@@ -41,7 +41,7 @@ export function ConfirmTransferDialog({ booking, busy, error, mismatch, onCancel
       </div>
 
       <p className="bk-adm-dlg-hint">
-        เทียบยอดด้านบนกับแอปธนาคารของคุณก่อนยืนยัน — ต้องโอนตรงตามทศนิยมที่แสดง
+        เทียบยอดด้านบนกับแอปธนาคารของคุณก่อนยืนยัน — ต้องโอนตรงตามยอดที่แสดง
       </p>
 
       <label className="bk-adm-check">
