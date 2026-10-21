@@ -953,6 +953,7 @@ export default function PageManage({ data, saveData }) {
             </div>
             <button onClick={saveOwnerPass} className="btn btn-primary btn-block"><KeyRound size={16} /> เปลี่ยนรหัส</button>
           </Card>
+
           <PushAdminCard />
           <UpdateAppCard />
         </>

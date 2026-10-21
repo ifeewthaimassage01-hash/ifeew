@@ -20,6 +20,7 @@ const PageBills = lazy(() => import('./pages/PageBills'));
 const PageExpenses = lazy(() => import('./pages/PageExpenses'));
 const PageCommission = lazy(() => import('./pages/PageCommission'));
 const PageManage = lazy(() => import('./pages/PageManage'));
+const PageBookings = lazy(() => import('./booking/BookingPage'));
 
 const ROLE_KEY = 'ifeew_role';
 const VALID_ROLES = ['owner', 'staff'];
@@ -36,6 +37,7 @@ const PAGES = {
   expenses: PageExpenses,
   commission: PageCommission,
   manage: PageManage,
+  bookings: PageBookings,
 };
 
 // อ่าน role ที่เก็บไว้ — คืนค่าเฉพาะที่ถูกต้อง กันค่าแปลกปลอมใน storage

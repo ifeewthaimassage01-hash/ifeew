@@ -1,0 +1,267 @@
+/* ══════════════════════════════════════════════════════════════════
+   หน้าจัดการการจองออนไลน์ (ฝั่งเจ้าของร้าน) — ย้ายจากเว็บจอง ifeew-booking
+   ใช้ตัวแปรสี/ฟอนต์ชุดเดียวกับแอป POS (index.css) · mobile-first
+   ──────────────────────────────────────────────────────────────────
+   หมายเหตุการปรับให้เข้ากับแอป POS:
+     · ไม่มีแถบบนของตัวเอง (ใช้ PageHeader + topbar ของแอปแทน)
+     · ไม่มี .bk-adm-main (ใช้ .page > .container ของแอปแทน)
+     · ปุ่มใช้คลาสของแอป (.btn-sm แทน .bk-mini)
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ---------- token ที่แอป POS ยังไม่มี (คัดจาก ifeew-booking/src/styles/tokens.css) ---------- */
+:root {
+  /* มาตรฐานระยะห่าง (spacing scale) */
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* สี accent สำหรับ "ตัวอักษร" (WCAG AA) */
+  --brown-text: #7d5c3c;   /* ตัวอักษรน้ำตาลเข้ม */
+  --faint-text: #736353;   /* ตัวอักษรจางที่เข้มขึ้น */
+  --amber-text: #7d6029;   /* ตัวอักษรเหลืองเข้ม */
+
+  /* ระยะขอบของ .page */
+  --page-pad: 16px;
+
+  /* เส้นโค้งการเคลื่อนไหว + ระยะเวลา (ทุกอย่าง ≤ 250ms) */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-1: 0.13s;
+  --dur-2: 0.22s;
+
+  /* เงา 2 ระดับ (บาง → ลึก) */
+  --sh-1: 0 1px 2px rgba(100, 81, 62, 0.04), 0 1px 3px rgba(100, 81, 62, 0.03);
+  --sh-2: 0 2px 8px rgba(100, 81, 62, 0.05), 0 8px 24px -12px rgba(100, 81, 62, 0.10);
+
+  /* วงแหวนโฟกัส (ใช้กับ :focus-visible) */
+  --focus-ring: 0 0 0 3px rgba(176, 136, 95, 0.22);
+}
+
+/* ---------- ส่วนเสริมของแอป POS ที่หน้านี้ใช้เพิ่ม ---------- */
+.badge.ok { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
+.kpi.alert { background: var(--red-bg); border-color: #ecbcb4; }
+.kpi.alert .kpi-label { color: var(--red); opacity: 0.9; }
+.kpi.alert .kpi-value { color: var(--red); }
+.kpi.alert .kpi-sub { color: var(--red); opacity: 0.8; }
+
+.bk-adm-notice {
+  display: flex; gap: 8px; align-items: flex-start;
+  background: var(--red-bg); border: 1px solid #ecbcb4; color: var(--red);
+  font-size: 12.5px; border-radius: var(--r-md); padding: 10px 13px; margin-bottom: 12px; line-height: 1.5;
+}
+
+/* ---------- สถานะกำลังโหลด ---------- */
+.bk-adm-loading { display: flex; justify-content: center; padding: 48px 0; }
+
+/* ---------- ตัวกรอง ---------- */
+.bk-adm-filters {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: var(--sp-4); margin-bottom: var(--sp-4);
+}
+.bk-adm-field { margin-bottom: 0; min-width: 0; }
+.bk-adm-field label { display: flex; align-items: center; gap: 5px; }
+
+/* ---------- หัวรายการ ---------- */
+.bk-adm-list-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin: 0 2px 10px;
+}
+.bk-adm-list-head b { font-size: 14.5px; font-weight: 700; }
+
+/* ---------- รายการการจอง ---------- */
+/* auto-fill → จำนวนคอลัมน์ปรับตามความกว้างจริง แถวสุดท้ายไม่เหลือร่องคอลัมน์เปล่า */
+.bk-adm-list {
+  display: grid; gap: var(--sp-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+}
+.bk-adm-card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); padding: var(--sp-4); min-width: 0;
+}
+.bk-adm-card-top { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.bk-adm-code { font-size: 16px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink); }
+.bk-adm-when { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
+
+/* ---------- badge สถานะ ---------- */
+.bk-adm-badge {
+  display: inline-flex; align-items: center; padding: 3px 9px;
+  border-radius: 999px; font-size: 11px; font-weight: 700;
+  border: 1px solid transparent; white-space: nowrap;
+}
+.bk-adm-badge.is-pending { background: var(--amber-bg); color: var(--amber-text); border-color: #ecdcba; }
+.bk-adm-badge.is-confirmed { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
+.bk-adm-badge.is-cancelled { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
+.bk-adm-badge.is-expired { background: var(--surface-2); color: var(--faint); border-color: var(--line); }
+.bk-adm-badge.is-cancel-requested { background: var(--red-bg); color: var(--red); border-color: #ecbcb4; }
+
+/* ---------- ข้อมูลลูกค้า ---------- */
+.bk-adm-rows { margin-top: 10px; display: grid; gap: 6px; }
+.bk-adm-row { display: flex; gap: 10px; align-items: baseline; font-size: 13px; }
+.bk-adm-row-k { flex-shrink: 0; width: 50px; color: var(--muted); font-size: 11.5px; }
+.bk-adm-row-v { min-width: 0; color: var(--ink); overflow-wrap: break-word; }
+.bk-adm-phone {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: var(--sp-2);
+  color: var(--brown-dark); font-weight: 600; text-decoration: none;
+}
+.bk-adm-thera { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+
+/* ---------- ยอดเงิน ---------- */
+.bk-adm-amounts { margin-top: 10px; display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
+.bk-adm-price { font-size: 12.5px; color: var(--muted); }
+.bk-adm-pay { font-size: 15px; font-weight: 700; color: var(--brown-text); }
+
+/* ---------- แถบเตือน ---------- */
+.bk-adm-warn {
+  margin-top: 10px; display: flex; gap: var(--sp-2); align-items: flex-start;
+  background: var(--red-bg); border: 1px solid #ecbcb4; color: var(--red);
+  border-radius: var(--r-md); padding: 9px var(--sp-3); font-size: 12.5px; line-height: 1.5;
+}
+
+/* ---------- สลีป ---------- */
+.bk-adm-slip {
+  margin-top: var(--sp-3); display: flex; gap: var(--sp-3); align-items: flex-start;
+  padding: 10px; border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+/* ขนาดรูปสลีป — ประกาศที่เดียวทั้งระบบ (≤359px อยู่ด้านล่างสุดของไฟล์) */
+.bk-adm-slip-thumb {
+  position: relative; flex-shrink: 0; width: 120px; height: 150px;
+  padding: 0; border: 1px solid var(--line); border-radius: var(--r-sm);
+  overflow: hidden; background: var(--surface);
+}
+.bk-adm-slip-thumb:active { transform: scale(0.97); }
+.bk-adm-slip-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bk-adm-slip-zoom {
+  position: absolute; right: 4px; bottom: 4px; width: 22px; height: 22px;
+  border-radius: 7px; background: rgba(100, 81, 62, 0.72); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+}
+.bk-adm-slip-info { flex: 1; min-width: 0; }
+.bk-adm-slip-tag {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
+  border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent;
+}
+.bk-adm-slip-tag.is-verified { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
+.bk-adm-slip-tag.is-wait { background: var(--amber-bg); color: var(--amber-text); border-color: #ecdcba; }
+.bk-adm-slip-row { font-size: 11.5px; color: var(--muted); margin-top: 5px; overflow-wrap: break-word; }
+
+/* ---------- ยืนยันแล้ว ---------- */
+.bk-adm-paid {
+  margin-top: var(--sp-3); display: flex; gap: var(--sp-2); align-items: flex-start;
+  background: #eef5ee; border: 1px solid #cfe3d0; color: var(--green-ok);
+  border-radius: var(--r-md); padding: 10px var(--sp-3); font-size: 12.5px;
+}
+.bk-adm-paid b { font-size: 13px; font-weight: 700; }
+.bk-adm-paid-sub { color: var(--muted); font-size: 11.5px; margin-top: 3px; overflow-wrap: break-word; }
+
+/* ---------- ปุ่ม action ---------- */
+/* พับบรรทัดได้ + ฐานยืดหยุ่น → ปุ่มไม่ถูกบีบจนตัวอักษรล้นบนจอจิ๋ว */
+.bk-adm-acts {
+  margin-top: var(--sp-3); display: flex; flex-wrap: wrap; gap: var(--sp-2);
+}
+.bk-adm-acts > * { flex: 1 1 130px; min-width: 0; }
+
+/* ---------- กล่องยืนยัน ---------- */
+.bk-adm-dlg-sub { font-size: 13px; color: var(--muted); margin-top: 5px; }
+.bk-adm-dlg-sub b { color: var(--ink); }
+.bk-adm-dlg-hint { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 10px; }
+.bk-adm-amount-box {
+  margin-top: 14px; text-align: center;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--r-md); padding: 14px;
+}
+.bk-adm-amount-label {
+  display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.07em;
+}
+.bk-adm-amount-big {
+  display: block; font-size: 32px; font-weight: 700; color: var(--brown-text);
+  line-height: 1.15; margin-top: 4px; letter-spacing: -0.02em;
+}
+.bk-adm-amount-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.bk-adm-check {
+  display: flex; gap: 9px; align-items: flex-start; margin-top: var(--sp-3);
+  font-size: 13px; line-height: 1.5; color: var(--ink); cursor: pointer;
+}
+.bk-adm-check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--brown); flex-shrink: 0; }
+.bk-adm-force { margin-top: 14px; padding-top: var(--sp-3); border-top: 1px dashed var(--line); }
+.bk-adm-foot-note { font-size: 11.5px; color: var(--faint-text); text-align: center; margin-top: 18px; line-height: 1.6; }
+
+/* ---------- admin UI v2: กลุ่ม section (bk-adm-sec-*) ---------- */
+.bk-adm-chip-all { align-self: stretch; justify-content: center; min-height: 44px; }
+/* การ์ด "ต้องดำเนินการ" — ขอบเหลืองอมน้ำตาลให้เห็นคิวงานค้าง */
+.bk-adm-card.is-todo { border-color: #ecdcba; box-shadow: 0 0 0 1px #ecdcba; }
+
+/* หัวข้อกลุ่มงาน */
+.bk-adm-sec { margin-bottom: var(--sp-5); min-width: 0; }
+.bk-adm-sec-h { display: flex; align-items: center; gap: var(--sp-3); margin: 0 2px var(--sp-3); min-width: 0; }
+.bk-adm-sec-ic {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--brown-dark);
+  display: flex; align-items: center; justify-content: center;
+}
+.bk-adm-sec-ic-todo { background: var(--amber-bg); border-color: #ecdcba; color: var(--amber); }
+.bk-adm-sec-txt { min-width: 0; display: flex; flex-direction: column; }
+.bk-adm-sec-txt b { display: block; font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+.bk-adm-sec-txt span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* การ์ดสรุป 2 กลุ่ม: "ที่ต้องทำ" กับ "สรุปวันนี้"
+   — มือถือ 2 คอล (ตัวท้ายกินเต็มแถว) / ≥720 3 คอล (ตัวท้ายอยู่คอล 3 ไม่ล้นคอลใหม่) */
+.bk-adm-stats-todo, .bk-adm-stats-sum {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);
+}
+.bk-adm-stats-todo > *:last-child,
+.bk-adm-stats-sum > *:last-child { grid-column: span 2; }
+@media (min-width: 720px) {
+  .bk-adm-stats-todo, .bk-adm-stats-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bk-adm-stats-todo > *:last-child,
+  .bk-adm-stats-sum > *:last-child { grid-column: auto; }
+}
+.bk-adm-stats-sum { margin-bottom: var(--sp-5); }
+
+/* แถบเครื่องมือ (ตัวกรอง) — มือถือเรียงแนวตั้ง / ≥720 แถวเดียว 4 ช่อง
+   [วันที่][สถานะ][ค้นหา][ทุกวันที่] */
+.bk-adm-filters-in {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3);
+}
+@media (min-width: 720px) {
+  .bk-adm-filters-in {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.7fr) auto;
+    align-items: end;
+  }
+}
+.bk-adm-field-search { min-width: 0; }
+.bk-adm-filters .bk-adm-chip-all { align-self: end; justify-self: start; min-height: 46px; }
+
+/* การ์ดการจอง — เด่นขึ้นเมื่อต้องทำ */
+@media (hover: hover) { .bk-adm-card:hover { box-shadow: var(--sh-2); border-color: #e4d9c8; } }
+.bk-adm-card.is-todo { border-color: #ecdcba; box-shadow: inset 3px 0 0 var(--amber), var(--sh-1); }
+.bk-adm-card.is-todo:hover { box-shadow: inset 3px 0 0 var(--amber), var(--sh-2); border-color: #e2c894; }
+
+/* ปุ่มยืนยัน / ปฏิเสธ */
+.bk-adm-btn-reject { background: var(--red-bg); border-color: #ecbcb4; color: var(--red); }
+.bk-adm-btn-reject:hover:not(:disabled) { background: #f7e4e0; border-color: #e3a89e; }
+
+/* รูปสลีป */
+.bk-adm-slip-thumb {
+  transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
+}
+.bk-adm-slip-thumb:hover { border-color: var(--brown); box-shadow: var(--sh-1); }
+.bk-adm-slip-thumb:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; box-shadow: var(--focus-ring); }
+.bk-adm-slip-zoom { width: 26px; height: 26px; border-radius: 8px; }
+
+/* สถานะว่าง */
+.bk-adm-empty { padding: var(--sp-3); margin-bottom: var(--sp-4); }
+.bk-adm-empty .empty { padding: var(--sp-5) var(--sp-3); }
+.bk-adm-empty-act { display: flex; justify-content: center; margin-top: var(--sp-3); }
+
+/* ---------- responsive: หน้าจัดการการจอง ---------- */
+@media (min-width: 720px) {
+  .bk-adm-slip-thumb { width: 150px; height: 180px; }
+}
+/* จอจิ๋ว ≤359px — รูปสลีปเล็กลง + ปุ่ม action ทีละบรรทัด */
+@media (max-width: 359px) {
+  .bk-adm-slip-thumb { width: 96px; height: 120px; }
+  .bk-adm-acts > * { flex: 1 1 100%; }
+}

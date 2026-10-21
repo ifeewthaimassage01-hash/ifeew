@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, ReceiptText, FileText, LayoutGrid, Calculator,
-  LogOut, Store, UserCheck, X,
+  LogOut, Store, UserCheck, X, CalendarCheck,
 } from 'lucide-react';
 import { fmtBkk, bizToday } from '../utils/bkk';
 import { Modal } from './ui';
@@ -13,6 +13,8 @@ export const NAV_ITEMS = [
   { label: 'บิล', short: 'บิล', icon: FileText, key: 'bills', roles: ['owner', 'staff'] },
   { label: 'รายจ่าย', short: 'รายจ่าย', icon: LayoutGrid, key: 'expenses', roles: ['owner', 'staff'] },
   { label: 'ค่าแรง', short: 'ค่าแรง', icon: Calculator, key: 'commission', roles: ['owner', 'staff'] },
+  // "จองออนไลน์" — งานประจำวันของเจ้าของร้าน (ยืนยัน/ปฏิเสธการจองจากเว็บไซต์)
+  { label: 'จองออนไลน์', short: 'จองออนไลน์', icon: CalendarCheck, key: 'bookings', roles: ['owner'] },
   // "จัดการร้าน" ไว้ท้ายสุด — เป็นเมนูตั้งค่า ไม่ใช่งานประจำวัน
   { label: 'จัดการร้าน', short: 'จัดการ', icon: Store, key: 'manage', roles: ['owner'] },
 ];
