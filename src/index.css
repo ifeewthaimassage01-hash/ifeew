@@ -1756,7 +1756,7 @@ label.filebtn {
 @media (max-width: 719px) {
   .page { padding-left: 14px; padding-right: 14px; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   /* เว้นขอบในตัว container มือถือ — รวมกับ .page 14px = ขอบจอ 22px (เดิม 14px) */
-  .container { padding: 0 25px; max-width: 100%; }
+  .container { padding: 0 15px; max-width: 100%; }
   /* การ์ดเลือกรายการ: คอลัมน์เดียวบนมือถือ กันชื่ออังกฤษยาวดันล้น */
   .cat-grid { grid-template-columns: 1fr; gap: 10px; max-width: 100%; }
   .cat-card { min-height: 0; height: auto; min-width: 0; max-width: 100%; overflow: hidden; }
