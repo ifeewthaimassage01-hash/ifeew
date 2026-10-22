@@ -297,6 +297,17 @@
 }
 .bkc .ob-btns .badge { font-size: 11px; }
 
+/* หมอผู้บริการ = pill ชมพูน้ำตาลอ่อนในการ์ดจอง (คำขอผู้ใช้ 23 ต.ค. 2026)
+   วางในแถบข้อมูลของการ์ด — อ่านแยกจากวัน/เวลา/เบอร์ได้ทันที */
+.bkc-doc-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--brown-tint); color: var(--brown-dark);
+  font-size: 11px; font-weight: 600; line-height: 1.6;
+  white-space: nowrap; vertical-align: middle;
+}
+.bkc-doc-pill svg { flex-shrink: 0; opacity: .75; }
+
 /* ---------- เลือกวันที่ (ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%) ---------- */
 .bk-datehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
 .bk-datehead-t { display: flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 700; color: var(--ink); }

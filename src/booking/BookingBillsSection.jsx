@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2 } from 'lucide-react';
+import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2, UserRound } from 'lucide-react';
 import { fmtDay, confirmDialog, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
@@ -47,7 +47,15 @@ function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
           <span className="muted num">
             {fmtDay(b?.slot_date) || 'ไม่ระบุวันที่'}
             {when ? ` · ${when}` : ''}{until ? `–${until}` : ''}
-            {b?.therapist_name ? ` · ${b.therapist_name}` : ''}
+            {/* หมอผู้บริการ = pill แยกตา (คำขอผู้ใช้) */}
+            {b?.therapist_name && (
+              <> ·{' '}
+                <span className="bkc-doc-pill" title="หมอผู้ให้บริการ">
+                  <UserRound size={10} strokeWidth={2.4} />
+                  {String(b.therapist_name).startsWith('หมอ') ? b.therapist_name : `หมอ ${b.therapist_name}`}
+                </span>
+              </>
+            )}
             {b?.customer_phone && (
               <> · <a href={`tel:${b.customer_phone}`} style={{ color: 'inherit' }}><Phone size={10} strokeWidth={2.2} /> <span className="num">{b.customer_phone}</span></a></>
             )}

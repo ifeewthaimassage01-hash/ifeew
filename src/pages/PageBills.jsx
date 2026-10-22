@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2, CalendarCheck } from 'lucide-react';
+import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2, CalendarCheck, UserRound } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged } from '../lib/bookingRealtime';
@@ -435,10 +435,22 @@ export default function PageBills({ data, saveData, role }) {
                           </span>
                           <span className="bk-adm-badge is-completed">จบบริการ</span>
                         </div>
-                        <div className="ob-rows">
+          <div className="ob-rows">
                           <div className="ob-row">
                             <span className="ob-time muted">{when}</span>
-                            <span className="ob-name">{b?.service_name || '—'}{b?.therapist_name ? ` · ${b.therapist_name}` : ''}</span>
+                            <span className="ob-name">
+                              {b?.service_name || '—'}
+                              {/* หมอผู้บริการ = pill แยกตา (คำขอผู้ใช้) */}
+                              {b?.therapist_name && (
+                                <>
+                                  {' '}
+                                  <span className="bkc-doc-pill" title="หมอผู้ให้บริการ">
+                                    <UserRound size={10} strokeWidth={2.4} />
+                                    {String(b.therapist_name).startsWith('หมอ') ? b.therapist_name : `หมอ ${b.therapist_name}`}
+                                  </span>
+                                </>
+                              )}
+                            </span>
                             <b className="ob-price">฿ {amt.toLocaleString()}</b>
                           </div>
                         </div>
