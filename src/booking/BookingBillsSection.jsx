@@ -85,6 +85,17 @@ export default function BookingBillsSection({ data }) {
 
   return (
     <>
+      {/* หัวแยก "บิลจอง" — ตามที่ผู้ใช้ขอให้เห็นชัดว่าโซนนี้คือการจองจากเว็บ ไม่ใช่บิลหน้าร้าน */}
+      <section className="bk-adm-sec" style={{ marginTop: 14 }}>
+        <div className="bk-adm-sec-h">
+          <span className="bk-adm-sec-ic"><CalendarCheck size={14} strokeWidth={1.9} /></span>
+          <div className="bk-adm-sec-txt">
+            <b>บิลจอง</b>
+            <span>รายการจองออนไลน์จากเว็บลูกค้า · อัปเดตอัตโนมัติทุก 15 วินาที — ยืนยัน/ปฏิเสธที่หน้า “จัดการการจอง”</span>
+          </div>
+        </div>
+      </section>
+
       <Card>
         <div className="field" style={{ marginBottom: 10 }}>
           <div className="search-wrap">

@@ -175,15 +175,14 @@ export default function PageBills({ data, saveData, role }) {
       <div className="seg">
         <button onClick={() => setTab('open')} className={tab === 'open' ? 'on' : ''}>บิลที่เปิดอยู่{openCount > 0 ? ` (${openCount})` : ''}</button>
         <button onClick={() => setTab('history')} className={tab === 'history' ? 'on' : ''}>ประวัติบิล</button>
-        <button onClick={() => setTab('bookings')} className={tab === 'bookings' ? 'on' : ''}>บิลจอง</button>
       </div>
 
       {tab === 'open' && (
-        <OpenBillsSection data={data} saveData={saveData} role={role} />
-      )}
-
-      {tab === 'bookings' && (
-        <BookingBillsSection data={data} />
+        <>
+          <OpenBillsSection data={data} saveData={saveData} role={role} />
+          {/* บิลจอง — รายการจองจากเว็บลูกค้า โชว์ต่อท้ายบิลเปิด (แยกหัวเป็น "บิลจอง" ชัดเจน) 22 ต.ค. 2026 */}
+          <BookingBillsSection data={data} />
+        </>
       )}
 
       {tab === 'history' && (
