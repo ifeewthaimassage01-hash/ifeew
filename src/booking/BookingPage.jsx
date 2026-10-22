@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, RefreshCw, TriangleAlert, CheckCircle2 } from 'lucide-react';
 import { PageHeader, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
-import { onBookingsChanged } from '../lib/bookingRealtime';
+import { onBookingsChanged, useRealtimeStatus } from '../lib/bookingRealtime';
 import { bkkToday } from '../utils/bkk';
 import { useAdminBookings, useAdminDecision } from './hooks';
 import { findBillClashOfBooking } from './bookingUtils';
@@ -22,6 +22,8 @@ export default function BookingPage({ data }) {
 
   const [toast, setToast] = useState('');
   const [authErr, setAuthErr] = useState('');
+  // สถานะช่องรีอัลไทม์ — subtitle/ข้อความท้ายหน้าบอกผู้ใช้ให้ตรงความจริง
+  const rt = useRealtimeStatus();
 
   /* ตัวกรอง */
   const [date, setDate] = useState(() => bkkToday());
@@ -96,7 +98,7 @@ export default function BookingPage({ data }) {
         icon={CalendarCheck}
         eyebrow="จัดการการจอง"
         title="จองออนไลน์"
-        subtitle="ยืนยันหรือปฏิเสธการจองที่ลูกค้าทำผ่านเว็บไซต์ — ระบบรีโหลดอัตโนมัติทุก 15 วินาที"
+        subtitle={`ยืนยันหรือปฏิเสธการจองที่ลูกค้าทำผ่านเว็บไซต์ — ${rt === 'connected' ? 'ข้อมูลอัปเดตทันทีแบบเรียลไทม์' : 'ระบบรีโหลดอัตโนมัติทุก 15 วินาที'}`}
         actions={(
           <button
             type="button"
@@ -165,7 +167,11 @@ export default function BookingPage({ data }) {
           />
 
           <p className="bk-adm-foot-note">
-            หน้านี้เป็นหน้าสำหรับเจ้าของร้านเท่านั้น — ระบบรีโหลดอัตโนมัติทุก 15 วินาที
+            <span className={`rt-dot${rt === 'connected' ? ' rt-on' : rt === 'down' ? ' rt-off' : ''}`} aria-hidden="true" />
+            {rt === 'connected'
+              ? 'ข้อมูลอัปเดตทันทีแบบเรียลไทม์'
+              : (rt === 'down' ? 'ระบบรีโหลดอัตโนมัติทุก 15 วินาที (ช่องเรียลไทม์หลุดชั่วคราว)' : 'ระบบรีโหลดอัตโนมัติทุก 15 วินาที')}
+            {' — หน้านี้สำหรับเจ้าของร้านเท่านั้น'}
           </p>
         </>
       )}

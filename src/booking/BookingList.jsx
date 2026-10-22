@@ -1,5 +1,6 @@
 import { RefreshCw, ClipboardList, ListChecks, History } from 'lucide-react';
 import { EmptyState } from '../components/ui';
+import { useRealtimeStatus } from '../lib/bookingRealtime';
 import BookingCard from './BookingCard';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -8,6 +9,8 @@ import BookingCard from './BookingCard';
 export default function BookingList({
   filtered, total, grouped, query, onRefresh, busy, onConfirm, onReject, onOpenSlip,
 }) {
+  // ข้อความ empty state นับตามสถานะช่อง: realtime = "ทันที" · down/unknown = รอบ 15 วิ สำรอง
+  const rt = useRealtimeStatus();
   return (
     <>
       <div className="bk-adm-list-head">
@@ -25,7 +28,9 @@ export default function BookingList({
             subtitle={
               query
                 ? 'ลองเปลี่ยนคำค้นหา หรือกดรีเฟรชเพื่อดูข้อมูลล่าสุด'
-                : 'เปลี่ยนวันที่หรือสถานะด้านบน — ระบบรีโหลดอัตโนมัติทุก 15 วินาที'
+                : (rt === 'connected'
+                ? 'เปลี่ยนวันที่หรือสถานะด้านบน — ข้อมูลอัปเดตทันทีแบบเรียลไทม์'
+                : 'เปลี่ยนวันที่หรือสถานะด้านบน — ระบบรีโหลดอัตโนมัติทุก 15 วินาที')
             }
           />
           <div className="bk-adm-empty-act">

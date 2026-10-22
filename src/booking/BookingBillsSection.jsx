@@ -3,7 +3,7 @@ import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, Che
 import { fmtDay, confirmDialog, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
-import { onBookingsChanged } from '../lib/bookingRealtime';
+import { onBookingsChanged, useRealtimeStatus } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
 import { toNum, payBahtOf, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
 import BookingStatusBadge from './BookingStatusBadge';
@@ -116,6 +116,8 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter }) 
   const [slipView, setSlipView] = useState(null);
   // เดอร์ที่กำลังกด "รับบริการเสร็จ" อยู่ (รหัสจอง) — ปุ่มกันกดซ้ำ
   const [busyCode, setBusyCode] = useState('');
+  // สถานะช่องรีอัลไทม์ — โชว์จุดเขียว/ส้ม บอกผู้ใช้ว่า "อัปเดตทันที" หรือรอบสำรอง 15 วิ
+  const rt = useRealtimeStatus();
 
   const handleUnauthorized = useMemo(() => () => {
     setAuthErr('รหัสเจ้าของร้านไม่ถูกต้อง — ให้เจ้าของร้านตรวจสอบรหัสผ่านในหน้า "จัดการร้าน" แล้วลองใหม่');
@@ -234,7 +236,14 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter }) 
       )}
 
       <p className="muted" style={{ fontSize: 12, margin: '6px 0 2px' }}>
-        รายการจองอัปเดตเองทุก 15 วินาที · ยืนยัน/ปฏิเสธที่หน้า “จัดการการจอง”
+        {/* สถานะช่องรีอัลไทม์จริง: เขียว = เหตุการณ์ตอนนี้ทันที · ส้ม = ช่องตก ใช้รอบ 15 วิ สำรอง */}
+        <span className={`rt-dot${rt === 'connected' ? ' rt-on' : rt === 'down' ? ' rt-off' : ''}`} aria-hidden="true" />
+        {rt === 'connected'
+          ? 'อัปเดตทันทีแบบเรียลไทม์'
+          : (rt === 'down'
+            ? 'รายการจองอัปเดตเองทุก 15 วินาที (ช่วงนี้ช่องเรียลไทม์หลุด — ใช้รอบสำรอง)'
+            : 'รายการจองอัปเดตเองทุก 15 วินาที')}
+        {' · ยืนยัน/ปฏิเสธที่หน้า “จัดการการจอง”'}
       </p>
 
       <SlipViewerDialog booking={slipView} onClose={() => setSlipView(null)} />

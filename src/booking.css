@@ -308,6 +308,15 @@
 }
 .bkc-doc-pill svg { flex-shrink: 0; opacity: .75; }
 
+/* จุดสถานะช่องเรียลไทม์ — เขียว = ช่องพร้อม (อัปเดตทันที) · ส้ม = ตก (ใช้รอบ 15 วิ สำรอง) · เทา = รอเชื่อม */
+.rt-dot {
+  display: inline-block; width: 7px; height: 7px;
+  border-radius: 999px; margin-right: 5px;
+  vertical-align: middle; background: #9aa0a6;
+}
+.rt-dot.rt-on { background: #2e9e4f; box-shadow: 0 0 0 3px rgba(46, 158, 79, .16); }
+.rt-dot.rt-off { background: #d98f2b; }
+
 /* ---------- เลือกวันที่ (ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%) ---------- */
 .bk-datehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
 .bk-datehead-t { display: flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 700; color: var(--ink); }
