@@ -276,3 +276,21 @@
   border-top: 1px dashed var(--line);
   font-size: 13px;
 }
+
+/* ---------- การ์ดจองผสานกลุ่มบิลเปิด (แฟมิลี ob-card แต่แยกลักษณะชัด) ---------- */
+.bkc { border: 1.5px dashed var(--brown); }
+.bkc .ob-ava { background: #fff; border: 1.5px dashed var(--brown); color: var(--brown); }
+.bkc-pill {
+  display: inline-block;
+  vertical-align: 2px;
+  margin-left: 7px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--brown);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.bkc .ob-btns .badge { font-size: 11px; }

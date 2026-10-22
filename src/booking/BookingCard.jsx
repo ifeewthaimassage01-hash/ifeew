@@ -47,7 +47,7 @@ export default function BookingCard({ b, busy, todo, onConfirm, onReject, onOpen
           <span className="bk-adm-row-k">บริการ</span>
           <span className="bk-adm-row-v">
             {b?.service_name || '—'}
-            {b?.therapist_name ? <em className="bk-adm-thera">หมอ{b.therapist_name}</em> : null}
+            {b?.therapist_name ? <em className="bk-adm-thera">{b.therapist_name}</em> : null}
           </span>
         </div>
       </div>

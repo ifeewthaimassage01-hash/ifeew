@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert } from 'lucide-react';
+import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
+import { fmtDay } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
 import { onBookingsChanged } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
-import BookingCard from './BookingCard';
+import { toNum, payBahtOf, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
+import BookingStatusBadge from './BookingStatusBadge';
+import BookingPayBadge from './BookingPayBadge';
 import { SlipViewerDialog } from './BookingDialogs';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -20,6 +23,67 @@ import { SlipViewerDialog } from './BookingDialogs';
 
 /** สถานะที่ถือว่าเป็น "บิลเปิด" อยู่ (สอดคล้อง isTodoBooking + confirmed) */
 const OPEN_STATUSES = ['pending', 'confirmed', 'cancel_requested'];
+
+/* ══════════════════════════════════════════════════════════════════
+   การ์ดจองผสานในการ์ด "บิลที่เปิดอยู่"
+   — โครงการ์ดเดียวกับ ob-card (บิลหน้าร้าน: avatar / ชื่อ / แถวบริการ /
+     แถวยอด) ให้อ่านเป็นกลุ่มบิลเปิดเดียวกัน
+   — แต่แยกลักษณะชัด: เส้นประน้ำตาล + avatar เป็นไอคอนปฏิทิน + ป้าย
+     "บิลจอง" — สายตาแยกได้ทันทีว่าใบไหนจอง / ใบไหนลูกค้าหน้าร้าน
+   ══════════════════════════════════════════════════════════════════ */
+function BookingOpenCard({ b, onOpenSlip }) {
+  const slip = slipState(b);
+  const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';
+  const until = b?.slot_end ? fmtTimeBkk(b.slot_end) : '';
+  const price = toNum(b?.amount) || 0;
+  const payBaht = payBahtOf(b);
+  return (
+    <article className="ob-card bkc">
+      <div className="ob-head">
+        <span className="ob-ava" aria-hidden="true"><CalendarCheck size={19} strokeWidth={2} /></span>
+        <span className="ob-who">
+          <b>{b?.customer_name || 'ไม่ระบุชื่อ'}<span className="bkc-pill">บิลจอง</span></b>
+          <span className="muted num">
+            {fmtDay(b?.slot_date) || 'ไม่ระบุวันที่'}
+            {when ? ` · ${when}` : ''}{until ? `–${until}` : ''}
+            {b?.therapist_name ? ` · ${b.therapist_name}` : ''}
+            {b?.customer_phone && (
+              <> · <a href={`tel:${b.customer_phone}`} style={{ color: 'inherit' }}><Phone size={10} strokeWidth={2.2} /> <span className="num">{b.customer_phone}</span></a></>
+            )}
+          </span>
+        </span>
+        <BookingStatusBadge status={b?.status} />
+      </div>
+      <div className="ob-rows">
+        <div className="ob-row">
+          <span className="ob-time muted">{when}{until ? `–${until}` : ''}</span>
+          <span className="ob-name">{b?.service_name || '—'}</span>
+          <b className="ob-price">{fmtBaht(price)}</b>
+        </div>
+      </div>
+      <div className="ob-total">
+        <span className="ob-sum">
+          <span className="ob-grand">{fmtBaht(price)}</span>
+          <span className="muted">ต้องโอน <span className="num">{payBaht !== null ? fmtBaht(payBaht) : '—'}</span></span>
+        </span>
+        <span className="ob-btns">
+          <BookingPayBadge status={b?.payment_status} />
+          {slip !== 'none' && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => onOpenSlip(b)}
+              aria-label={`ดูสลีปของเดอร์ ${b?.code || ''}`}
+            >
+              {slip === 'verified' ? <CheckCircle2 size={13} strokeWidth={1.9} /> : <ImageIcon size={13} strokeWidth={1.9} />}
+              ดูสลีป
+            </button>
+          )}
+        </span>
+      </div>
+    </article>
+  );
+}
 
 export default function BookingBillsSection({ data, onActiveCount }) {
   const key = getOwnerPass(data?.ownerPass);
@@ -102,7 +166,7 @@ export default function BookingBillsSection({ data, onActiveCount }) {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {open.map((b) => (
-            <BookingCard key={b.code} b={b} onOpenSlip={setSlipView} />
+            <BookingOpenCard key={b.code} b={b} onOpenSlip={setSlipView} />
           ))}
         </div>
       )}
