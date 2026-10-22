@@ -110,7 +110,7 @@ function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
   );
 }
 
-export default function BookingBillsSection({ data, onActiveCount, dayFilter }) {
+export default function BookingBillsSection({ data, onActiveCount, onDayCounts, dayFilter }) {
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
@@ -173,6 +173,20 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter }) 
   useEffect(() => {
     onActiveCount?.(open.length);
   }, [open.length, onActiveCount]);
+
+  /* จำนวนจองเปิดรายวัน (ทุกวันใน strip ถัดไป) → pill บนชิปเลือกวัน
+     "วันไหนมีจองบ้าง" (คำขอผู้ใช้ 23 ต.ค. 2026) — นับจาก openAll ตัวเดียวกัน */
+  const dayCounts = useMemo(() => {
+    const m = {};
+    openAll.forEach((b) => {
+      const d = String(b?.slot_date || '').slice(0, 10);
+      if (d) m[d] = (m[d] || 0) + 1;
+    });
+    return m;
+  }, [openAll]);
+  useEffect(() => {
+    onDayCounts?.(dayCounts);
+  }, [dayCounts, onDayCounts]);
 
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
      (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */

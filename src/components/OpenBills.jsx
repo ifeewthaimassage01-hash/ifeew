@@ -157,7 +157,7 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
 /* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก
    children = กลุ่ม "ลูกค้าจอง" (BookingBillsSection) — การจองจากเว็บ นับเป็นบิลที่เปิดอยู่
    เช่นเดียวกัน แค่มีป้ายแยกลูกค้าหน้าร้าน / ลูกค้าจอง (22 ต.ค. 2026) */
-export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter }) {
+export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter, dayCounts }) {
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const allOpenBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
@@ -625,6 +625,12 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
                     <span className="d-dow">{d.dow}</span>
                     <span className="d-num">{d.num}</span>
                     <span className="d-mon">{d.mon}</span>
+                    {/* pill จำนวนจองของวันนั้น (คำขอผู้ใช้: "อยากให้มี pill บอกว่าวันไหนมีจองบ้าง") */}
+                    {!d.closed && (dayCounts?.[d.date] || 0) > 0 && (
+                      <span className="bk-date-count" title={`${d.dow} ${d.num} ${d.mon} มีจอง ${dayCounts[d.date]} รายการ`}>
+                        {dayCounts[d.date] > 99 ? '99+' : dayCounts[d.date]}
+                      </span>
+                    )}
                     {d.closed ? <span className="d-off">ปิด</span> : null}
                   </button>
                 ))}

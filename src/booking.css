@@ -372,3 +372,13 @@
   background: #b3564a; color: #fff; font-size: 9px; font-weight: 700;
   border-radius: 999px; padding: 1px 6px; line-height: 1.5;
 }
+/* pill จำนวนจองของแต่ละวัน (มุมขวาบน — ต้นแบบเดียวกับป้าย "ปิด")
+   (คำขอผู้ใช้ 23 ต.ค. 2026: "อยากให้มี pill บอกว่าวันไหนมีจองบ้าง") */
+.bk-date-count {
+  position: absolute; top: 4px; right: 4px;
+  background: var(--brown); color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 999px; padding: 1.5px 7px; line-height: 1.4;
+  font-variant-numeric: tabular-nums; min-width: 14px; text-align: center;
+}
+/* ชิปที่เลือกอยู่พื้นเข้ม → pill กลับสีให้แยกชัด */
+.bk-date.on .bk-date-count { background: #fff; color: var(--brown-950); }
