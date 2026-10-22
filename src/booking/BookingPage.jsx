@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, RefreshCw, TriangleAlert, CheckCircle2 } from 'lucide-react';
 import { PageHeader, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
+import { onBookingsChanged } from '../lib/bookingRealtime';
 import { bkkToday } from '../utils/bkk';
 import { useAdminBookings, useAdminDecision } from './hooks';
 import { findBillClashOfBooking } from './bookingUtils';
@@ -70,6 +71,14 @@ export default function BookingPage({ data }) {
     onUnauthorized: handleUnauthorized,
     loadDataRef,
   });
+
+  /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server → โหลดใหม่ทันที (นอกจาก polling 15 วิ)
+     งดตอนเปิดกล่องยืนยัน/ปฏิเสธ/ดูสลีป กันข้อมูลรีเซ็ตกลางกล่อง — ใช้ ref อ่านค่าล่าสุด */
+  const busyGuardRef = useRef(false);
+  busyGuardRef.current = Boolean(dialog || dialogBusy);
+  useEffect(() => onBookingsChanged(() => {
+    if (!busyGuardRef.current) loadData({ silent: true });
+  }), [loadData]);
 
   /* toast หายไปเอง */
   useEffect(() => {

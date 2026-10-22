@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, RefreshCw, TriangleAlert } from 'lucide-react';
 import { getOwnerPass } from '../lib/auth';
+import { onBookingsChanged } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
 import BookingCard from './BookingCard';
 import { SlipViewerDialog } from './BookingDialogs';
@@ -50,6 +51,14 @@ export default function BookingBillsSection({ data, onActiveCount }) {
   useEffect(() => {
     onActiveCount?.(open.length);
   }, [open.length, onActiveCount]);
+
+  /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
+     (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */
+  const slipOpenRef = useRef(false);
+  slipOpenRef.current = Boolean(slipView);
+  useEffect(() => onBookingsChanged(() => {
+    if (!slipOpenRef.current) loadData({ silent: true });
+  }), [loadData]);
 
   if (!key) {
     return (

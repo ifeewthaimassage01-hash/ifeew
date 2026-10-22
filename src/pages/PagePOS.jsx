@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useId } from 'react';
+import { useState, useMemo, useEffect, useRef, useId, useCallback } from 'react';
 import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, Fuel } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
 import { chainTimes, categoryEn, serviceCategoryOrder } from '../lib/billing';
@@ -6,6 +6,7 @@ import { generateBillId } from '../lib/ids';
 import { bkkNow, bkkMinutes, bizToday } from '../utils/bkk';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { getOwnerPass } from '../lib/auth';
+import { onBookingsChanged } from '../lib/bookingRealtime';
 import { slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
 
 const BREAK_MINUTES = 15;
@@ -209,23 +210,31 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const authKey = getOwnerPass(data?.ownerPass);
   const canCheckWebBookings = role === 'owner' && Boolean(authKey);
   const [webBookings, setWebBookings] = useState([]);
+
+  const fetchWebBookings = useCallback(async () => {
+    if (!canCheckWebBookings) return;
+    try {
+      const res = await bookingAdminApi.list(authKey, { date: bizToday(), status: '', limit: 200 });
+      setWebBookings(Array.isArray(res?.bookings) ? res.bookings : []);
+    } catch (e) {
+      // ดึงไม่ได้ (เช่น network) → ไม่มีข้อมูลกันทับฝั่งเดอร์จอง แต่เปิดบิลได้ตามปกติ
+      console.error('[pos] ดึงเดอร์จองเพื่อกันเวลาทับไม่สำเร็จ', e);
+      setWebBookings([]);
+    }
+  }, [canCheckWebBookings, authKey]);
+
   useEffect(() => {
     if (!canCheckWebBookings) return undefined;
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await bookingAdminApi.list(authKey, { date: bizToday(), status: '', limit: 200 });
-        if (alive) setWebBookings(Array.isArray(res?.bookings) ? res.bookings : []);
-      } catch (e) {
-        // ดึงไม่ได้ (เช่น network) → ไม่มีข้อมูลกันทับฝั่งเดอร์จอง แต่เปิดบิลได้ตามปกติ
-        console.error('[pos] ดึงเดอร์จองเพื่อกันเวลาทับไม่สำเร็จ', e);
-        if (alive) setWebBookings([]);
-      }
-    };
-    load();
-    const t = setInterval(load, 60000);
-    return () => { alive = false; clearInterval(t); };
-  }, [canCheckWebBookings, authKey]);
+    fetchWebBookings();
+    const t = setInterval(fetchWebBookings, 60000);
+    return () => clearInterval(t);
+  }, [canCheckWebBookings, fetchWebBookings]);
+
+  /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (ชำระเงิน/ยืนยัน/ยกเลิก) → ดึงใหม่ทันที
+     เพื่อให้ช่องเวลา "ชนคิว" ของหมอคนเดียวกันหลังบ้านตรงขึ้นเกือบสด ๆ (ไม่ต้องรอ 60 วิ) */
+  useEffect(() => onBookingsChanged(() => {
+    if (canCheckWebBookings) fetchWebBookings();
+  }), [canCheckWebBookings, fetchWebBookings]);
   // BUG-POS-04: ref กันดับเบิลแตะแบบ synchronous (state creating อัปเดตช้าเกินไป)
   const creatingRef = useRef(false);
   const wizardGuardRef = useRef(false);
