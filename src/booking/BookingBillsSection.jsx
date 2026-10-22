@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
-import { fmtDay } from '../components/ui';
+import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2 } from 'lucide-react';
+import { fmtDay, confirmDialog, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
+import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
 import { toNum, payBahtOf, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
@@ -31,7 +32,7 @@ const OPEN_STATUSES = ['pending', 'confirmed', 'cancel_requested'];
    — แต่แยกลักษณะชัด: เส้นประน้ำตาล + avatar เป็นไอคอนปฏิทิน + ป้าย
      "บิลจอง" — สายตาแยกได้ทันทีว่าใบไหนจอง / ใบไหนลูกค้าหน้าร้าน
    ══════════════════════════════════════════════════════════════════ */
-function BookingOpenCard({ b, onOpenSlip }) {
+function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
   const slip = slipState(b);
   const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';
   const until = b?.slot_end ? fmtTimeBkk(b.slot_end) : '';
@@ -68,6 +69,22 @@ function BookingOpenCard({ b, onOpenSlip }) {
         </span>
         <span className="ob-btns">
           <BookingPayBadge status={b?.payment_status} />
+          {/* รับบริการเสร็จ → เดอร์ย้ายไปแท็บ "ประวัติบิล" (คำขอผู้ใช้) */}
+          {onDone && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => onDone(b)}
+              disabled={busy}
+              title="กดเมื่อลูกค้ารับบริการเสร็จแล้ว — เดอร์จะย้ายไปแท็บ ประวัติบิล"
+              aria-label={`ยืนยันว่าได้รับบริการเสร็จ แล้วย้ายเดอร์ ${b?.code || ''} ไปประวัติบิล`}
+            >
+              {busy
+                ? <Loader2 size={13} strokeWidth={1.9} className="spin" />
+                : <CheckCircle2 size={13} strokeWidth={1.9} />}
+              รับบริการเสร็จ
+            </button>
+          )}
           {slip !== 'none' && (
             <button
               type="button"
@@ -89,10 +106,33 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter }) 
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
+  // เดอร์ที่กำลังกด "รับบริการเสร็จ" อยู่ (รหัสจอง) — ปุ่มกันกดซ้ำ
+  const [busyCode, setBusyCode] = useState('');
 
   const handleUnauthorized = useMemo(() => () => {
     setAuthErr('รหัสเจ้าของร้านไม่ถูกต้อง — ให้เจ้าของร้านตรวจสอบรหัสผ่านในหน้า "จัดการร้าน" แล้วลองใหม่');
   }, []);
+
+  /* ปุ่ม "รับบริการเสร็จ" บนการ์ดจอง — ยืนยันแล้วตั้งสถานะ completed
+     เดอร์หายจากกลุ่มนี้ทันที (realtime + โหลดใหม่เองด้วย) และไปโผล่ในแท็บ "ประวัติบิล" */
+  const doComplete = async (b) => {
+    const go = await confirmDialog({
+      title: 'รับบริการเสร็จแล้ว?',
+      message: `${b?.customer_name || 'ลูกค้า'} · ${b?.service_name || 'บริการ'} ${b?.slot_date || ''} — เดอร์นี้จะย้ายไปแท็บ "ประวัติบิล"`,
+      confirmLabel: 'จบบริการ',
+    });
+    if (!go) return;
+    setBusyCode(b?.code || '');
+    try {
+      await bookingAdminApi.complete(key, { code: b?.code });
+      await loadData({ silent: true });
+    } catch (e) {
+      if (e?.code === 'UNAUTHORIZED' || e?.status === 401) handleUnauthorized();
+      else alertDialog({ title: 'ทำไม่สำเร็จ', message: e?.message || 'กรุณาลองใหม่อีกครั้ง' });
+    } finally {
+      setBusyCode('');
+    }
+  };
 
   const { filtered, loading, refreshing, error, loadData } = useAdminBookings({
     keyValue: key,
@@ -174,7 +214,13 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter }) 
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {open.map((b) => (
-            <BookingOpenCard key={b.code} b={b} onOpenSlip={setSlipView} />
+            <BookingOpenCard
+              key={b.code}
+              b={b}
+              onOpenSlip={setSlipView}
+              onDone={doComplete}
+              busy={busyCode === b.code}
+            />
           ))}
         </div>
       )}

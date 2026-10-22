@@ -16,6 +16,7 @@ export const SHOP_NAME = "I'FEEW";
 export const ADM_STATUS = {
   pending: { cls: 'is-pending', text: 'รอยืนยัน' },
   confirmed: { cls: 'is-confirmed', text: 'ยืนยันแล้ว' },
+  completed: { cls: 'is-completed', text: 'จบบริการ' },
   cancelled: { cls: 'is-cancelled', text: 'ยกเลิกแล้ว' },
   expired: { cls: 'is-expired', text: 'หมดอายุ' },
   cancel_requested: { cls: 'is-cancel-requested', text: 'รอคืนเงิน' },
@@ -25,6 +26,7 @@ export const STATUS_OPTIONS = [
   { value: '', label: 'ทุกสถานะ' },
   { value: 'pending', label: 'รอยืนยัน' },
   { value: 'confirmed', label: 'ยืนยันแล้ว' },
+  { value: 'completed', label: 'จบบริการ' },
   { value: 'cancelled', label: 'ยกเลิกแล้ว' },
   { value: 'expired', label: 'หมดอายุ' },
   { value: 'cancel_requested', label: 'รอคืนเงิน' },

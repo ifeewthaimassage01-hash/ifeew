@@ -1,6 +1,8 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2 } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2, CalendarCheck } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
+import { bookingAdminApi } from '../lib/bookingAdminApi';
+import { onBookingsChanged } from '../lib/bookingRealtime';
 import { bkkNow, fmtBkk, bizDateOf, bizToday, bkkToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
@@ -93,6 +95,47 @@ export default function PageBills({ data, saveData, role }) {
     return matchQ && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
+
+  /* ══════════ เดอร์จองที่ "จบบริการ" (completed) — อยู่ในแท็บประวัติบิล ══════════
+     คำขอผู้ใช้ (23 ต.ค. 2026): ปุ่ม "รับบริการเสร็จ" บนการ์ดจองในแท็บบิลที่เปิดอยู่
+     → เดอร์ย้ายมาแท็บนี้ · ดึงด้วย booking-admin (status=completed) และรีเฟรช
+     ตาม realtime ขณะอยู่แท็บนี้ · คงตามตัวกรองวันที่ + คำค้นของประวัติ */
+  const ownerKey = getOwnerPass(data?.ownerPass);
+  const [bkHistory, setBkHistory] = useState([]);
+  const [bkHistLoading, setBkHistLoading] = useState(false);
+  const [bkHistErr, setBkHistErr] = useState('');
+
+  const loadBkHistory = useCallback(async (silent = false) => {
+    if (!ownerKey) return;
+    if (!silent) setBkHistLoading(true);
+    try {
+      const res = await bookingAdminApi.list(ownerKey, { status: 'completed', limit: 100 });
+      setBkHistory(res?.bookings || []);
+      setBkHistErr('');
+    } catch (e) {
+      if (!silent) setBkHistErr(e?.message || 'โหลดเดอร์จองที่จบบริการไม่สำเร็จ');
+    } finally {
+      setBkHistLoading(false);
+    }
+  }, [ownerKey]);
+
+  useEffect(() => {
+    if (tab !== 'history') return undefined;
+    loadBkHistory(false);
+    // เดอร์จองเปลี่ยนฝั่ง server (กดรับบริการเสร็จจากแท็บอื่น/เครื่องอื่น) → รีเฟรชเงียบ ๆ
+    const bottomOff = onBookingsChanged(() => loadBkHistory(true));
+    return () => { bottomOff?.(); };
+  }, [tab, loadBkHistory]);
+
+  const bkCompleted = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return bkHistory
+      .filter((b) => {
+        const matchQ = !q || (b.customer_name || '').toLowerCase().includes(q) || String(b.customer_phone || '').includes(q.trim());
+        return matchQ && inSingleDay(String(b?.slot_date || '').slice(0, 10), filterDate);
+      })
+      .sort((a, b) => String(b?.slot_start || '').localeCompare(String(a?.slot_start || '')));
+  }, [bkHistory, query, filterDate]);
 
   // ชื่อบริการของแถว: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากรหัสในรายการปัจจุบัน
   // (บิลเก่าบางใบเซฟแค่ serviceId อย่างเดียว) — M5: หาไม่เจอคืน 'บริการที่ลบแล้ว' ไม่โชว์รหัสดิบอย่าง S13
@@ -355,6 +398,65 @@ export default function PageBills({ data, saveData, role }) {
             })}
             {history.length === 0 && <Card><EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
           </div>
+
+          {/* ══════ ลูกค้าจอง — รับบริการเสร็จ (ย้ายมาจากแท็บ "บิลที่เปิดอยู่") ══════ */}
+          {statusFilter === 'all' && ownerKey && (bkHistLoading || bkHistErr || bkHistory.length > 0) && (
+            <Card>
+              <CardHead
+                title="ลูกค้าจอง — รับบริการเสร็จ"
+                hint={bkHistErr ? '' : (bkHistLoading && bkHistory.length === 0) ? 'กำลังโหลด…' : `${bkCompleted.length} รายการ`}
+              />
+              {bkHistErr ? (
+                <p className="muted" style={{ fontSize: 13, margin: '0 0 2px' }}><TriangleAlert size={13} /> {bkHistErr}</p>
+              ) : bkCompleted.length === 0 ? (
+                <p className="muted" style={{ fontSize: 13, margin: '0 0 2px' }}>
+                  {bkHistLoading ? 'กำลังโหลด…' : 'ยังไม่มีเดอร์จองที่จบบริการในช่วงนี้'}
+                </p>
+              ) : (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {bkCompleted.map((b) => {
+                    const start = String(b?.slot_start || '');
+                    const end = String(b?.slot_end || '');
+                    // เวลา = แปลงเป็นเวลาไทย (timestamptz เก็บ UTC — slice ตรง ๆ ผิดเวลา)
+                    const when = start
+                      ? `${fmtBkk(start, { hour: '2-digit', minute: '2-digit' })}${end ? `–${fmtBkk(end, { hour: '2-digit', minute: '2-digit' })}` : ''}`
+                      : '';
+                    const amt = Number(b?.amount || 0) || 0;
+                    return (
+                      <div key={b.code || b.id} className="ob-card bkc" style={{ marginBottom: 0 }}>
+                        <div className="ob-head">
+                          <span className="ob-ava" aria-hidden="true"><CalendarCheck size={19} strokeWidth={2} /></span>
+                          <span className="ob-who">
+                            <b>{b?.customer_name || 'ไม่ระบุชื่อ'}<span className="bkc-pill">บิลจอง</span></b>
+                            <span className="muted num">
+                              {b?.customer_phone && <> <span className="num">{b.customer_phone}</span> ·</>}
+                              {' '}{b?.code || ''}
+                            </span>
+                          </span>
+                          <span className="bk-adm-badge is-completed">จบบริการ</span>
+                        </div>
+                        <div className="ob-rows">
+                          <div className="ob-row">
+                            <span className="ob-time muted">{when}</span>
+                            <span className="ob-name">{b?.service_name || '—'}{b?.therapist_name ? ` · ${b.therapist_name}` : ''}</span>
+                            <b className="ob-price">฿ {amt.toLocaleString()}</b>
+                          </div>
+                        </div>
+                        <div className="ob-total">
+                          <span className="ob-sum muted num" style={{ fontSize: 12.5 }}>
+                            <Calendar size={12} /> {fmtBkk(start, { day: 'numeric', month: 'short' })}
+                          </span>
+                          <span className={`bk-adm-badge ${b?.payment_status === 'paid' ? 'is-confirmed' : 'is-pending'}`}>
+                            {b?.payment_status === 'paid' ? 'ชำระแล้ว' : 'ไม่ได้ชำระ'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
         </>
       )}
 

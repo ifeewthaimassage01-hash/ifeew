@@ -153,6 +153,20 @@ export const bookingAdminApi = {
   },
 
   /**
+   * รับบริการเสร็จ — ร้านกดจากการ์ดจองในแท็บ "บิลที่เปิดอยู่"
+   * เดอร์เปลี่ยนสถานะเป็น completed → ย้ายไปแท็บ "ประวัติบิล"
+   * @param {string} key
+   * @param {{code: string}} params
+   */
+  complete: (key, params = {}) => {
+    const { code } = params || {};
+    return invoke(
+      { action: 'complete', code: String(code || '').trim().toUpperCase() },
+      key,
+    );
+  },
+
+  /**
    * สรุปยอดวันนี้ + จำนวนสลีปที่รอตรวจ
    * @param {string} key
    * @returns {Promise<{ok: true, stats: object}>}
