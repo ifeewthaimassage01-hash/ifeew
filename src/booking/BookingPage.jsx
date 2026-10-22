@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarCheck, RefreshCw, TriangleAlert, CheckCircle2 } from 'lucide-react';
-import { PageHeader } from '../components/ui';
+import { PageHeader, alertDialog } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
 import { bkkToday } from '../utils/bkk';
 import { useAdminBookings, useAdminDecision } from './hooks';
+import { findBillClashOfBooking } from './bookingUtils';
 import BookingFilters from './BookingFilters';
 import BookingKpi from './BookingKpi';
 import BookingList from './BookingList';
@@ -39,6 +40,22 @@ export default function BookingPage({ data }) {
     dialog, setDialog, dialogBusy, dialogErr, mismatch, slipView, setSlipView, busy,
     openConfirm, doConfirm, openReject, doReject,
   } = useAdminDecision({ keyValue: key, setToast, onUnauthorized: handleUnauthorized, loadDataRef });
+
+  /* กันเวลาทับ: หมอคนเดียวกัน (เทียบชื่อ) มีบิลหน้าร้านสถานะ "เปิดอยู่" ที่ช่วงเวลาทับ
+     กับสล็อตเดอร์จอง → ไม่เปิดกล่องยืนยัน แจ้งให้ตรวจสอบก่อน
+     (ส่วนใหญ่แปลว่าร้านเปิดบิลหน้าร้านรับลูกค้าจองคนนี้ไปแล้ว — ควรปฏิเสธเดอร์จองแทน) */
+  const handleConfirmClick = (b) => {
+    const clash = findBillClashOfBooking(b, data?.bills || [], data?.therapists || []);
+    if (clash) {
+      const endTxt = clash.endTime ? `–${clash.endTime}` : '';
+      alertDialog({
+        title: 'ช่วงเวลาทับกับบิลหน้าร้าน',
+        message: `หมอ ${b?.therapist_name || '—'} มีบิลหน้าร้านเปิดอยู่เวลา ${clash.startTime}${endTxt} ที่ทับกับเดอร์จอง ${b?.code} — ถ้าลูกค้าเข้าบริการผ่านบิลหน้าร้านนั้นแล้ว ให้ปฏิเสธเดอร์จองแทนการยืนยัน`,
+      });
+      return;
+    }
+    openConfirm(b);
+  };
 
   const {
     total, stats, loading, refreshing, error, loadData, filtered, grouped,
@@ -133,7 +150,7 @@ export default function BookingPage({ data }) {
             query={query}
             onRefresh={loadData}
             busy={dialogBusy}
-            onConfirm={openConfirm}
+            onConfirm={handleConfirmClick}
             onReject={openReject}
             onOpenSlip={setSlipView}
           />

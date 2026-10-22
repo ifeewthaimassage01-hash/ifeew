@@ -3,7 +3,10 @@ import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, F
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
 import { chainTimes, categoryEn, serviceCategoryOrder } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
-import { bkkNow, bkkMinutes } from '../utils/bkk';
+import { bkkNow, bkkMinutes, bizToday } from '../utils/bkk';
+import { bookingAdminApi } from '../lib/bookingAdminApi';
+import { getOwnerPass } from '../lib/auth';
+import { slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
 
 const BREAK_MINUTES = 15;
 
@@ -199,6 +202,30 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const [err, setErr] = useState('');
   // M7: กันกดเปิดบิลซ้ำ (ดับเบิลแตะสร้างบิลคู่)
   const [creating, setCreating] = useState(false);
+
+  // ── กันเวลาทับ: เดอร์จองจากเว็บ (ยืนยันแล้ว) ของ "วันนี้" ──
+  // ดึงด้วยรหัสเจ้าของร้าน (edge function booking-admin) — พนักงานไม่มีรหัสนี้จึงข้าม
+  // (ระบบกันทับของบิลหน้าร้านต่อกันเองยังทำงานตามเดิมเสมอ)
+  const authKey = getOwnerPass(data?.ownerPass);
+  const canCheckWebBookings = role === 'owner' && Boolean(authKey);
+  const [webBookings, setWebBookings] = useState([]);
+  useEffect(() => {
+    if (!canCheckWebBookings) return undefined;
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await bookingAdminApi.list(authKey, { date: bizToday(), status: '', limit: 200 });
+        if (alive) setWebBookings(Array.isArray(res?.bookings) ? res.bookings : []);
+      } catch (e) {
+        // ดึงไม่ได้ (เช่น network) → ไม่มีข้อมูลกันทับฝั่งเดอร์จอง แต่เปิดบิลได้ตามปกติ
+        console.error('[pos] ดึงเดอร์จองเพื่อกันเวลาทับไม่สำเร็จ', e);
+        if (alive) setWebBookings([]);
+      }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => { alive = false; clearInterval(t); };
+  }, [canCheckWebBookings, authKey]);
   // BUG-POS-04: ref กันดับเบิลแตะแบบ synchronous (state creating อัปเดตช้าเกินไป)
   const creatingRef = useRef(false);
   const wizardGuardRef = useRef(false);
@@ -260,6 +287,24 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   // (fallback เป็น billMinutes เมื่อยังไม่มีเวลาเริ่ม/ยังต่อคิวไม่ได้)
   const billSpan = (billEnd != null && selectedStartTime != null) ? billEnd - selectedStartTime : billMinutes;
 
+  // ช่วงเวลาที่ถูก "เดอร์จองจากเว็บ" (ยืนยันแล้ว) ครอบ แยกตามหมอ — จับคู่หมอด้วยชื่อ
+  // (เดอร์จองเก็บ therapist_name ส่วนบิลหน้าร้านเก็บ therapistId)
+  const webSlotByTherapistId = useMemo(() => {
+    const map = new Map(); // therapistId → [{ start, end }]
+    const idByKey = new Map((data.therapists || []).map((t) => [therapistKey(t.name), t.id]));
+    webBookings.forEach((b) => {
+      if (b?.status !== 'confirmed') return; // กันเฉพาะเดอร์ที่ยืนยันแล้ว (รอยืนยัน/กำลังยกเลิกไม่ล็อกคิวร้าน)
+      const tid = idByKey.get(therapistKey(b.therapist_name));
+      if (!tid) return;
+      const span = slotMinutesBkk(b);
+      if (!span) return;
+      const arr = map.get(tid) || [];
+      arr.push({ start: span.start, end: span.end + BREAK_MINUTES }); // เผื่อพักห้องเหมือนคิวบิล
+      map.set(tid, arr);
+    });
+    return map;
+  }, [webBookings, data.therapists]);
+
   const bookedSlots = useMemo(() => {
     if (!activeTherapistId) return [];
     const slots = [];
@@ -285,8 +330,10 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
         }
       });
     });
+    // เดอร์จองจากเว็บ (ยืนยันแล้ว) ของหมอคนเดียวกัน — ถือเป็นคิวที่ชนได้เหมือนบิลหน้าร้าน
+    (webSlotByTherapistId.get(activeTherapistId) || []).forEach((s) => slots.push(s));
     return slots;
-  }, [data.bills, activeTherapistId]);
+  }, [data.bills, activeTherapistId, webSlotByTherapistId]);
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 

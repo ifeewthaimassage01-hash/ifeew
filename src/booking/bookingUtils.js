@@ -136,3 +136,74 @@ export function slipState(b) {
 export function isTodoBooking(b) {
   return b?.status === 'pending' || b?.status === 'cancel_requested';
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   กันเวลาทับ: เดอร์จอง (เว็บ) vs บิลหน้าร้าน — 22 ต.ค. 2026
+   ใช้ทั้งสองฝั่ง:
+     · PagePOS  → ช่องเวลาของหมอคนนั้นที่มีเดอร์จองถือเป็น "ชนคิว"
+     · BookingPage → เช็คก่อนกดยืนยันว่าหมอคนเดียวกันมีบิลหน้าร้านเปิดอยู่ทับ
+   ══════════════════════════════════════════════════════════════════ */
+
+/** นาทีของวัน (เวลากรุงเทพฯ) จาก ISO timestamp — null ถ้าไม่มีข้อมูล */
+function isoMinutesBkk(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d);
+  const h = Number(p.find((x) => x.type === 'hour')?.value);
+  const m = Number(p.find((x) => x.type === 'minute')?.value);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return (h % 24) * 60 + m;
+}
+
+/** ช่วงเวลาสล็อตเดอร์จอง เป็นนาทีเริ่ม–จบ (เวลากรุงเทพฯ) · ไม่มี slot_start คืน null */
+export function slotMinutesBkk(b) {
+  const start = isoMinutesBkk(b?.slot_start);
+  if (start == null) return null;
+  const end = isoMinutesBkk(b?.slot_end);
+  return { start, end: end == null ? start + 60 : Math.max(end, start) };
+}
+
+/** คีย์ชื่อหมอ เทียบข้ามระบบ — ตัดคำว่า "หมอ", prefix หมอวิ่ง (EXT-VIS-), ช่องว่าง และพิมพ์เล็ก */
+export function therapistKey(s) {
+  return String(s || '')
+    .replace(/^ext-vis-/i, '')
+    .replace(/หมอ/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+/** เวลา "HH:MM" → นาทีของวัน (null ถ้าไม่มี/ข้อมูลพัง) */
+export function timeStrMinutes(t) {
+  if (!t || !String(t).includes(':')) return null;
+  const [h, m] = String(t).split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+/**
+ * ค้นบิลหน้าร้านที่ "ทับกับเดอร์จอง" — หมอคนเดียวกัน (เทียบชื่อ) + วันเดียวกัน
+ * + ช่วงเวลาทับกัน (ขอบจบบิลเผื่อพักห้อง 15 นาทีเหมือนระบบคิว POS)
+ * คืนบิลที่เจอ (หรือ null) — เฉพาะบิลสถานะ open เท่านั้น
+ */
+export function findBillClashOfBooking(b, dataBills = [], dataTherapists = []) {
+  const span = slotMinutesBkk(b);
+  if (!span) return null;
+  const nameKey = therapistKey(b?.therapist_name);
+  if (!nameKey) return null;
+  return (dataBills || []).find((bill) => {
+    if (bill?.status !== 'open' || !bill?.startTime) return false;
+    // วันเดียวกัน (biz date ของบิล = วันที่สล็อตเดอร์จอง รูปแบบ YYYY-MM-DD)
+    if (bill.date && String(bill.date).slice(0, 10) !== String(b?.slot_date || '').slice(0, 10)) return false;
+    const tName = bill.therapistName
+      || (dataTherapists || []).find((t) => t.id === bill.therapistId)?.name
+      || '';
+    if (therapistKey(tName) !== nameKey) return false;
+    const start = timeStrMinutes(bill.startTime);
+    if (start == null) return false;
+    const end = timeStrMinutes(bill.endTime) ?? start + 60;
+    return span.start < end + 15 && span.end > start;
+  }) || null;
+}
