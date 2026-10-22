@@ -114,7 +114,7 @@ export default function BookingCard({ b, busy, todo, onConfirm, onReject, onOpen
             )}
           </div>
         </div>
-      ) : (
+      ) : (onConfirm && onReject) ? (
         <div className="bk-adm-acts">
           <button
             type="button"
@@ -135,7 +135,7 @@ export default function BookingCard({ b, busy, todo, onConfirm, onReject, onOpen
             <XCircle size={15} strokeWidth={1.8} /> ปฏิเสธ/ยกเลิก
           </button>
         </div>
-      )}
+      ) : null}
     </article>
   );
 }

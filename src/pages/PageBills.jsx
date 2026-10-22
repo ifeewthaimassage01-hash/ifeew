@@ -7,6 +7,7 @@ import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from
 import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
+import BookingBillsSection from '../booking/BookingBillsSection';
 
 /* Dropdown filter — ใช้ซ้ำได้สำหรับตัวกรองทั้งหมด */
 function Dropdown({ icon: Icon, label, value, options, onChange }) {
@@ -174,10 +175,15 @@ export default function PageBills({ data, saveData, role }) {
       <div className="seg">
         <button onClick={() => setTab('open')} className={tab === 'open' ? 'on' : ''}>บิลที่เปิดอยู่{openCount > 0 ? ` (${openCount})` : ''}</button>
         <button onClick={() => setTab('history')} className={tab === 'history' ? 'on' : ''}>ประวัติบิล</button>
+        <button onClick={() => setTab('bookings')} className={tab === 'bookings' ? 'on' : ''}>บิลจอง</button>
       </div>
 
       {tab === 'open' && (
         <OpenBillsSection data={data} saveData={saveData} role={role} />
+      )}
+
+      {tab === 'bookings' && (
+        <BookingBillsSection data={data} />
       )}
 
       {tab === 'history' && (
