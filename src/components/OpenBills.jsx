@@ -189,18 +189,23 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const closedWeekdays = Array.isArray(shopSettings?.closed_weekdays) ? shopSettings.closed_weekdays.map(Number) : [];
 
   /* แถบวัน = วันนี้ → วันนี้ + advanceDays (เหมือนเว็บจองเอง · ล่วงหน้าได้ตามตั้งค่า) */
-  const dayList = useMemo(() => Array.from({ length: advanceDays + 1 }, (_, i) => {
-    const date = bkkToday(i);
-    const [y, m, dd] = date.split('-').map(Number);
-    const t = new Date(y, m - 1, dd);
-    return {
-      date,
-      dow: TH_WD[t.getDay()],
-      num: dd,
-      mon: TH_MO[m - 1],
-      closed: closedDates.includes(date) || closedWeekdays.includes(t.getDay()),
-    };
-  }), [advanceDays, closedDates, closedWeekdays]);
+  const dayList = useMemo(() => {
+    const bookedDays = new Set(Object.keys(dayCounts ?? {}).filter((d) => (dayCounts ?? {})[d] > 0));
+    return Array.from({ length: advanceDays + 1 }, (_, i) => {
+      const date = bkkToday(i);
+      const [y, m, dd] = date.split('-').map(Number);
+      const t = new Date(Date.UTC(y, m - 1, dd)); // FIX BUG-08: weekday คำนวณด้วย UTC (machine-local getDay จะผิดถ้าเครื่องไม่เซต +7)
+      const dow = t.getUTCDay();
+      return {
+        date,
+        dow: TH_WD[dow],
+        num: Number(date.split('-')[2]),
+        mon: TH_MO[Number(date.split('-')[1]) - 1],
+        // FIX BUG-11: วันที่ร้านปิดแต่มีเดอร์จองจากเว็บอยู่ → ไม่ปิดชิป (ให้แตะเข้าดูรายการได้)
+        closed: (closedDates.includes(date) || closedWeekdays.includes(dow)) && !bookedDays.has(date),
+      };
+    });
+  }, [advanceDays, closedDates, closedWeekdays, dayCounts]);
 
   /* เลื่อนแถบให้วันที่เลือกอยู่กลางจอ (สำเนาทำงานตรงจาก PageSlot ของเว็บจอง) */
   const dateStripRef = useRef(null);

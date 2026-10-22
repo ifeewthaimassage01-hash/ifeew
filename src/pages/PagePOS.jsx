@@ -3,7 +3,7 @@ import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, F
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
 import { chainTimes, categoryEn, serviceCategoryOrder } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
-import { bkkNow, bkkMinutes, bizToday } from '../utils/bkk';
+import { bkkNow, bkkMinutes, bizToday, bizDateOf } from '../utils/bkk';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { getOwnerPass } from '../lib/auth';
 import { onBookingsChanged } from '../lib/bookingRealtime';
@@ -317,9 +317,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const bookedSlots = useMemo(() => {
     if (!activeTherapistId) return [];
     const slots = [];
+    const todayBiz = bizToday(); // FIX BUG-07: คิวชนได้เฉพาะบิลวันธุรกิจวันนี้เท่านั้น (กันบิลค้างวันก่อนหลอกช่องวันนี้)
     (data.bills || []).forEach((b) => {
       // ตรวจเฉพาะบิลที่ยังเปิดอยู่ (status = open) — ไม่นับบิลที่เช็คแล้ว (paid) หรือยกเลิก (cancelled)
       if (b.status !== 'open') return;
+      if (bizDateOf(b.date || b.createdAt || '') !== todayBiz) return; // ← บิลค้างวันอื่นไม่มาชน slot วันนี้
       // โมเดลใหม่: หมอระดับบิล ก้อนเดียวทั้งบิล
       if (b.therapistId && b.startTime) {
         if (b.therapistId === activeTherapistId) {
