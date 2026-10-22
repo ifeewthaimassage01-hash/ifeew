@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar, ChevronDown, Check, Filter, Tag, X, ReceiptText, ExternalLink, Maximize2 } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
-import { bkkNow, fmtBkk, bizDateOf, bizToday } from '../utils/bkk';
+import { bkkNow, fmtBkk, bizDateOf, bizToday, bkkToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
@@ -76,9 +76,8 @@ export default function PageBills({ data, saveData, role }) {
   const [viewImg, setViewImg] = useState(null);
   // บิลจอง (ลูกค้าจอง) ก็ "คิดเป็นบิลที่เปิดอยู่" — จำนวนรายงานขึ้นจาก BookingBillsSection
   const [bkOpenCount, setBkOpenCount] = useState(0);
-  // แถบเลือกวันของการ์ด "บิลที่เปิดอยู่" — '' = ทั้งหมด (กรองทั้งบิลหน้าร้านและลูกค้าจอง)
-  const [openDay, setOpenDay] = useState('');
-  const [bkOpenDays, setBkOpenDays] = useState([]); // วันที่มีเดอร์จอง (ใช้ประกอบสร้างชิปวัน)
+  // แถบเลือกวันของการ์ด "บิลที่เปิดอยู่" (แบบเว็บจอง) — เริ่มต้นที่วันนี้
+  const [openDay, setOpenDay] = useState(bkkToday());
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
@@ -184,10 +183,10 @@ export default function PageBills({ data, saveData, role }) {
 
       {tab === 'open' && (
         <>
-          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay} extraDays={bkOpenDays}>
+          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay}>
             {/* บิลจอง — ข้อมูลที่จองจากเว็บ แสดงในการ์ดเดียวกับบิลเปิด (แยกป้าย ลูกค้าหน้าร้าน/ลูกค้าจอง)
-                · กลุ่มนี้ถูกตัวกรองวันเดียวกัน และรายงานวันที่มีเดอร์จองขึ้นหาไปทำชิป */}
-            <BookingBillsSection data={data} onActiveCount={setBkOpenCount} dayFilter={openDay} onOpenDays={setBkOpenDays} />
+                · กลุ่มนี้ถูกตัวกรองวันเดียวกัน */}
+            <BookingBillsSection data={data} onActiveCount={setBkOpenCount} dayFilter={openDay} />
           </OpenBillsSection>
         </>
       )}

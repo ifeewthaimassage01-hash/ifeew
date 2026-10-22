@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, bkkToday, bizDateOf, fmtBkk } from '../utils/bkk';
+import { supabase } from '../lib/supabase';
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
@@ -14,17 +15,19 @@ const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i),
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
 
-/* ---------- แถบเลือกวันของการ์ด "บิลที่เปิดอยู่" (จากคำขอผู้ใช้ 22 ต.ค. 2026)
-   ลอกแบบหน้าเลือกช่วงเวลาของเว็บจอง: chip วันแนวนอนเลื่อนดูได้
-   เลือกแล้วกรองทั้งกลุ่มลูกค้าหน้าร้านและกลุ่มลูกค้าจองพร้อมกัน ---------- */
+/* ---------- เลือกวันที่ของการ์ด "บิลที่เปิดอยู่" (จากคำขอผู้ใช้ 22 ต.ค. 2026)
+   ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%: ชิปแถมชั้น ชื่อวัน / วันที่ใหญ่ /
+   เดือนย่อ · วันที่ร้านปิด (booking_settings: closed_weekdays + closed_dates)
+   เป็นเส้นประ + ป้ายแดง "ปิด" กดไม่ได้ · เครื่องมือวันอ่านท้องถิ่น (กัน TZ เพี้ยน)
+   ค่า advance_days กับวันปิดอ่านจาก app_settings key ที่เดียวกับเว็บจอง ---------- */
 const TH_WD = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
 const TH_MO = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-/** "2026-10-23" → "วันนี้" / "ศุกร์ 23 ต.ค." — สไตล์เดียวกับเว็บจอง */
-function dayChipLabel(d, todayStr) {
+/** label เต็มของวัน (สำหรับข้อความ/aria) — "วันนี้" / "ศุกร์ 23 ต.ค." */
+function dayChipLabel(d) {
   const [y, m, dd] = String(d || '').split('-').map(Number);
   if (!y || !m || !dd) return String(d || '—');
-  if (d === todayStr) return 'วันนี้';
+  if (d === bkkToday()) return 'วันนี้';
   const t = new Date(y, m - 1, dd);
   return `${TH_WD[t.getDay()]} ${dd} ${TH_MO[m - 1]}`;
 }
@@ -154,28 +157,69 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
 /* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก
    children = กลุ่ม "ลูกค้าจอง" (BookingBillsSection) — การจองจากเว็บ นับเป็นบิลที่เปิดอยู่
    เช่นเดียวกัน แค่มีป้ายแยกลูกค้าหน้าร้าน / ลูกค้าจอง (22 ต.ค. 2026) */
-export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter, extraDays }) {
+export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter }) {
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const allOpenBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
   // วันทำการของบิลหน้าร้าน = bizDateOf (ตัดหลังเที่ยงคืน 3 โมงแบบแอปเดิม) — เดอร์จองฝั่ง booking ส่ง slot_date มาเอง
   const billDayOf = (b) => bizDateOf(b.date || b.createdAt || '');
-  const todayStr = bkkToday();
   // เลือกวันอยู่ (แถบเลือกวัน) → กรองบิลหน้าร้านเหลือวันนั้น
   const openBills = dayFilter ? allOpenBills.filter((b) => billDayOf(b) === dayFilter) : allOpenBills;
 
-  /* ชิปวัน = วันที่ "มีของจริง" — บิลหน้าร้านเปิดอยู่ + เดอร์จอง (extraDays จาก BookingBillsSection)
-     เรียงเก่าสุด → ใหม่สุด · เลือก "" = ทั้งหมด */
-  const chipDays = useMemo(() => {
-    const set = new Set(
-      [...(data.bills || [])]
-        .filter((b) => b.status === 'open')
-        .map((b) => bizDateOf(b.date || b.createdAt || ''))
-        .filter(Boolean),
-    );
-    (extraDays || []).forEach((d) => { if (d) set.add(d); });
-    return Array.from(set).sort();
-  }, [data.bills, extraDays]);
+  /* การตั้งค่าการจอง (วันปิดร้าน + ล่วงหน้าได้กี่วัน) — อ่านจาก app_settings key
+     "booking_settings" เดียวกับเว็บจอง (anon อ่านได้ตามที่ auth.js ใช้อยู่) */
+  const [shopSettings, setShopSettings] = useState(null);
+  useEffect(() => {
+    if (!supabase) return undefined;
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'booking_settings').maybeSingle();
+        if (error) throw error;
+        let v = data?.value ?? null;
+        if (typeof v === 'string') { try { v = JSON.parse(v); } catch { v = null; } }
+        if (alive) setShopSettings(v && typeof v === 'object' ? v : null);
+      } catch { /* อ่านไม่ได้ → ไม่มีข้อมูลวันปิด (ทุกวันกดได้ตามปกติ) */ }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const advanceDays = Math.max(0, Number(shopSettings?.advance_days ?? 14));
+  const closedDates = Array.isArray(shopSettings?.closed_dates) ? shopSettings.closed_dates.map(String) : [];
+  const closedWeekdays = Array.isArray(shopSettings?.closed_weekdays) ? shopSettings.closed_weekdays.map(Number) : [];
+
+  /* แถบวัน = วันนี้ → วันนี้ + advanceDays (เหมือนเว็บจองเอง · ล่วงหน้าได้ตามตั้งค่า) */
+  const dayList = useMemo(() => Array.from({ length: advanceDays + 1 }, (_, i) => {
+    const date = bkkToday(i);
+    const [y, m, dd] = date.split('-').map(Number);
+    const t = new Date(y, m - 1, dd);
+    return {
+      date,
+      dow: TH_WD[t.getDay()],
+      num: dd,
+      mon: TH_MO[m - 1],
+      closed: closedDates.includes(date) || closedWeekdays.includes(t.getDay()),
+    };
+  }), [advanceDays, closedDates, closedWeekdays]);
+
+  /* เลื่อนแถบให้วันที่เลือกอยู่กลางจอ (สำเนาทำงานตรงจาก PageSlot ของเว็บจอง) */
+  const dateStripRef = useRef(null);
+  const dateRefs = useRef({});
+  const dateCenteredRef = useRef(false);
+  useEffect(() => {
+    const strip = dateStripRef.current;
+    const el = dateRefs.current[dayFilter];
+    if (!strip || !el) return;
+    const stripRect = strip.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    const delta = (elRect.left - stripRect.left) - (strip.clientWidth - elRect.width) / 2;
+    strip.scrollBy({ left: delta, behavior: dateCenteredRef.current ? 'smooth' : 'auto' });
+    dateCenteredRef.current = true;
+  }, [dayFilter, dayList.length]);
+  const scrollDays = (dir) => {
+    const strip = dateStripRef.current;
+    if (strip) strip.scrollBy({ left: dir * Math.max(160, Math.round(strip.clientWidth * 0.7)), behavior: 'smooth' });
+  };
 
   const [editTarget, setEditTarget] = useState(null);
   const [editDiscount, setEditDiscount] = useState('');
@@ -546,24 +590,46 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               </button>
             ) : null}
           />
-          {/* แถบเลือกวัน — กรองทั้งกลุ่มลูกค้าหน้าร้านและลูกค้าจอง (แบบเดียวกับหน้าเลือกช่วงเวลาของเว็บจอง) */}
-          {onDayFilter && chipDays.length > 0 && (
-            <div className="daystrip" role="group" aria-label="กรองบิลที่เปิดอยู่ตามวันที่">
-              <button type="button" className={`daychip${!dayFilter ? ' on' : ''}`} onClick={() => onDayFilter('')}>
-                ทั้งหมด
-              </button>
-              {chipDays.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  className={`daychip${dayFilter === d ? ' on' : ''}`}
-                  aria-pressed={dayFilter === d}
-                  onClick={() => onDayFilter(d)}
-                >
-                  {dayChipLabel(d, todayStr)}
-                </button>
-              ))}
-            </div>
+          {/* เลือกวันที่ — ลอก UI หน้าเลือกช่วงเวลาของเว็บจอง 100%
+              เลือกแล้วกรองทั้งกลุ่มลูกค้าหน้าร้านและกลุ่มลูกค้าจองพร้อมกัน */}
+          {onDayFilter && dayList.length > 0 && (
+            <>
+              <div className="bk-datehead">
+                <div>
+                  <div className="bk-datehead-t">
+                    <CalendarDays size={15} strokeWidth={1.8} /> เลือกวันที่
+                  </div>
+                  <small className="bk-datehead-hint">เลือกได้ตั้งแต่วันนี้ถึงอีก {advanceDays} วัน</small>
+                </div>
+                <div className="bk-pick-date-nav">
+                  <button type="button" className="bk-pick-date-btn" onClick={() => scrollDays(-1)} aria-label="เลื่อนวันที่ไปก่อนหน้า">
+                    <ChevronLeft size={15} strokeWidth={2} />
+                  </button>
+                  <button type="button" className="bk-pick-date-btn" onClick={() => scrollDays(1)} aria-label="เลื่อนวันที่ไปข้างหน้า">
+                    <ChevronRight size={15} strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+              <div className="bk-date-strip" ref={dateStripRef} role="group" aria-label="เลือกวันที่ที่ต้องการดูบิล">
+                {dayList.map((d) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    ref={(el) => { dateRefs.current[d.date] = el; }}
+                    className={`bk-date${dayFilter === d.date ? ' on' : ''}${d.closed ? ' closed' : ''}`}
+                    onClick={() => onDayFilter(d.date)}
+                    disabled={d.closed}
+                    aria-pressed={dayFilter === d.date}
+                    aria-label={`${d.dow} ${d.num} ${d.mon}${d.closed ? ' (ร้านปิด)' : ''}`}
+                  >
+                    <span className="d-dow">{d.dow}</span>
+                    <span className="d-num">{d.num}</span>
+                    <span className="d-mon">{d.mon}</span>
+                    {d.closed ? <span className="d-off">ปิด</span> : null}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
           {mergeMode && (
             <div style={{
@@ -588,7 +654,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               icon={FileText}
               title="ไม่มีบิลหน้าร้านที่เปิดอยู่"
               subtitle={dayFilter
-                ? `ในวันที่ ${dayChipLabel(dayFilter, todayStr)} — ของวันอื่นยังอยู่ตามปกติ`
+                ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
                 : 'เปิดบิลใหม่จากหน้า POS'}
             />
           ) : openBills.map((b) => {

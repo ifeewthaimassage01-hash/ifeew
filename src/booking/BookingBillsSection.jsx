@@ -85,7 +85,7 @@ function BookingOpenCard({ b, onOpenSlip }) {
   );
 }
 
-export default function BookingBillsSection({ data, onActiveCount, dayFilter, onOpenDays }) {
+export default function BookingBillsSection({ data, onActiveCount, dayFilter }) {
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
@@ -123,14 +123,6 @@ export default function BookingBillsSection({ data, onActiveCount, dayFilter, on
   useEffect(() => {
     onActiveCount?.(open.length);
   }, [open.length, onActiveCount]);
-
-  /* วันที่มีเดอร์จองเปิดอยู่ → ส่งให้การ์ด "บิลที่เปิดอยู่" รวมเป็นชิปวันเดียว
-     กับวันบิลหน้าร้าน (อ้างรายการทั้งหมดก่อนกรองวัน) */
-  useEffect(() => {
-    onOpenDays?.(
-      Array.from(new Set(openAll.map((b) => String(b?.slot_date || '').slice(0, 10)).filter(Boolean))).sort(),
-    );
-  }, [openAll, onOpenDays]);
 
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
      (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */

@@ -288,17 +288,6 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 /* ---------- open-bill card (minimal) ---------- */
 .ob-card { border: 1px solid var(--line-soft); border-radius: 14px; padding: 14px; margin-bottom: 10px; background: #fff; }
 .ob-card:last-child { margin-bottom: 0; }
-
-/* แถบเลือกวันของการ์ด "บิลที่เปิดอยู่" — แบบเดียวกับหน้าเลือกช่วงเวลาของเว็บจอง */
-.daystrip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 12px; scrollbar-width: none; }
-.daystrip::-webkit-scrollbar { display: none; }
-.daychip {
-  flex-shrink: 0; padding: 8px 14px; border-radius: 999px; cursor: pointer;
-  border: 1px solid var(--line-soft); background: #fff; color: var(--brown-dark);
-  font-size: 13px; font-weight: 600; white-space: nowrap;
-}
-.daychip:hover { border-color: var(--brown); }
-.daychip.on { background: var(--brown); border-color: var(--brown); color: #fff; }
 .ob-head { display: flex; align-items: center; gap: 10px; }
 .ob-ava { width: 42px; height: 42px; flex-shrink: 0; border-radius: 50%; background: var(--brown-tint); color: var(--brown-dark); font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; }
 .ob-who { flex: 1; min-width: 0; }

@@ -294,3 +294,59 @@
   white-space: nowrap;
 }
 .bkc .ob-btns .badge { font-size: 11px; }
+
+/* ---------- เลือกวันที่ (ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%) ---------- */
+.bk-datehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
+.bk-datehead-t { display: flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 700; color: var(--ink); }
+.bk-datehead-t svg { color: var(--brown-dark); }
+.bk-datehead-hint { font-size: 12px; color: var(--muted); margin-top: 3px; display: block; }
+.bk-pick-date-nav { display: flex; gap: 6px; flex-shrink: 0; }
+.bk-pick-date-btn {
+  width: 34px; height: 34px; border-radius: var(--r-md); flex-shrink: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface); border: 1px solid var(--line); color: var(--muted);
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+}
+.bk-pick-date-btn:hover { background: var(--surface-2); border-color: #e4d9c8; color: var(--brown-dark); }
+.bk-pick-date-btn:active { transform: scale(0.94); }
+
+.bk-date-strip {
+  display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 10px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch; scroll-padding: 0 2px;
+  /* fade ขอบขวา = สัญญาณว่ายังเลื่อนต่อได้ (สำเนาจากเว็บจอง) */
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 34px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 34px), transparent 100%);
+}
+.bk-date-strip::-webkit-scrollbar { display: none; }
+.bk-date {
+  position: relative; /* ป้าย "ปิด" ยึดกับปุ่มเอง */
+  flex: 0 0 auto; min-width: 64px; scroll-snap-align: start; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 13px; border-radius: 14px;
+  background: var(--surface); border: 1.5px solid var(--line); color: var(--ink);
+  transition: border-color .15s ease, background .15s ease, box-shadow .2s ease, transform .15s ease;
+}
+.bk-date:active { transform: scale(0.97); }
+@media (hover: hover) {
+  .bk-date:hover:not(.on):not(:disabled) { border-color: var(--brown); background: var(--brown-tint-2); }
+}
+.bk-date:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
+.bk-date .d-dow { font-size: 10.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
+.bk-date .d-num { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.bk-date .d-mon { font-size: 10.5px; font-weight: 500; color: var(--faint); }
+.bk-date.on {
+  border-color: var(--brown-950); background: var(--brown-950); color: #fff;
+  box-shadow: 0 0 0 1px var(--brown-950), 0 4px 12px -6px rgba(100, 81, 62, 0.6);
+  scroll-snap-align: center; /* วันที่เลือก snap กลางจอเมื่อเลื่อนแถบ */
+}
+.bk-date.on .d-dow, .bk-date.on .d-mon { color: rgba(255, 255, 255, 0.75); }
+.bk-date:disabled { opacity: 0.4; cursor: not-allowed; }
+/* วันที่ร้านปิด — ขีดฆ่าตัวเลข + ป้ายแดง "ปิด" (สำเนาจากเว็บจอง) */
+.bk-date.closed { border-style: dashed; background: var(--surface-2); }
+.bk-date.closed .d-num { text-decoration: line-through; }
+.bk-date.closed .d-off {
+  position: absolute; top: 2px; right: 2px;
+  background: #b3564a; color: #fff; font-size: 9px; font-weight: 700;
+  border-radius: 999px; padding: 1px 6px; line-height: 1.5;
+}
