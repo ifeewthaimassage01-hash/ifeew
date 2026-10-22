@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DatePicker, inSingleDay, fmtDay } from '../components/ui';
@@ -7,6 +7,9 @@ import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guarantee
 import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
+// บิลจองลูกค้า (จบบริการ) นับรายได้/ค่าแรงด้วย — ฉีดเป็นบิลเสมือนตอนคำนวณ (data.bills จริงไม่แตะ)
+import { getOwnerPass } from '../lib/auth';
+import { bookingBillsOf, dataWithBookingBills, useCompletedBookings } from '../lib/bookingBills';
 
 function localDay(offset = 0) {
   return bkkToday(offset);
@@ -21,7 +24,22 @@ export default function PageDashboard({ data, saveData }) {
   const [filterDate, setFilterDate] = useState(today);
   const [stmtMonth, setStmtMonth] = useState(() => today.slice(0, 7));
   const [guaranteeMsg, setGuaranteeMsg] = useState('');
-  const paidBills = (data.bills || []).filter((b) => b.status === 'paid');
+  // เดอร์ลูกค้าจองที่จบบริการ → นับรายได้/ค่าแรงเหมือนบิลหน้าร้าน (bookingBillsOf)
+  const ownerKey = getOwnerPass(data?.ownerPass);
+  const { bookings: completedBookings } = useCompletedBookings(ownerKey);
+  const bookingBills = useMemo(
+    () => bookingBillsOf(completedBookings, data.services, data.therapists),
+    [completedBookings, data.services, data.therapists],
+  );
+  const paidBills = [
+    ...((data.bills || []).filter((b) => b.status === 'paid')),
+    ...bookingBills,
+  ];
+  // สำหรับรายงานรายเดือน (statement/excel) — ฉีดบิลจองแบบชั่วคราว data.bills จริงไม่ถูกแตะ
+  const reportData = useMemo(
+    () => dataWithBookingBills(data, completedBookings),
+    [data, completedBookings],
+  );
 
   // เติมรายจ่ายประกันอัตโนมัติเมื่อดูวันเดียว (tab รายวัน) — การ์ด loop แบบเดียวกับหน้าค่าแรง:
   const singleDay = tab === 'day' ? filterDate : null;
@@ -101,7 +119,7 @@ export default function PageDashboard({ data, saveData }) {
   });
   const payLabels = Object.keys(paySum).sort((a, b) => paySum[b] - paySum[a]);
 
-  const month = buildMonthReport(data, stmtMonth);
+  const month = buildMonthReport(reportData, stmtMonth);
 
   return (
     <div>
@@ -164,12 +182,12 @@ export default function PageDashboard({ data, saveData }) {
         <CardHead title="ใบสรุปประจำเดือน" />
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary auto" style={{ flex: 1 }} onClick={() => window.print()}>PDF</button>
-          <button className="btn btn-ghost auto" style={{ flex: 1 }} onClick={() => downloadMonthExcel(data, stmtMonth)}>Excel</button>
+          <button className="btn btn-ghost auto" style={{ flex: 1 }} onClick={() => downloadMonthExcel(reportData, stmtMonth)}>Excel</button>
         </div>
       </Card>
       </>
       )}
-      {createPortal(<div className="print-only"><MonthStatement data={data} month={stmtMonth} /></div>, document.body)}
+      {createPortal(<div className="print-only"><MonthStatement data={reportData} month={stmtMonth} /></div>, document.body)}
     </div>
   );
 }

@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 import AttendanceCard from '../components/AttendanceCard';
 import { bizDateOf, bizToday } from '../utils/bkk';
 import { svcLabel, commBaht, freelanceDisplayName, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY, billLinesOf } from '../lib/billing';
+// เดอร์ลูกค้าจองที่จบบริการ นับค่าแรงด้วย (บิลเสมือน — data.bills จริงไม่แตะ)
+import { getOwnerPass } from '../lib/auth';
+import { bookingBillsOf, useCompletedBookings } from '../lib/bookingBills';
 
 export default function PageCommission({ data, saveData, role }) {
   const isStaff = role === 'staff';
@@ -68,7 +71,17 @@ export default function PageCommission({ data, saveData, role }) {
     runApply(data, singleDay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [singleDay, data]);
-  const bills = (data.bills || []).filter((b) => b.status === 'paid' && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
+  // เดอร์ลูกค้าจองที่จบบริการ → นับค่าแรง/ยอดขายเหมือนบิลหน้าร้าน
+  const ownerKey = getOwnerPass(data?.ownerPass);
+  const { bookings: completedBookings } = useCompletedBookings(ownerKey);
+  const bookingBills = useMemo(
+    () => bookingBillsOf(completedBookings, data.services, data.therapists),
+    [completedBookings, data.services, data.therapists],
+  );
+  const bills = [
+    ...((data.bills || []).filter((b) => b.status === 'paid')),
+    ...bookingBills,
+  ].filter((b) => inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
 
   const stats = {};
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, total: 0, services: {}, svcDetail: {}, history: [] }; });
