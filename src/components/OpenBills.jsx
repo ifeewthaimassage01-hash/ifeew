@@ -184,7 +184,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
     return () => { alive = false; };
   }, []);
 
-  const advanceDays = Math.max(0, Number(shopSettings?.advance_days ?? 14));
+  const advanceDays = Math.max(0, Number(shopSettings?.advance_days ?? 6));
   const closedDates = Array.isArray(shopSettings?.closed_dates) ? shopSettings.closed_dates.map(String) : [];
   const closedWeekdays = Array.isArray(shopSettings?.closed_weekdays) ? shopSettings.closed_weekdays.map(Number) : [];
 
@@ -599,7 +599,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
                   <div className="bk-datehead-t">
                     <CalendarDays size={15} strokeWidth={1.8} /> เลือกวันที่
                   </div>
-                  <small className="bk-datehead-hint">เลือกได้ตั้งแต่วันนี้ถึงอีก {advanceDays} วัน</small>
+                  <small className="bk-datehead-hint">เลือกได้ตั้งแต่วันนี้ถึงอีก {advanceDays} วัน (รวม {advanceDays + 1} วัน)</small>
                 </div>
                 <div className="bk-pick-date-nav">
                   <button type="button" className="bk-pick-date-btn" onClick={() => scrollDays(-1)} aria-label="เลื่อนวันที่ไปก่อนหน้า">
