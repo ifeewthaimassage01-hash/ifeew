@@ -136,8 +136,10 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
   );
 }
 
-/* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก */
-export default function OpenBillsSection({ data, saveData, role }) {
+/* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก
+   children = กลุ่ม "ลูกค้าจอง" (BookingBillsSection) — การจองจากเว็บ นับเป็นบิลที่เปิดอยู่
+   เช่นเดียวกัน แค่มีป้ายแยกลูกค้าหน้าร้าน / ลูกค้าจอง (22 ต.ค. 2026) */
+export default function OpenBillsSection({ data, saveData, role, children, bookingsHint }) {
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const openBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
@@ -196,13 +198,8 @@ export default function OpenBillsSection({ data, saveData, role }) {
     if (svc) return `${svc.category}${svc.duration != null ? ` ${formatDuration(svc.duration)}` : ''}`;
     return 'บริการที่ลบแล้ว';
   };
-  if (openBills.length === 0 && !editTarget && !checkoutTarget && !voidTarget && !mergeReview) {
-    return (
-      <div id="open-bills" style={{ scrollMarginTop: 16 }}>
-        <Card><EmptyState icon={FileText} title="ไม่มีบิลที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" /></Card>
-      </div>
-    );
-  }
+  // เดิมยังมี early return "ไม่มีบิลที่เปิดอยู่" — ถอดออกเพราะกลุ่มลูกค้าจอง (children)
+  // ก็คือบิลที่เปิดอยู่ด้วย ต้องแสดงตลอดแม้ไม่มีบิลหน้าร้าน
 
   const startEdit = (b) => {
     setEditTarget(b);
@@ -498,11 +495,14 @@ export default function OpenBillsSection({ data, saveData, role }) {
 
   return (
     <div id="open-bills" style={{ scrollMarginTop: 16 }}>
-      {openBills.length > 0 && (
-        <Card>
+      {/* การ์ดเปิดตลอด (เดิมเคยซ่อนเมื่อไม่มีบิล) — กลุ่ม "ลูกค้าจอง" (children)
+          ก็นับเป็นบิลที่เปิดอยู่ด้วย จึงต้องแสดงแม้ไม่มีบิลหน้าร้าน */}
+      <Card>
           <CardHead
             title="บิลที่เปิดอยู่"
-            hint={mergeMode ? 'แตะการ์ดเพื่อเลือกบิลที่จะรวม' : `${openBills.length} บิล · รอเช็คบิล`}
+            hint={mergeMode
+              ? 'แตะการ์ดเพื่อเลือกบิลที่จะรวม'
+              : [openBills.length > 0 && `ลูกค้าหน้าร้าน ${openBills.length}`, bookingsHint].filter(Boolean).join(' · ') || 'ไม่มีบิลที่เปิดอยู่'}
             right={openBills.length >= 2 ? (
               <button
                 className={mergeMode ? 'btn btn-primary auto' : 'btn btn-ghost auto'}
@@ -527,7 +527,13 @@ export default function OpenBillsSection({ data, saveData, role }) {
             </div>
           )}
           
-          {openBills.map((b) => {
+          {bookingsHint != null && openBills.length > 0 && (
+            <div className="bk-sep-label"><b>ลูกค้าหน้าร้าน</b><span className="muted num" style={{ fontSize: 12 }}>{openBills.length} บิล</span></div>
+          )}
+
+          {openBills.length === 0 ? (
+            <EmptyState icon={FileText} title="ไม่มีบิลหน้าร้านที่เปิดอยู่" subtitle="เปิดบิลใหม่จากหน้า POS" />
+          ) : openBills.map((b) => {
             const rows = billRows(b);
             const docName = therapistNameOf(b, rows);
             const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
@@ -585,8 +591,10 @@ export default function OpenBillsSection({ data, saveData, role }) {
             </div>
             );
           })}
+
+          {/* กลุ่ม "ลูกค้าจอง" — การจองจากเว็บลูกค้า นับเป็นบิลที่เปิดอยู่เช่นกัน */}
+          {children}
         </Card>
-      )}
 
       {editTarget && (
         <Modal onClose={() => setEditTarget(null)}>

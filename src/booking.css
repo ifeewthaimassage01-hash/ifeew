@@ -265,3 +265,14 @@
   .bk-adm-slip-thumb { width: 96px; height: 120px; }
   .bk-adm-acts > * { flex: 1 1 100%; }
 }
+
+/* ---------- ป้ายแยกกลุ่มในการ์ด "บิลที่เปิดอยู่" — ลูกค้าหน้าร้าน / ลูกค้าจอง ---------- */
+.bk-sep-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 10px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  font-size: 13px;
+}

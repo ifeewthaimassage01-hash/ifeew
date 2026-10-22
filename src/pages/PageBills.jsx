@@ -74,6 +74,8 @@ export default function PageBills({ data, saveData, role }) {
   const [voidErr, setVoidErr] = useState('');
   // สลิป/รูปที่กำลังเปิดดูแบบเต็มจอ (lightbox) — null = ปิด
   const [viewImg, setViewImg] = useState(null);
+  // บิลจอง (ลูกค้าจอง) ก็ "คิดเป็นบิลที่เปิดอยู่" — จำนวนรายงานขึ้นจาก BookingBillsSection
+  const [bkOpenCount, setBkOpenCount] = useState(0);
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
@@ -173,15 +175,16 @@ export default function PageBills({ data, saveData, role }) {
   return (
     <div>
       <div className="seg">
-        <button onClick={() => setTab('open')} className={tab === 'open' ? 'on' : ''}>บิลที่เปิดอยู่{openCount > 0 ? ` (${openCount})` : ''}</button>
+        <button onClick={() => setTab('open')} className={tab === 'open' ? 'on' : ''}>บิลที่เปิดอยู่{openCount + bkOpenCount > 0 ? ` (${openCount + bkOpenCount})` : ''}</button>
         <button onClick={() => setTab('history')} className={tab === 'history' ? 'on' : ''}>ประวัติบิล</button>
       </div>
 
       {tab === 'open' && (
         <>
-          <OpenBillsSection data={data} saveData={saveData} role={role} />
-          {/* บิลจอง — รายการจองจากเว็บลูกค้า โชว์ต่อท้ายบิลเปิด (แยกหัวเป็น "บิลจอง" ชัดเจน) 22 ต.ค. 2026 */}
-          <BookingBillsSection data={data} />
+          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`}>
+            {/* บิลจอง — ข้อมูลที่จองจากเว็บ แสดงในการ์ดเดียวกับบิลเปิด (แยกป้าย ลูกค้าหน้าร้าน/ลูกค้าจอง) */}
+            <BookingBillsSection data={data} onActiveCount={setBkOpenCount} />
+          </OpenBillsSection>
         </>
       )}
 
