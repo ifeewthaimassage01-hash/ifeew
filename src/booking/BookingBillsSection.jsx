@@ -85,7 +85,7 @@ function BookingOpenCard({ b, onOpenSlip }) {
   );
 }
 
-export default function BookingBillsSection({ data, onActiveCount }) {
+export default function BookingBillsSection({ data, onActiveCount, dayFilter, onOpenDays }) {
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
@@ -106,15 +106,31 @@ export default function BookingBillsSection({ data, onActiveCount }) {
     onUnauthorized: handleUnauthorized,
   });
 
-  const open = useMemo(
+  const openAll = useMemo(
     () => filtered.filter((b) => OPEN_STATUSES.includes(b?.status)),
     [filtered],
   );
+  // เลือกวันอยู่ (แถบเลือกวันของการ์ด "บิลที่เปิดอยู่") → กรองเหลือวันนั้น
+  const open = useMemo(
+    () => (dayFilter
+      ? openAll.filter((b) => String(b?.slot_date || '').slice(0, 10) === dayFilter)
+      : openAll),
+    [openAll, dayFilter],
+  );
 
-  /* รายงานจำนวนขึ้นหน้า — badge แท็บ "บิลที่เปิดอยู่" + hint หัวการ์ดรวมคิดกัน */
+  /* รายงานจำนวนขึ้นหน้า — badge แท็บ "บิลที่เปิดอยู่" + hint หัวการ์ดรวมคิดกัน
+     (นับตามที่โชว์จริง: เลือกวันอยู่ = นับวันนั้น) */
   useEffect(() => {
     onActiveCount?.(open.length);
   }, [open.length, onActiveCount]);
+
+  /* วันที่มีเดอร์จองเปิดอยู่ → ส่งให้การ์ด "บิลที่เปิดอยู่" รวมเป็นชิปวันเดียว
+     กับวันบิลหน้าร้าน (อ้างรายการทั้งหมดก่อนกรองวัน) */
+  useEffect(() => {
+    onOpenDays?.(
+      Array.from(new Set(openAll.map((b) => String(b?.slot_date || '').slice(0, 10)).filter(Boolean))).sort(),
+    );
+  }, [openAll, onOpenDays]);
 
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
      (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */
