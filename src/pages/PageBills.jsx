@@ -205,8 +205,8 @@ export default function PageBills({ data, saveData, role }) {
       try {
         await deleteBillFromCloud(b.id, [resolveImageUrl(b.slip)]);
       } catch (e) {
-        // rollback: ไม่ saveData คง state เดิมไว้ + แจ้งเหมือนเดิม
-        alertDialog({ title: 'ลบในเครื่องแล้ว', message: 'แต่ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่' });
+        // rollback: ไม่ saveData คง state เดิมไว้ — ยังไม่ได้ลบอะไรเลยทั้งในเครื่องและ cloud
+        alertDialog({ title: 'ลบไม่สำเร็จ', message: 'ลบใน cloud ไม่สำเร็จ กรุณาเช็กเน็ตแล้วลองใหม่ (ยังไม่มีอะไรถูกลบ)' });
         return;
       }
       saveData(next);

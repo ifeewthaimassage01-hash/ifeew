@@ -28,8 +28,9 @@ function dayChipLabel(d) {
   const [y, m, dd] = String(d || '').split('-').map(Number);
   if (!y || !m || !dd) return String(d || '—');
   if (d === bkkToday()) return 'วันนี้';
-  const t = new Date(y, m - 1, dd);
-  return `${TH_WD[t.getDay()]} ${dd} ${TH_MO[m - 1]}`;
+  const t = new Date(Date.UTC(y, m - 1, dd)); // FIX: weekday คำนวณด้วย UTC กัน machine-local getDay เพี้ยนถ้าเครื่องไม่เซต +7 (เช่นเดียวกับ dayList)
+  const dow = t.getUTCDay();
+  return `${TH_WD[dow]} ${dd} ${TH_MO[m - 1]}`;
 }
 
 // C2: รหัสเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)

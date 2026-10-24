@@ -156,14 +156,15 @@ export const bookingAdminApi = {
    * รับบริการเสร็จ — ร้านกดจากการ์ดจองในแท็บ "บิลที่เปิดอยู่"
    * เดอร์เปลี่ยนสถานะเป็น completed → ย้ายไปแท็บ "ประวัติบิล"
    * @param {string} key
-   * @param {{code: string}} params
+   * @param {{code: string, therapist?: string}} params
+   *   therapist = ชื่อหมอผู้ให้บริการ (เลือกตอนจบบริการ) — ว่าง = ไม่แตะชื่อหมอเดิม
    */
   complete: (key, params = {}) => {
-    const { code } = params || {};
-    return invoke(
-      { action: 'complete', code: String(code || '').trim().toUpperCase() },
-      key,
-    );
+    const { code, therapist = '' } = params || {};
+    const body = { action: 'complete', code: String(code || '').trim().toUpperCase() };
+    const name = String(therapist || '').trim();
+    if (name) body.therapist = name;
+    return invoke(body, key);
   },
 
   /**

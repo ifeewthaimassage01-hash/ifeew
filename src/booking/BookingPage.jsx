@@ -7,6 +7,7 @@ import { bkkToday } from '../utils/bkk';
 import { useAdminBookings, useAdminDecision } from './hooks';
 import { findBillClashOfBooking } from './bookingUtils';
 import BookingFilters from './BookingFilters';
+import BookingQueueTable from './BookingQueueTable';
 import BookingKpi from './BookingKpi';
 import BookingList from './BookingList';
 import { ConfirmTransferDialog, RejectBookingDialog, SlipViewerDialog } from './BookingDialogs';
@@ -152,6 +153,9 @@ export default function BookingPage({ data }) {
             onStatusChange={setStatusFilter}
             onQueryChange={setQuery}
           />
+
+          {/* ---------- ตารางคิวตามเวลา (เดอร์เรียงเช้าไปค่ำ) ---------- */}
+          <BookingQueueTable filtered={filtered} allDates={allDates} />
 
           {/* ---------- รายการการจอง ---------- */}
           <BookingList

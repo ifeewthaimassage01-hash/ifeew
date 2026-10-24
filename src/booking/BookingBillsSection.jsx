@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2, UserRound } from 'lucide-react';
-import { fmtDay, confirmDialog, alertDialog } from '../components/ui';
+import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2, UserRound, Users } from 'lucide-react';
+import { fmtDay, alertDialog, Modal } from '../components/ui';
 import { getOwnerPass } from '../lib/auth';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged, useRealtimeStatus } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
-import { toNum, payBahtOf, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
+import { toNum, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
 import BookingStatusBadge from './BookingStatusBadge';
 import BookingPayBadge from './BookingPayBadge';
 import { SlipViewerDialog } from './BookingDialogs';
@@ -22,6 +22,57 @@ import { SlipViewerDialog } from './BookingDialogs';
    — อ่านอย่างเดียว: ไม่มีปุ่มยืนยัน/ปฏิเสธ (action ยังอยู่หน้าจัดการการจอง)
    ══════════════════════════════════════════════════════════════════ */
 
+/* ══════════════════════════════════════════════════════════════════
+   กล่องจบบริการ — เลือกหมอผู้ให้บริการก่อนบันทึก (คำขอผู้ใช้ 24 ต.ค. 2569)
+   แตะชื่อหมอเดียว = บันทึกจบบริการทันที (ไม่ต้องยืนยันซ้ำ)
+   ══════════════════════════════════════════════════════════════════ */
+function CompleteTherapistDialog({ booking, therapists, finishingName, onFinish, onClose }) {  const busy = finishingName != null;
+  return (
+    <Modal onClose={busy ? () => {} : onClose}>
+      <h3>จบบริการ</h3>
+      <p className="bk-adm-dlg-sub">
+        เดอร์ <b className="num">{booking?.code}</b>
+        {booking?.customer_name ? <> · {booking.customer_name}</> : null}
+        {booking?.service_name ? <> · {booking.service_name}</> : null}
+      </p>
+
+      <p className="bk-fin-label" id="bk-fin-label">
+        <Users size={13} strokeWidth={1.9} /> หมอผู้ให้บริการ — แตะชื่อเพื่อบันทึกจบบริการ
+      </p>
+      <div className="bk-fin-list" aria-labelledby="bk-fin-label">
+        {therapists.length === 0 && (
+          <p className="bk-adm-dlg-hint" style={{ margin: '0 0 2px' }}>
+            ยังไม่มีรายชื่อหมอในหน้า "จัดการร้าน"
+          </p>
+        )}
+        {therapists.map((t) => {
+          const nm = String(t?.name || '').trim();
+          if (!nm) return null;
+          return (
+            <button key={t?.id ?? nm} type="button" className="bk-fin-opt" disabled={busy} onClick={() => onFinish(nm)}>
+              <span className="bk-fin-ava" aria-hidden="true"><UserRound size={15} strokeWidth={2} /></span>
+              <b>{nm}</b>
+              {finishingName === nm
+                ? <Loader2 size={15} strokeWidth={1.9} className="spin" aria-label="กำลังบันทึก" />
+                : <CheckCircle2 size={15} strokeWidth={1.8} className="bk-fin-ghost" />}
+            </button>
+          );
+        })}
+        {/* ไม่บันทึกชื่อหมอก็จบได้ (คันเกียร์เสริม — กรณี list ยังไม่มีชื่อ) */}
+        <button type="button" className="bk-fin-opt bk-fin-none" disabled={busy} onClick={() => onFinish('')}>
+          จบบริการโดยไม่ระบุหมอ
+        </button>
+      </div>
+
+      <div className="modal-row">
+        <button type="button" className="btn btn-ghost" style={{ flex: 1 }} disabled={busy} onClick={onClose}>
+          ยกเลิก
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 /** สถานะที่ถือว่าเป็น "บิลเปิด" อยู่ (สอดคล้อง isTodoBooking + confirmed) */
 const OPEN_STATUSES = ['pending', 'confirmed', 'cancel_requested'];
 
@@ -37,7 +88,6 @@ function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
   const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';
   const until = b?.slot_end ? fmtTimeBkk(b.slot_end) : '';
   const price = toNum(b?.amount) || 0;
-  const payBaht = payBahtOf(b);
   return (
     <article className="ob-card bkc">
       <div className="ob-head">
@@ -46,7 +96,7 @@ function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
           <b>{b?.customer_name || 'ไม่ระบุชื่อ'}<span className="bkc-pill">บิลจอง</span></b>
           <span className="muted num">
             {fmtDay(b?.slot_date) || 'ไม่ระบุวันที่'}
-            {when ? ` · ${when}` : ''}{until ? `–${until}` : ''}
+            {/* เวลาอยู่คอลัมน์แถวบริการด้านล่าง (จุดเดียว ไม่ซ้ำหัวการ์ด) */}
             {/* หมอผู้บริการ = pill แยกตา (คำขอผู้ใช้) */}
             {b?.therapist_name && (
               <> ·{' '}
@@ -67,13 +117,13 @@ function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
         <div className="ob-row">
           <span className="ob-time muted">{when}{until ? `–${until}` : ''}</span>
           <span className="ob-name">{b?.service_name || '—'}</span>
-          <b className="ob-price">{fmtBaht(price)}</b>
+          {/* ราคาแสดงที่เดียวที่ยอดด้านล่าง (การ์ดจอง 1 แถว ไม่ต้องซ้ำ per-row เหมือนบิลหลายแถว) */}
         </div>
       </div>
       <div className="ob-total">
         <span className="ob-sum">
           <span className="ob-grand">{fmtBaht(price)}</span>
-          <span className="muted">ต้องโอน <span className="num">{payBaht !== null ? fmtBaht(payBaht) : '—'}</span></span>
+          {/* สถานะจ่าย/ยังไม่จ่าย = ป้ายชำระเงินด้านขวา (ไม่ซ้ำบรรทัด "ต้องโอน") */}
         </span>
         <span className="ob-btns">
           <BookingPayBadge status={b?.payment_status} />
@@ -123,23 +173,25 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
     setAuthErr('รหัสเจ้าของร้านไม่ถูกต้อง — ให้เจ้าของร้านตรวจสอบรหัสผ่านในหน้า "จัดการร้าน" แล้วลองใหม่');
   }, []);
 
-  /* ปุ่ม "รับบริการเสร็จ" บนการ์ดจอง — ยืนยันแล้วตั้งสถานะ completed
-     เดอร์หายจากกลุ่มนี้ทันที (realtime + โหลดใหม่เองด้วย) และไปโผล่ในแท็บ "ประวัติบิล" */
-  const doComplete = async (b) => {
-    const go = await confirmDialog({
-      title: 'รับบริการเสร็จแล้ว?',
-      message: `${b?.customer_name || 'ลูกค้า'} · ${b?.service_name || 'บริการ'} ${b?.slot_date || ''} — เดอร์นี้จะย้ายไปแท็บ "ประวัติบิล"`,
-      confirmLabel: 'จบบริการ',
-    });
-    if (!go) return;
+  /* กด "รับบริการเสร็จ" → เลือกหมอผู้ให้บริการก่อนบันทึก (คำขอผู้ใช้ 24 ต.ค. 2569)
+     การจองจากเว็บไม่ผูกหมอล่วงหน้า — หมอจริงถูกบันทึกตอนจบบริการนี้
+     เดอร์บันทึกสำเร็จจะย้ายไปแท็บ "ประวัติบิล" (realtime + โหลดใหม่เองด้วย) */
+  const [finishOf, setFinishOf] = useState(null);        // เดอร์ที่กำลังจะจบ (เปิดกล่องเลือกหมอ)
+  const [finishingName, setFinishingName] = useState(null); // ชื่อหมอที่กำลังบันทึกอยู่ (spinner ต่อแถว)
+
+  const finishWith = async (b, name) => {
+    setFinishingName(name || '__none__');
     setBusyCode(b?.code || '');
     try {
-      await bookingAdminApi.complete(key, { code: b?.code });
+      await bookingAdminApi.complete(key, { code: b?.code, therapist: name || '' });
       await loadData({ silent: true });
+      setFinishOf(null);
     } catch (e) {
+      setFinishOf(null);
       if (e?.code === 'UNAUTHORIZED' || e?.status === 401) handleUnauthorized();
       else alertDialog({ title: 'ทำไม่สำเร็จ', message: e?.message || 'กรุณาลองใหม่อีกครั้ง' });
     } finally {
+      setFinishingName(null);
       setBusyCode('');
     }
   };
@@ -242,7 +294,7 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
               key={b.code}
               b={b}
               onOpenSlip={setSlipView}
-              onDone={doComplete}
+              onDone={setFinishOf}
               busy={busyCode === b.code}
             />
           ))}
@@ -261,6 +313,17 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
       </p>
 
       <SlipViewerDialog booking={slipView} onClose={() => setSlipView(null)} />
+
+      {/* เลือกหมอผู้ให้บริการก่อนจบบริการ (คำขอผู้ใช้ 24 ต.ค. 2569) */}
+      {finishOf && (
+        <CompleteTherapistDialog
+          booking={finishOf}
+          therapists={(data?.therapists || []).filter((t) => t?.active !== false)}
+          finishingName={finishingName}
+          onFinish={(name) => finishWith(finishOf, name)}
+          onClose={() => setFinishOf(null)}
+        />
+      )}
     </>
   );
 }

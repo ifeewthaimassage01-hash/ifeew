@@ -716,7 +716,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
           />
           <div className="field">
-            <label>เวลาเริ่ม</label>
+            {/* ป้าย "เวลาเริ่ม" อยู่ในปุ่ม picker อยู่แล้ว (sub) — ไม่ซ้ำ label นอก */}
             <TimeSlotPicker
               value={selectedStartTime}
               slots={timeSlots}
@@ -741,11 +741,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
 
           {validPick && (
             <div className="summary-box">
-              <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
+              {/* ไม่ซ้ำ: ชื่อหมอ = hint หัวการ์ด · เวลารวม = แถบ "จบ … · รวม …" ใต้ตัวเลือกเวลา
+                  → ใบสรุปเหลือแต่แถวรายการ + ราคา */}
               {chained.map((p, i) => (
                 <div key={p.key} className="r"><span>{i + 1}. {p.serviceName}</span><b>{clockTime(p.start)} – {clockTime(p.end)}</b></div>
               ))}
-              <div className="r"><span>เวลารวม</span><b>{clockTime(selectedStartTime)} – {billEnd != null ? clockTime(billEnd) : '—'} · {formatDuration(billMinutes)}</b></div>
               <div className="r"><span>ราคา</span><b>฿ {subtotal.toLocaleString()}</b></div>
             </div>
           )}
