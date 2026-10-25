@@ -184,8 +184,8 @@ if (b.customerType === 'booking' && !((b.therapistId || '') || (billRows(b)[0]?.
 - modal แก้ไข: state เพิ่ม `editCustomer`, `editBooker` (ตั้งต้นจากบิล ณ `startEdit`, บิลหน้าร้านได้ `''`)
 - กฎ bookerId: ถ้าเก็บชื่อผู้รับจองเท่าเดิม → รหัสเดิม; ถ้าแก้ชื่อ → `bookerId = ''` (คนจับโทรศัพท์อาจไม่ใช่เดิม)
 
-- [ ] **Step 5.1: state + modal fields** — `startEdit` เติม `setEditCustomer(b.customer || '')`, `setEditBooker(b.bookerName || '')`; JSX modal: เมื่อ `editTarget?.customerType === 'booking'` แสดง field `ชื่อลูกค้า` + `รับจองโดย` (โครง `field + input` เดิม)
-- [ ] **Step 5.2: validate + บันทึก** — ทั้ง `saveEdit` และ `saveEditAndCheckout` ขั้นแรก:
+- [x] **Step 5.1: state + modal fields** — `startEdit` เติม `setEditCustomer(b.customer || '')`, `setEditBooker(b.bookerName || '')`; JSX modal: เมื่อ `editTarget?.customerType === 'booking'` แสดง field `ชื่อลูกค้า` + `รับจองโดย` (โครง `field + input` เดิม)
+- [x] **Step 5.2: validate + บันทึก** — ทั้ง `saveEdit` และ `saveEditAndCheckout` ขั้นแรก:
 
 ```js
 if (editTarget.customerType === 'booking' && (!editCustomer.trim() || !editBooker.trim())) {
@@ -195,8 +195,8 @@ if (editTarget.customerType === 'booking' && (!editCustomer.trim() || !editBooke
 ```
 
 และใน `buildUpdatedBill` ส่วน bill: `customer: editCustomer.trim(), bookerName: editBooker.trim(), bookerId: (editBooker.trim() === (editTarget.bookerName || '') ? (editTarget.bookerId || '') : '')`
-- [ ] **Step 5.3: เพิ่มรายการในบิลจองที่ไม่มีหมอ** — `handleAddEditItem`: จุดเดิมที่ตรวจ "หมอเดิมของบิล" คงไว้สำหรับบิลหน้าร้าน แต่บิลจอง (`editTarget.customerType === 'booking'`) ให้แถวใหม่ `therapistId/therapistName = ''` (ไม่ error)
-- [ ] **Step 5.4: PageBills — นับคิวจองรายวัน** — ก่อนส่ง prop:
+- [x] **Step 5.3: เพิ่มรายการในบิลจองที่ไม่มีหมอ** — `handleAddEditItem`: จุดเดิมที่ตรวจ "หมอเดิมของบิล" คงไว้สำหรับบิลหน้าร้าน แต่บิลจอง (`editTarget.customerType === 'booking'`) ให้แถวใหม่ `therapistId/therapistName = ''` (ไม่ error)
+- [x] **Step 5.4: PageBills — นับคิวจองรายวัน** — ก่อนส่ง prop:
 
 ```js
 const manualBkDayCounts = useMemo(
@@ -212,8 +212,8 @@ const manualBkDayCounts = useMemo(
 ```
 
 สร้าง `computedDayCounts` (useMemo) = รวม `bkDayCounts` เดิม + `manualBkDayCounts` — รวม key ทุกวัน ค่า = เว็บจอง + POS บวกกัน; ส่ง `dayCounts={computedDayCounts}` เข้า `OpenBillsSection`; tab จำนวน (`openCount` — นับ open ทั้งหมด) นับถึงบิลจองอยู่แล้ว ไม่ต้องแก้
-- [ ] **Step 5.5: PageBills — modal รายละเอียด** — ต่อบล็อกแถวของ `detailBill`: เมื่อ `detailBill.customerType === 'booking'` เพิ่มแถว: `จอง (ร้านรับเอง)`, `วันที่ให้บริการ {dayChipLabel(detailBill.bookedDate || billBizDay(detailBill))}`, `รับจองโดย {detailBill.bookerName || '—'}` (import `dayChipLabel` จาก `../booking/bookingUtils`)
-- [ ] **Step 5.6: ตรวจ + commit** — `npm run build` → PASS → `feat(bills): แก้ไข/รายละเอียดบิลจอง + นับคิวจองรายวัน`
+- [x] **Step 5.5: PageBills — modal รายละเอียด** — ต่อบล็อกแถวของ `detailBill`: เมื่อ `detailBill.customerType === 'booking'` เพิ่มแถว: `จอง (ร้านรับเอง)`, `วันที่ให้บริการ {dayChipLabel(detailBill.bookedDate || billBizDay(detailBill))}`, `รับจองโดย {detailBill.bookerName || '—'}` (import `dayChipLabel` จาก `../booking/bookingUtils`)
+- [x] **Step 5.6: ตรวจ + commit** — `npm run build` → PASS → `feat(bills): แก้ไข/รายละเอียดบิลจอง + นับคิวจองรายวัน`
 
 ---
 

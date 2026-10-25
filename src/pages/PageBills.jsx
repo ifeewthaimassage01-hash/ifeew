@@ -6,6 +6,7 @@ import { onBookingsChanged } from '../lib/bookingRealtime';
 import { bkkNow, fmtBkk, bizToday, bkkToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
 import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal, billBizDay } from '../lib/billing';
+import { dayChipLabel } from '../booking/bookingUtils';
 import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
@@ -84,6 +85,24 @@ export default function PageBills({ data, saveData, role }) {
 
   const bills = useMemo(() => [...(data.bills || [])].reverse(), [data.bills]);
   const openCount = bills.filter((b) => b.status === 'open').length;
+  // บิลจองร้านรับเอง (ลูกค้าโทรมาจอง) นับรายวันด้วย "วันที่ให้บริการ" (bookedDate) — ไม่ยุ่งยอดขายหน้าร้าน
+  const manualBkDayCounts = useMemo(
+    () => (bills || []).reduce((acc, b) => {
+      if (b && b.status === 'open' && b.customerType === 'booking') {
+        const d = billBizDay(b);
+        if (d) acc[d] = (acc[d] || 0) + 1;
+      }
+      return acc;
+    }, {}),
+    [bills]
+  );
+  // รวมจองเว็บ (bkDayCounts จาก BookingBillsSection) + บิลจองร้านรับเอง ต่อวัน (key รวมทุกวัน)
+  const computedDayCounts = useMemo(() => {
+    const keys = new Set([...Object.keys(bkDayCounts || {}), ...Object.keys(manualBkDayCounts || {})]);
+    const out = {};
+    keys.forEach((d) => { out[d] = (bkDayCounts?.[d] || 0) + (manualBkDayCounts?.[d] || 0); });
+    return out;
+  }, [bkDayCounts, manualBkDayCounts]);
   // แท็บประวัติ = เฉพาะบิลที่ปิดแล้ว (ชำระแล้ว / ยกเลิก)
   // รวมบิล: ซ่อนบิลที่ถูกกลืน (status 'merged') ออกจากรายการปกติให้ลื่นตา
   // — ข้อมูลยังเก็บครบ (ไม่ลบไม่แตะ DB) รายงานคิดจาก status 'paid' เท่านั้นจึงไม่กระทบ
@@ -227,7 +246,7 @@ export default function PageBills({ data, saveData, role }) {
 
       {tab === 'open' && (
         <>
-          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay} dayCounts={bkDayCounts}>
+          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay} dayCounts={computedDayCounts}>
             {/* บิลจอง — ข้อมูลที่จองจากเว็บ แสดงในการ์ดเดียวกับบิลเปิด (แยกป้าย ลูกค้าหน้าร้าน/ลูกค้าจอง)
                 · กลุ่มนี้ถูกตัวกรองวันเดียวกัน */}
             <BookingBillsSection data={data} onActiveCount={setBkOpenCount} onDayCounts={setBkDayCounts} dayFilter={openDay} />
@@ -481,6 +500,13 @@ export default function PageBills({ data, saveData, role }) {
             <StatusBadge status={detailBill.status} />
           </div>
           <div className="summary-box" style={{ marginTop: 12 }}>
+            {detailBill.customerType === 'booking' && (
+              <>
+                <div className="r"><span>ประเภท</span><b>จอง (ร้านรับเอง)</b></div>
+                <div className="r"><span>วันที่ให้บริการ</span><b>{dayChipLabel(detailBill.bookedDate || billBizDay(detailBill))}</b></div>
+                <div className="r"><span>รับจองโดย</span><b>{detailBill.bookerName || '—'}</b></div>
+              </>
+            )}
             <div className="r"><span>หมอ</span><b>{therapistDisplay(detailBill)}</b></div>
             <div className="r"><span>ชำระโดย</span><b>{detailBill.paymentMethod}</b></div>
             {(detailBill.fuel || 0) > 0 && <div className="r"><span>ค่าน้ำมันหมอวิ่ง</span><b>+฿ {(detailBill.fuel || 0).toLocaleString()}</b></div>}

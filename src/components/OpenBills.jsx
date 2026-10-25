@@ -227,6 +227,8 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
 
   const [editTarget, setEditTarget] = useState(null);
   const [editDiscount, setEditDiscount] = useState('');
+  const [editCustomer, setEditCustomer] = useState(''); // บิลจอง: ชื่อลูกค้า (แก้ไขได้ที่ modal แก้ไขบิล)
+  const [editBooker, setEditBooker] = useState(''); // บิลจอง: ผู้รับจอง (แก้ชื่อ → รหัสเดิม (bookerId) ถือว่าไม่ตรงแล้ว)
   const [editPromoId, setEditPromoId] = useState('');
   const [editPay, setEditPay] = useState('เงินสด');
   const [expandedKey, setExpandedKey] = useState(null);
@@ -291,6 +293,9 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const startEdit = (b) => {
     setEditTarget(b);
     setEditDiscount(b.discount ? String(b.discount) : '');
+    // บิลจอง: ชื่อลูกค้า + ผู้รับจอง — ตั้งต้นจากบิล (บิลหน้าร้านได้ '' เท่านั้น)
+    setEditCustomer(b.customer || '');
+    setEditBooker(b.bookerName || '');
     setEditPromoId(promosActive.find((p) => b.promotion && p.name === b.promotion)?.id || '');
     setEditPay(b.paymentMethod || 'เงินสด');
     setEditItems(billRows(b).map((it) => ({ ...it, _key: newRowId() })));
@@ -317,9 +322,10 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
     const svc = (data.services || []).find((s) => s.id === addSvcId);
     if (!svc) { setEditErr('ไม่พบบริการนี้'); return; }
     // โมเดลใหม่: หมอระดับบิล + ต่อท้ายคิวเดิม (จบล่าสุด + พักห้อง)
-    const therapistId = editTarget?.therapistId || editItems[0]?.therapistId;
+    const therapistId = editTarget?.therapistId || editItems[0]?.therapistId || '';
     const therapistName = editTarget?.therapistName || editItems[0]?.therapistName || '';
-    if (!therapistId) { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
+    // บิลจอง: ยังไม่ตั้งหมอได้เพิ่มรายการได้ (แถวใหม่ยังไม่มีหมอ — ตั้งหมอทีหลังทั้งบิล)
+    if (!therapistId && editTarget?.customerType !== 'booking') { setEditErr('ไม่พบหมอเดิมของบิลนี้'); return; }
     const lastEnd = editItems.reduce((m, it) => {
       const s = timeToMinutes(it.startTime);
       const e = it.endTime ? timeToMinutes(it.endTime) : (s != null ? s + (it.totalMinutes || it.duration || 0) : null);
@@ -376,6 +382,10 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
       bill: {
         ...editTarget,
         discount: disc,
+        customer: editCustomer.trim(),
+        // บิลจอง: ผู้รับจอง — แก้ชื่อเป็นคนละคน/พิมพ์ใหม่ → รหัสเดิม (bookerId) จับคู่ไม่ตรงแล้ว ล้างทิ้ง
+        bookerName: editBooker.trim(),
+        bookerId: editBooker.trim() === (editTarget.bookerName || '') ? (editTarget.bookerId || '') : '',
         // BUG-OB-03: โปรที่ถูกปิดไปแล้ว — คงป้ายโปรเดิมไว้ ไม่ให้หายตอนเซฟ
         promotion: (promosActive.find((p) => p.id === editPromoId)?.name) ?? editTarget.promotion ?? '',
         paymentMethod: editPay,
@@ -390,6 +400,10 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const saveEdit = () => {
     if (!editTarget) return;
     if (editItems.length === 0) { setEditErr('บิลต้องมีอย่างน้อย 1 รายการ'); return; }
+    if (editTarget.customerType === 'booking' && (!editCustomer.trim() || !editBooker.trim())) {
+      setEditErr('บิลจองต้องมีชื่อลูกค้าและผู้รับจอง');
+      return;
+    }
     const updated = buildUpdatedBill();
     if (!updated) return;
     const { rows, subtotal, disc } = updated.meta;
@@ -410,6 +424,10 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const saveEditAndCheckout = () => {
     if (!editTarget) return;
     if (editItems.length === 0) { setEditErr('บิลต้องมีอย่างน้อย 1 รายการ'); return; }
+    if (editTarget.customerType === 'booking' && (!editCustomer.trim() || !editBooker.trim())) {
+      setEditErr('บิลจองต้องมีชื่อลูกค้าและผู้รับจอง');
+      return;
+    }
     const updated = buildUpdatedBill();
     if (!updated) return;
     const { rows, subtotal, disc } = updated.meta;
@@ -988,6 +1006,30 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
             <StatusBadge status="open" />
           </div>
           {editErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {editErr}</div>}
+
+          {/* บิลจอง: แก้ชื่อลูกค้า + ผู้รับจอง — หน้าร้านซ่อน (ไม่มีข้อมูลสื่อความ) */}
+          {editTarget?.customerType === 'booking' && (
+            <>
+              <div className="field">
+                <label>ชื่อลูกค้า</label>
+                <input
+                  value={editCustomer}
+                  onChange={(e) => setEditCustomer(e.target.value)}
+                  placeholder="เช่น คุณสม"
+                  className="input"
+                />
+              </div>
+              <div className="field">
+                <label>รับจองโดย</label>
+                <input
+                  value={editBooker}
+                  onChange={(e) => setEditBooker(e.target.value)}
+                  placeholder="ชื่อผู้รับจอง (เจ้าของร้าน/พนักงาน)"
+                  className="input"
+                />
+              </div>
+            </>
+          )}
 
           <ReceiptCard
             items={editItems}
