@@ -76,6 +76,10 @@ function toBillRow(b) {
     promotion: b.promotion || '',
     subtotal: b.subtotal ?? 0,
     total: b.total ?? 0,
+    customer_type: b.customerType || 'walkin',
+    booked_date: b.bookedDate || '',
+    booker_name: b.bookerName || '',
+    booker_id: b.bookerId || '',
     updated_at: b.updatedAt || bkkNow(),
   };
 }
@@ -138,6 +142,10 @@ function fromBillRow(r, itemsByBill) {
     startTime: r.start_time || '',
     endTime: r.end_time || '',
     promotion: r.promotion || '',
+    customerType: r.customer_type || 'walkin',
+    bookedDate: r.booked_date || '',
+    bookerName: r.booker_name || '',
+    bookerId: r.booker_id || '',
     subtotal: sub,
     total,
     updatedAt: r.updated_at || r.created_at || r.date || null,
@@ -148,7 +156,8 @@ function fromBillRow(r, itemsByBill) {
 
 // คอลัมน์ใหม่ที่ tolerantUpsert ยอมตัดเมื่อ DB ยังไม่รัน migration (ตัดแล้วขึ้น banner ผ่าน flagMigration)
 const BILL_DROP_KEYS = ['slip_url', 'paid_at', 'branch_id', 'fuel',
-  'therapist_id', 'therapist_name', 'start_time', 'end_time', 'promotion', 'subtotal', 'total', 'updated_at'];
+  'therapist_id', 'therapist_name', 'start_time', 'end_time', 'promotion', 'subtotal', 'total', 'updated_at',
+  'customer_type', 'booked_date', 'booker_name', 'booker_id'];
 const ITEM_DROP_KEYS = ['service_name', 'category', 'therapist_name', 'start_time', 'end_time',
   'duration', 'total_minutes', 'addons'];
 
