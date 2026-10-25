@@ -521,12 +521,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   useEffect(() => {
     if (step !== 4 || pickedServices.length === 0 || selectedStartTime == null) return;
     if (!timeError) return;
-    const key = `${activeTherapistId}-${selectedStartTime}-${billMinutes}`;
+    const key = `${customerType}-${activeTherapistId}-${bizDate}-${selectedStartTime}-${billMinutes}`;
     if (snapGuard.current.doneFor === key) return;
     snapGuard.current.doneFor = key;
     const next = nextFreeFrom(selectedStartTime);
     if (next != null) setSelectedStartTime(next);
-  }, [step, pickedServices.length, selectedStartTime, timeError, activeTherapistId, billMinutes, bookedSlots, customerType, bookedAllDay]);
+  }, [step, pickedServices.length, selectedStartTime, timeError, customerType, activeTherapistId, bizDate, billMinutes, bookedSlots, bookedAllDay]);
 
   const subtotal = pickedServices.reduce((s, p) => s + p.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
@@ -1074,7 +1074,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           <Card>
             <CardHead
               title="รายการในบิล"
-              hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
+              hint={`${pickedServices.length} บริการ${customerType === 'booking' ? ' · บิลจอง' : ` · ${activeTherapistName}`}`}
               right={<button className="btn btn-ghost btn-sm" onClick={() => setStep(customerType === 'booking' ? 2 : 1)}>+ เพิ่มบริการ</button>}
             />
             {pickedServices.length === 0 && <EmptyState title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
