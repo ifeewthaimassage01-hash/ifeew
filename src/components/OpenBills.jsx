@@ -6,6 +6,9 @@ import { supabase } from '../lib/supabase';
 import { commBaht, freelanceDisplayName, isFreelance, billBizDay } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
+import { bookingAdminApi } from '../lib/bookingAdminApi';
+/* ชื่อวัน/เดือนไทย + label วัน แชร์ไฟล์เดียวกับ POS บิลจอง (กันนิยามซ้ำหลายไฟล์) */
+import { TH_WD, TH_MO, dayChipLabel, slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
 
 const billRows = (b) => b.items || b.customers || [];
 const rowNet = (i) => i.net ?? i.price ?? 0;
@@ -19,19 +22,8 @@ const BREAK_MINUTES = 15;
    ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%: ชิปแถมชั้น ชื่อวัน / วันที่ใหญ่ /
    เดือนย่อ · วันที่ร้านปิด (booking_settings: closed_weekdays + closed_dates)
    เป็นเส้นประ + ป้ายแดง "ปิด" กดไม่ได้ · เครื่องมือวันอ่านท้องถิ่น (กัน TZ เพี้ยน)
-   ค่า advance_days กับวันปิดอ่านจาก app_settings key ที่เดียวกับเว็บจอง ---------- */
-const TH_WD = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
-const TH_MO = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-
-/** label เต็มของวัน (สำหรับข้อความ/aria) — "วันนี้" / "ศุกร์ 23 ต.ค." */
-function dayChipLabel(d) {
-  const [y, m, dd] = String(d || '').split('-').map(Number);
-  if (!y || !m || !dd) return String(d || '—');
-  if (d === bkkToday()) return 'วันนี้';
-  const t = new Date(Date.UTC(y, m - 1, dd)); // FIX: weekday คำนวณด้วย UTC กัน machine-local getDay เพี้ยนถ้าเครื่องไม่เซต +7 (เช่นเดียวกับ dayList)
-  const dow = t.getUTCDay();
-  return `${TH_WD[dow]} ${dd} ${TH_MO[m - 1]}`;
-}
+   ค่า advance_days กับวันปิดอ่านจาก app_settings key ที่เดียวกับเว็บจอง
+   (TH_WD / TH_MO / dayChipLabel ย้ายไป src/booking/bookingUtils.js — import ด้านบน) ---------- */
 
 // C2: รหัสเจ้าของร้าน — รวมไว้ที่ lib/auth.js ที่เดียว (อ่านจาก env ก่อน + fallback เดิม)
 // TODO(security): ย้ายการตรวจรหัส void ไปไว้ฝั่ง server (Supabase Edge Function + RLS)
@@ -164,8 +156,14 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const allOpenBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
   // วันธุรกิจ "ที่มีผล" ของบิล = billBizDay (บิลจองใช้วันให้บริการ — บิลอื่นตัดตามเที่ยงคืน 3 โมงแบบแอปเดิม)
   const billDayOf = (b) => billBizDay(b);
-  // เลือกวันอยู่ (แถบเลือกวัน) → กรองบิลหน้าร้านเหลือวันนั้น
-  const openBills = dayFilter ? allOpenBills.filter((b) => billDayOf(b) === dayFilter) : allOpenBills;
+  // แยกกลุ่มบิลเปิด: หน้าร้าน (walk-in โมเดลเดิม) · บิลจองร้านรับเอง (ลูกค้าโทรมาจอง — ตั้งหมอทีหลัง)
+  // แยกกันชัด จึงไม่เอี่ยมกันทั้ง merge/เรียงเวลา/นับ count ของกลุ่มหน้าร้าน
+  const walkBills = allOpenBills.filter((b) => b.customerType !== 'booking');
+  const ownBookingBills = allOpenBills.filter((b) => b.customerType === 'booking');
+
+  // เลือกวันอยู่ (แถบเลือกวัน) → กรองบิลหน้าร้านเหลือวันนั้น — กรองบิลจองแยกกัน (กลุ่มของตัวเอง)
+  const openBills = dayFilter ? walkBills.filter((b) => billDayOf(b) === dayFilter) : walkBills;
+  const shownBookBills = dayFilter ? ownBookingBills.filter((b) => billDayOf(b) === dayFilter) : ownBookingBills;
 
   /* การตั้งค่าการจอง (วันปิดร้าน + ล่วงหน้าได้กี่วัน) — อ่านจาก app_settings key
      "booking_settings" เดียวกับเว็บจอง (anon อ่านได้ตามที่ auth.js ใช้อยู่) */
@@ -260,10 +258,16 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const [mergeSel, setMergeSel] = useState([]); // id ของบิลที่เลือก
   const [mergeReview, setMergeReview] = useState(null); // { bill, absorbedIds, count } — พรีวิวก่อนยืนยัน
 
-  // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิก/รวมบิลเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
+  // ตั้งหมอบิลจอง (ลูกค้าโทรมาจอง): เปิดบิลไว้โดยยังไม่รู้หมอ → ตั้งหมอทีหลังที่การ์ดบิลนี้
+  // modal แยกจาก modal แก้ไขบิล · assignSeg 'regular' = หมอประจำ (เลือกจากทะเบียน) / 'visiting' = หมอวิ่ง (ชื่ออิสระ)
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [assignSeg, setAssignSeg] = useState('regular');
+  const [assignName, setAssignName] = useState('');
+
+  // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิก/รวมบิล/ตั้งหมอเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: (editTarget || checkoutTarget || voidTarget || mergeReview) ? 1 : 0 } }));
-  }, [editTarget, checkoutTarget, voidTarget, mergeReview]);
+    window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: (editTarget || checkoutTarget || voidTarget || mergeReview || assignTarget) ? 1 : 0 } }));
+  }, [editTarget, checkoutTarget, voidTarget, mergeReview, assignTarget]);
 
   // โชว์ชื่อแทนรหัส: ใช้ชื่อที่เซฟในบิลก่อน ถ้าไม่มีค้นจากทะเบียนปัจจุบัน
   // หมอวิ่งตัด prefix เทคนิค (EXT-VIS-) เหลือแค่ชื่อ — ไม่โชว์รหัสดิบใน UI
@@ -423,6 +427,11 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   };
 
   const startCheckoutBill = (b) => {
+    // บิลจอง (ร้านรับเอง): ต้องตั้งหมอก่อนเช็คบิล — กันเช็คบิลตอนไม่มีหมอ (คอมมิชชันคำนวณไม่ได้)
+    if (b.customerType === 'booking' && !((b.therapistId || '') || (billRows(b)[0]?.therapistId || ''))) {
+      alertDialog({ title: 'ตั้งหมอก่อนเช็คบิล', message: 'บิลจองต้องมีหมอก่อน — กดปุ่มตั้งหมอที่บิลจองก่อนเช็คบิล' });
+      return;
+    }
     setCheckoutTarget(b);
     setCheckoutPay(b.paymentMethod || 'เงินสด');
     setSlipName(b.slip || '');
@@ -468,6 +477,93 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
     setCheckoutTarget(null); setSlipName('');
     setSlipLocal((prev) => { try { prev && URL.revokeObjectURL(prev); } catch { /* ignore */ } return null; });
     setSlipProgress(0);
+  };
+
+  /* ── ตั้งหมอบิลจอง (ลูกค้าโทรมาจอง) ──
+     บันทึกทั้ง bill-level และ item ทุกแถวให้หมอเดียวกัน · หมอวิ่ง = EXT-VIS-<ชื่อ> + ค่าน้ำมัน ฿30
+     หมายเหตุ: ห้ามแตะกลไก guarantee — บันทึกบิลปรกติเท่านั้น */
+  const openAssign = (b) => {
+    setAssignTarget(b);
+    setAssignSeg('regular');
+    setAssignName('');
+  };
+
+  const therapistsActive = (data.therapists || []).filter((t) => t.active !== false);
+
+  const confirmAssign = async () => {
+    const b = assignTarget;
+    if (!b) return;
+    const isVisiting = assignSeg === 'visiting';
+    const visName = assignName.trim();
+    if (!isVisiting && !assignName) return;
+    if (isVisiting && !visName) return;
+    const tid = isVisiting ? `EXT-VIS-${visName}` : assignName; // รูปแบบรหัสหมอวิ่ง เดียวกับ POS
+    const tname = isVisiting ? visName : (therapistsActive.find((t) => t.id === assignName)?.name || assignName);
+    const updated = {
+      ...b,
+      therapistId: tid,
+      therapistName: tname,
+      fuel: isVisiting ? 30 : (b.fuel || 0), // ค่าน้ำมันหมอวิ่ง ฿30 — รายจ่ายร้าน ไม่บวกยอดลูกค้า
+      items: billRows(b).map((it) => ({ ...it, therapistId: tid, therapistName: tname })),
+    };
+    saveData({
+      ...data,
+      bills: data.bills.map((x) => (x.id === b.id ? updated : x)),
+      auditLog: [...(data.auditLog || []), {
+        id: `A-${Date.now()}`, timestamp: bkkNow(), user: role === 'staff' ? 'พนักงาน' : 'เจ้าของร้าน',
+        action: 'ตั้งหมอบิลจอง', detail: `หมอ${tname} · คุณ${b.customer}`,
+        oldValue: 'open', newValue: 'open', approvedBy: '-',
+      }],
+    });
+    setAssignTarget(null); setAssignName('');
+
+    // ── เตือนชนเวลา (warn-only — บันทึกไปแล้ว ไม่ block) ──
+    // ชน = บิล open อื่นของหมอคนนี้ใน "วันให้บริการ" เดียวกัน ที่ช่วงเวลาทับกัน (รวมพัก 15 น.)
+    //      + เดอร์จองจากเว็บ (ยืนยันแล้ว) เมื่อวันนี้ — ดึงได้เฉพาะเจ้าของร้าน (มีรหัส)
+    const bookedDay = b.bookedDate || billBizDay(b);
+    const rowsB = billRows(b);
+    const tmins = rowsB.reduce((s, it) => s + (it.totalMinutes || it.duration || 0), 0) || 60;
+    const tstart = timeToMinutes(b.startTime || rowsB[0]?.startTime || '');
+    const tend = timeToMinutes(b.endTime || rowsB[0]?.endTime || '') ?? (tstart != null ? tstart + tmins : null);
+    let clash = false;
+    if (tstart != null && tend != null) {
+      (data.bills || []).forEach((x) => {
+        if (!x || x.id === b.id || x.status !== 'open') return;
+        if (billBizDay(x) !== bookedDay) return;
+        const xrows = billRows(x);
+        const xmins = xrows.reduce((s, it) => s + (it.totalMinutes || it.duration || 0), 0) || 60;
+        if (x.therapistId === tid && x.startTime) { // โมเดลใหม่: หมอระดับบิล
+          const xs = timeToMinutes(x.startTime);
+          const xe = timeToMinutes(x.endTime) ?? xs + xmins;
+          if (xs != null && tstart < xe + BREAK_MINUTES && tend + BREAK_MINUTES > xs) clash = true;
+          return;
+        }
+        xrows.forEach((it) => { // โมเดลเก่า: ทีละแถว
+          if (it.therapistId !== tid || !it.startTime) return;
+          const xs = timeToMinutes(it.startTime);
+          if (xs == null) return;
+          const xe = timeToMinutes(it.endTime) ?? xs + (it.totalMinutes || it.duration || 60);
+          if (tstart < xe + BREAK_MINUTES && tend + BREAK_MINUTES > xs) clash = true;
+        });
+      });
+      if (!clash && role === 'owner' && bookedDay === bkkToday()) {
+        try {
+          const res = await bookingAdminApi.list(getOwnerPass(data?.ownerPass), { date: bkkToday(), status: '', limit: 200 });
+          const list = Array.isArray(res?.bookings) ? res.bookings : [];
+          // เดอร์จองจากเว็บเก็บ therapist_name — จับคู่เป็น id หมอด้วยชื่อ (เหมือน PagePOS)
+          const idByKey = new Map((data.therapists || []).map((t) => [therapistKey(t.name), t.id]));
+          clash = list.some((w) => {
+            if (w?.status !== 'confirmed' || idByKey.get(therapistKey(w.therapist_name)) !== tid) return false;
+            const span = slotMinutesBkk(w);
+            if (!span) return false;
+            return tstart < span.end + BREAK_MINUTES && tend + BREAK_MINUTES > span.start;
+          });
+        } catch { /* ดึงไม่ได้ (network/ไม่มีสิทธิ์) → ไม่เตือน ตามพฤติกรรม warn-only */ }
+      }
+    }
+    await alertDialog(clash
+      ? { title: 'ตั้งหมอเสร็จ — เวลาชนคิว', message: 'เวลาชนคิวของหมอคนนี้ ควรย้ายเวลาในแก้ไขบิล' }
+      : { title: 'ตั้งหมอบิลจองเสร็จ', message: `หมอ${tname} · คุณ${b.customer}` });
   };
 
   // พนักงานกดยกเลิกได้ แต่จะขึ้นแจ้งว่าต้องให้เจ้าของร้านทำ — เจ้าของร้านกดแล้วเข้า modal รหัสเหมือนเดิม
@@ -599,6 +695,31 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
       };
     });
     items.sort((x, y) => (walkSort === 'asc' ? x.sortKey.localeCompare(y.sortKey) : y.sortKey.localeCompare(x.sortKey)));
+    return items;
+  })();
+
+  /* ── แถวบิลจอง (ร้านรับเอง — ลูกค้าโทรมาจอง) ──
+     เรียงตามเวลาเริ่ม (เช้า→ค่ำ) · hasDoc = มีหมอแล้วหรือยัง (ปุ่มตั้งหมอ) · booker = ผู้รับจอง */
+  const bookRowsSorted = (() => {
+    const items = shownBookBills.map((b) => {
+      const rows2 = billRows(b);
+      const mins = rows2.reduce((s, it) => s + (it.totalMinutes || it.duration || 0), 0);
+      const start = b.startTime || rows2[0]?.startTime || '';
+      const startMin = timeToMinutes(start);
+      return {
+        b, rows2, mins,
+        timeText: start ? `${clockStr(start)} น.` : fmtBkk(b.date, { hour: '2-digit', minute: '2-digit' }),
+        sortKey: startMin == null ? 9999 : startMin,
+        svcName: rows2.length ? serviceNameOf(rows2[0]) : '—',
+        docName: therapistNameOf(b, rows2),
+        docExtra: isFreelance(b.therapistId || rows2[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '',
+        customer: b.customer || '',
+        booker: b.bookerName || '',
+        hasDoc: Boolean(b.therapistId || rows2[0]?.therapistId),
+        total: billTotal(b),
+      };
+    });
+    items.sort((x, y) => x.sortKey - y.sortKey);
     return items;
   })();
 
@@ -762,6 +883,95 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
         </div>
       </section>
 
+      {/* ══ กลุ่ม 1B · บิลจอง ร้านรับเอง (ลูกค้าโทรมาจอง — เปิดบิลล่วงหน้า) — ธีมเขียว ══
+          เปิดบิลไว้ก่อนลูกค้าถึงร้าน จึงยังไม่มีหมอ → กดปุ่มตั้งหมอ (UserRound) ที่แถว
+          ต้องตั้งหมอก่อนเช็คบิลเสมอ · ยอดจัดกลุ่มตาม "วันที่ให้บริการ" (bookedDate) ไม่กระทบยอดหน้าร้าน */}
+      <section className="osec osec-green" aria-label="บิลจอง (ร้านรับเอง)">
+        <header className="osec-head">
+          <span className="osec-ic" aria-hidden="true"><UserRound size={16} strokeWidth={2} /></span>
+          <h2>จอง (ร้านรับเอง)</h2>
+          <span className="osec-count num" title="จำนวนบิลจอง (ร้านรับเอง) ที่เปิดอยู่">{shownBookBills.length}</span>
+        </header>
+        <div className="osec-body">
+          {shownBookBills.length === 0 ? (
+            <div className="osec-empty">
+              <EmptyState
+                icon={CalendarDays}
+                title="ไม่มีบิลจอง (ร้านรับเอง)"
+                subtitle={dayFilter
+                  ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
+                  : 'ลูกค้าโทรมาจอง → เปิดบิลจองจากหน้า POS (เลือก "ลูกค้าจอง")'}
+              />
+            </div>
+          ) : bookRowsSorted.map((r, i) => (
+            <article
+              key={r.b.id}
+              className="orow"
+              onClick={() => startEdit(r.b)}
+              title="แตะเพื่อแก้ไขบิล"
+              aria-label={`บิลจอง ลำดับ ${i + 1} · ${r.svcName} · เวลา ${r.timeText} · ฿ ${r.total.toLocaleString()}`}
+            >
+              <div className="orow-main">
+                <span className="orow-tag">
+                  <span className="orow-pill green"> จอง</span>
+                  <span className="orow-time num">{r.timeText}</span>
+                  {!r.hasDoc && <span className="orow-pill amber" title="ยังไม่ได้ตั้งหมอ — ต้องตั้งหมอก่อนเช็คบิล">รอตั้งหมอ</span>}
+                </span>
+                <span className="orow-svc" title={`รับจองโดย ${r.booker || '—'}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
+                  <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
+                  <small className="num">
+                    {formatDuration(r.mins) || '—'} · รับจองโดย {r.booker || '—'}{r.customer ? ` · ${r.customer}` : ''}
+                    {r.hasDoc ? ` · ${r.docName}${r.docExtra}` : ''}
+                  </small>
+                </span>
+              </div>
+              <span className="orow-cta">
+                <b className="orow-amt num">฿ {r.total.toLocaleString()}</b>
+                <span className="orow-actions">
+                  <button
+                    type="button"
+                    className="orow-link"
+                    title={`แก้ไขบิล ${r.b.id}`}
+                    aria-label={`แก้ไขบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); startEdit(r.b); }}
+                  >
+                    <Pencil size={11} strokeWidth={2} />
+                  </button>
+                  {!r.hasDoc && (
+                    <button
+                      type="button"
+                      className="orow-link"
+                      title={`ตั้งหมอบิลจอง ${r.b.id}`}
+                      aria-label={`ตั้งหมอบิลจอง ${r.b.id}`}
+                      onClick={(e) => { e.stopPropagation(); openAssign(r.b); }}
+                    >
+                      <UserRound size={11} strokeWidth={2} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="orow-link danger"
+                    title={`ยกเลิกบิล ${r.b.id}`}
+                    aria-label={`ยกเลิกบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); requestVoid(r.b); }}
+                  >
+                    <Trash2 size={11} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orow-btn brown"
+                    title={`เช็คบิล (ชำระเงิน/ออกใบเสร็จ) ฿ ${r.total.toLocaleString()}`}
+                    onClick={(e) => { e.stopPropagation(); startCheckoutBill(r.b); }}
+                  >
+                    <ChevronRight size={13} strokeWidth={2.4} />
+                  </button>
+                </span>
+              </span>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* กลุ่ม 2 · ออเดอร์จอง (children = BookingBillsSection — การ์ดธีมเขียว) */}
       {children}
 
@@ -849,6 +1059,69 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
           <div className="modal-cta">
             <button onClick={saveEdit} className="btn btn-ghost" style={{ width: '100%' }}>บันทึก</button>
             <button onClick={saveEditAndCheckout} className="btn btn-primary" style={{ width: '100%' }}>เช็คบิล · ฿ {editTotal.toLocaleString()}</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ตั้งหมอบิลจอง — modal แยกจาก modal แก้ไข (กันแตะพลาดเปลี่ยนรายการ) */}
+      {assignTarget && (
+        <Modal onClose={() => setAssignTarget(null)}>
+          <button className="modal-x" onClick={() => setAssignTarget(null)} aria-label="ปิด"><X size={16} /></button>
+          <div className="mcard-top" style={{ paddingRight: 34 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div>
+                <h3 style={{ fontSize: 17 }}>ตั้งหมอบิลจอง</h3>
+                <div className="muted">คุณ{assignTarget.customer || '—'} · {assignTarget.startTime ? `${clockStr(assignTarget.startTime)} น.` : 'ยังไม่ระบุเวลา'}</div>
+              </div>
+            </div>
+            <StatusBadge status="open" />
+          </div>
+          <div className="field">
+            <label>ประเภทหมอ</label>
+            <div className="pay-seg">
+              <button type="button" className={assignSeg === 'regular' ? 'on' : ''} onClick={() => setAssignSeg('regular')}>หมอประจำ</button>
+              <button type="button" className={assignSeg === 'visiting' ? 'on' : ''} onClick={() => setAssignSeg('visiting')}>หมอวิ่ง</button>
+            </div>
+          </div>
+          {assignSeg === 'regular' ? (
+            <div className="field">
+              <label>เลือกหมอประจำ</label>
+              <div className="preset-row">
+                {therapistsActive.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`preset-btn${assignName === t.id ? ' on' : ''}`}
+                    aria-pressed={assignName === t.id}
+                    onClick={() => setAssignName(t.id)}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+              {therapistsActive.length === 0 && <p className="muted">ยังไม่มีหมอประจำในระบบ</p>}
+            </div>
+          ) : (
+            <div className="field">
+              <label>ชื่อหมอวิ่ง</label>
+              <input
+                value={assignName}
+                onChange={(e) => setAssignName(e.target.value)}
+                placeholder="หมอวิ่ง รับบริการถึงบ้าน"
+                className="input"
+              />
+            </div>
+          )}
+          <div className="modal-cta">
+            <button onClick={() => setAssignTarget(null)} className="btn btn-ghost" style={{ width: '100%' }}>ยกเลิก</button>
+            <button
+              onClick={confirmAssign}
+              className="btn btn-primary"
+              style={{ width: '100%' }}
+              disabled={!(assignSeg === 'regular' ? assignName : assignName.trim())}
+            >
+              ยืนยันตั้งหมอ
+            </button>
           </div>
         </Modal>
       )}

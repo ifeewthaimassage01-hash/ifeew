@@ -138,7 +138,7 @@ export function billBizDay(b) {
 - state ใหม่ที่นิยาม: `assignTarget` (บิลที่จะตั้งหมอ), `assignSeg` (`'regular'|'visiting'`), `assignName` (รหัสหมอประจำหรือชื่อหมอวิ่ง)
 - ข้อกำหนดพฤติกรรม: ตั้งหมอสำเร็จ = ทั้ง bill-level `therapistId/therapistName` **และ item ทุกแถว** ได้ค่าเดียวกัน + `fuel: 30` เฉพาะหมอวิ่ง (ไม่สัมผัสกลไก guarantee — บันทึกเป็นบิลปรกติเท่านั้น)
 
-- [ ] **Step 4.1: แยกกลุ่มบิลเปิด** — รากคือ `allOpenBills` เดิม (bills status open):
+- [x] **Step 4.1: แยกกลุ่มบิลเปิด** — รากคือ `allOpenBills` เดิม (bills status open):
 
 ```js
 const walkBills = allOpenBills.filter((b) => b.customerType !== 'booking');
@@ -149,9 +149,9 @@ const shownBookBills = dayFilter ? ownBookingBills.filter((b) => billBizDay(b) =
 
 หมายเหตุ (สำคัญ): `mergeSel`/`walkRowsSorted`/จำนวน count ที่เดิมอิง `openBills` — หลังแยกแล้ว `openBills` = หน้าร้านอย่างเดียว ต้องตรวจจุดใช้ทุกจุดว่าควรยังเป็น "หน้าร้านเท่านั้น" (โดยเฉพาะ merge: ห้ามรวมบิลจอง) ถ้ามีจุดที่ควรครอบทั้ง 2 กลุ่ม (เช่น openCount ใน tab) ให้ใช้ `allOpenBills`
 
-- [ ] **Step 4.2: กลุ่ม JSX ใหม่ `osec osec-green`** — ใส่ต่อกลุ่มหน้าร้านก่อน `{children}`: header icon `UserRound` + `<h2>จอง (ร้านรับเอง)</h2>` + count; แถวต่อบิล โคลนรูป `orow` ของหน้าร้าน: pill `จอง`; `orow-time` จาก `b.startTime || b.start_time`; `orow-svc` บริการแรก (+`+N`); `small` = `รับจองโดย {b.bookerName || '—'} · {b.customer}`; badge `รอตั้งหมอ` กรณีไม่มีหมอ; `orow-cta` รวมยอด + ปุ่ม set หมอ
-- [ ] **Step 4.3: ปุ่มตั้งหมอ** — แถวบิลจองที่ **ไม่มีหมอ** (ตรวจทั้ง `b.therapistId` และแถวแรกของ items): ปุ่ม icon `UserRound` ชั้นเดียวกับปุ่มอื่นของแถว (แก้ไข/ลบ) → `setAssignTarget(b)` เปิด modal (Step 4.4); แถวที่มีหมอแล้ว: ห้ามปุ่ม (แก้ไขผ่าน modal แก้ไขบิล)
-- [ ] **Step 4.4: modal ตั้งหมอ (ใหม่แยกจาก modal แก้ไข)** — โครงเดียวกับ Modal ที่มี:
+- [x] **Step 4.2: กลุ่ม JSX ใหม่ `osec osec-green`** — ใส่ต่อกลุ่มหน้าร้านก่อน `{children}`: header icon `UserRound` + `<h2>จอง (ร้านรับเอง)</h2>` + count; แถวต่อบิล โคลนรูป `orow` ของหน้าร้าน: pill `จอง`; `orow-time` จาก `b.startTime || b.start_time`; `orow-svc` บริการแรก (+`+N`); `small` = `รับจองโดย {b.bookerName || '—'} · {b.customer}`; badge `รอตั้งหมอ` กรณีไม่มีหมอ; `orow-cta` รวมยอด + ปุ่ม set หมอ
+- [x] **Step 4.3: ปุ่มตั้งหมอ** — แถวบิลจองที่ **ไม่มีหมอ** (ตรวจทั้ง `b.therapistId` และแถวแรกของ items): ปุ่ม icon `UserRound` ชั้นเดียวกับปุ่มอื่นของแถว (แก้ไข/ลบ) → `setAssignTarget(b)` เปิด modal (Step 4.4); แถวที่มีหมอแล้ว: ห้ามปุ่ม (แก้ไขผ่าน modal แก้ไขบิล)
+- [x] **Step 4.4: modal ตั้งหมอ (ใหม่แยกจาก modal แก้ไข)** — โครงเดียวกับ Modal ที่มี:
   - `seg` `หมอประจำ` / `หมอวิ่ง` (`assignSeg`)
   - หมอประจำ: ปุ่มชื่อ/avatar จาก `data.therapists` active ทุกคน (แตะเลือก → `assignName = t.id`)
   - หมอวิ่ง: input ชื่ออิสระ (`assignName = ชื่อ`) — placeholder: `หมอวิ่ง รับบริการถึงบ้าน`
@@ -159,7 +159,7 @@ const shownBookBills = dayFilter ? ownBookingBills.filter((b) => billBizDay(b) =
   - **บันทึก:** bill-level + item ทุกแถว — หมอประจำ: `therapistId = t.id`; หมอวิ่ง: `therapistId = EXT-VIS-<ชื่อ>` (รูปแบบเดียวกับหมอวิ่งของ POS); `therapistName` = ชื่อ; `fuel: 30` เฉพาะหมอวิ่ง
   - audit: `action: 'ตั้งหมอบิลจอง'`, `detail: หมอ{therapistName} · คุณ{b.customer}`
   - เตือนชนเวลา (ไม่ block): คำนวณบิล open อื่นของวันจาก `billBizDay` (= assigned bookedDate) ที่ชนช่วงเวลาบิลจองเป้าหมาย + เดอร์เว็บจองเมื่อวันนี้ — ถ้าชนให้ `alertDialog` ข้อความ `ตั้งหมอเสร็จ — เวลาชนคิวของหมอคนนี้ ควรย้ายเวลาในแก้ไขบิล` (โดยบันทึกเสร็จไปแล้ว + ถ้าไม่ชนข้อความปรกติ `ตั้งหมอบิลจองเสร็จ` + ปิด modal)
-- [ ] **Step 4.5: กันเช็คบิลไม่มีหมอ** — ใน `startCheckoutBill` ตั้งกั้นหน้าเปิด modal ชำระ:
+- [x] **Step 4.5: กันเช็คบิลไม่มีหมอ** — ใน `startCheckoutBill` ตั้งกั้นหน้าเปิด modal ชำระ:
 
 ```js
 if (b.customerType === 'booking' && !((b.therapistId || '') || (billRows(b)[0]?.therapistId || ''))) {
@@ -169,8 +169,8 @@ if (b.customerType === 'booking' && !((b.therapistId || '') || (billRows(b)[0]?.
 ```
 
 (ยังไม่เพิ่ม modal ชำระ ไม่บันทึกอะไร)
-- [ ] **Step 4.6: DRY** — ลบ local `TH_WD/TH_MO/dayChipLabel` ของ `OpenBills.jsx` แล้ว import จาก `bookingUtils` — ตรวจ `grep -n "TH_WD" src`: นิยาม (สตริงต้นฉบับ) ต้องอยู่ที่เดียวใน `bookingUtils.js`, ไฟล์อื่นมีแค่ import
-- [ ] **Step 4.7: ตรวจ + commit** — `npm run build` → PASS → `feat(bills): การ์ดบิลเปิดอยู่แสดงบิลจองร้านรับเอง + ตั้งหมอ/กันเช็คบิล`
+- [x] **Step 4.6: DRY** — ลบ local `TH_WD/TH_MO/dayChipLabel` ของ `OpenBills.jsx` แล้ว import จาก `bookingUtils` — ตรวจ `grep -n "TH_WD" src`: นิยาม (สตริงต้นฉบับ) ต้องอยู่ที่เดียวใน `bookingUtils.js`, ไฟล์อื่นมีแค่ import
+- [x] **Step 4.7: ตรวจ + commit** — `npm run build` → PASS → `feat(bills): การ์ดบิลเปิดอยู่แสดงบิลจองร้านรับเอง + ตั้งหมอ/กันเช็คบิล`
 
 ---
 
