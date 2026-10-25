@@ -242,6 +242,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setErr('');
   };
 
+  // ══ คิวที่จองล่วงหน้า (บิลจอง open) ══ — เรียงตามวันที่ให้บริการ → เวลาเริ่ม
+  // จัดกลุ่มด้วย bookedDate (ไม่กระทบยอดหน้าร้าน) · แตะแถว → ไปหน้าบิล (ตั้งหมอ/เช็คบิล)
+  const bkQueue = useMemo(() => (data.bills || [])
+    .filter((b) => b.status === 'open' && b.customerType === 'booking')
+    .sort((a, z) => `${a.bookedDate || ''} ${a.startTime || ''}`.localeCompare(`${z.bookedDate || ''} ${z.startTime || ''}`)), [data.bills]);
+
   // กลับไปหน้าเลือกประเภทลูกค้า — ถ้ามีข้อมูลกรอก/หยิบไว้แล้ว ให้ยืนยันก่อนล้าง (กันแตะพลาด)
   const backToTypePick = async () => {
     const dirty = customerName.trim() || bookerName.trim() || pickedServices.length > 0;
@@ -710,6 +716,47 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   return (
     <div>
       {err && <div className="err-banner"><TriangleAlert size={16} strokeWidth={1.9} className="eic" /> {err}</div>}
+
+      {/* ══ การ์ด "คิวที่จองล่วงหน้า" — บิลจอง (ลูกค้าโทรมาจอง) ที่เปิดไว้ ══
+          แตะแถว → ไปหน้าบิล (ตั้งหมอ/แก้ไข/เช็คบิล) · ยอดจัดกลุ่มตามวันให้บริการ */}
+      <Card>
+        <CardHead title="คิวที่จองล่วงหน้า" hint={bkQueue.length > 0 ? `${bkQueue.length} รายการ` : ''} />
+        {bkQueue.length === 0 ? (
+          <EmptyState
+            icon={CalendarDays}
+            title="ยังไม่มีคิวที่จองไว้"
+            subtitle='ลูกค้าโทรมาจอง → เลือก "ลูกค้าจอง" ด้านล่างเพื่อเปิดบิลจอง'
+          />
+        ) : (
+          <div className="bkq-list">
+            {bkQueue.map((b) => {
+              const rows = b.items || b.customers || [];
+              const noTherapist = !(b.therapistId || rows[0]?.therapistId);
+              const day = dayChipLabel(b.bookedDate || billBizDay(b));
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  className="bkq-row"
+                  onClick={() => onNavigate && onNavigate('bills')}
+                  aria-label={`คิวจอง คุณ${b.customer || '—'} · ${day} · เวลา ${b.startTime || '—'} — เปิดหน้าบิล`}
+                >
+                  <span className="bkq-day num">{day}</span>
+                  <span className="bkq-time num">{b.startTime ? `${b.startTime} น.` : '—'}</span>
+                  <span className="bkq-main">
+                    <b>คุณ{b.customer || '—'}</b>
+                    <small className="num">
+                      {rows.length ? `${rows[0]?.serviceName || ''}${rows.length > 1 ? ` +${rows.length - 1}` : ''} · ` : ''}รับจองโดย {b.bookerName || '—'}
+                    </small>
+                  </span>
+                  {noTherapist && <span className="bkq-wait">รอตั้งหมอ</span>}
+                  <ChevronRight size={14} strokeWidth={2} className="bkq-go" />
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       {/* ขั้น 0: เลือกประเภทลูกค้า — ยังไม่เลือกจึงไม่แสดงแถบขั้น */}
       {customerType === null && (

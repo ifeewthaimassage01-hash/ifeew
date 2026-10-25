@@ -65,3 +65,73 @@
 
 /* แถวชิปเลือกวันที่ให้บริการ (ขั้นเวลาของบิลจอง) */
 .typepick-days label { margin-bottom: 0; }
+
+/* ══ การ์ด "คิวที่จองล่วงหน้า" (บิลจอง open บนหน้า POS) ══ */
+.bkq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.bkq-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+.bkq-row:active { transform: scale(0.99); background: var(--brown-tint-2); }
+
+.bkq-day {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #e4ecdf;
+  color: var(--green-ok);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bkq-time {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.bkq-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.bkq-main b { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+.bkq-main small {
+  font-size: 11.5px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bkq-wait {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #f7ecd7;
+  color: #8a6320;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.bkq-go { color: var(--brown); flex-shrink: 0; }

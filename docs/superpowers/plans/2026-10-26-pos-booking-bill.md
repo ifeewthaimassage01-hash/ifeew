@@ -226,8 +226,8 @@ const manualBkDayCounts = useMemo(
 - Consumes: `data.bills` — บิลจอง open: `.filter((b) => b.customerType === 'booking' && b.status === 'open')` เรียง `bookedDate` ต่อ `startTime` (น้อยไปมาก)
 - แถวแสดง: `dayChipLabel(bookedDate)` · `b.startTime || b.start_time` · `{b.customer}` · บริการแรก (+`+N`) · `รับจองโดย {b.bookerName || '—'}` · badge `รอตั้งหมอ` (เมื่อไม่มีหมอ) — แตะแถว → `onNavigate('bills')`
 
-- [ ] **Step 6.1: JSX การ์ด** — ใช้แนวการ์ดเดิมของ POS (Card/Hints/EmptyState ที่มีอยู่): head `คิวที่จองล่วงหน้า` + `{n} รายการ`; EmptyState `ยังไม่มีคิวที่จองไว้` เมื่อ `n === 0` — CSS ตาม class เดิม, เพิ่ม CSS ใหม่น้อยที่สุด (ถ้าต้องเพิ่ม ให้ชื่อ `.bkq-*`)
-- [ ] **Step 6.2: ตรวจ + commit** — `npm run build` → PASS → `feat(pos): การ์ดคิวที่จองล่วงหน้า`
+- [x] **Step 6.1: JSX การ์ด** — ใช้แนวการ์ดเดิมของ POS (Card/Hints/EmptyState ที่มีอยู่): head `คิวที่จองล่วงหน้า` + `{n} รายการ`; EmptyState `ยังไม่มีคิวที่จองไว้` เมื่อ `n === 0` — CSS ตาม class เดิม, เพิ่ม CSS ใหม่น้อยที่สุด (ถ้าต้องเพิ่ม ให้ชื่อ `.bkq-*`)
+- [x] **Step 6.2: ตรวจ + commit** — `npm run build` → PASS → `feat(pos): การ์ดคิวที่จองล่วงหน้า`
 
 ---
 
