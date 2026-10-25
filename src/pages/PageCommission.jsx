@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Crown, TrendingUp, Eye, ArrowLeft, UserX, CalendarDays, ReceiptText, Sparkles } from 'lucide-react';
 import { Card, CardHead, EmptyState, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 import AttendanceCard from '../components/AttendanceCard';
-import { bizDateOf, bizToday } from '../utils/bkk';
-import { svcLabel, commBaht, freelanceDisplayName, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY, billLinesOf } from '../lib/billing';
+import { bizToday } from '../utils/bkk';
+import { svcLabel, commBaht, freelanceDisplayName, guaranteeAmountOf, guaranteeTopups, applyGuaranteeForDate, guaranteeSigOf, GUARANTEE_CATEGORY, billLinesOf, billBizDay } from '../lib/billing';
 // เดอร์ลูกค้าจองที่จบบริการ นับค่าแรงด้วย (บิลเสมือน — data.bills จริงไม่แตะ)
 import { getOwnerPass } from '../lib/auth';
 import { bookingBillsOf, useCompletedBookings } from '../lib/bookingBills';
@@ -81,7 +81,7 @@ export default function PageCommission({ data, saveData, role }) {
   const bills = [
     ...((data.bills || []).filter((b) => b.status === 'paid')),
     ...bookingBills,
-  ].filter((b) => inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
+  ].filter((b) => inSingleDay(billBizDay(b), filterDate));
 
   const stats = {};
   therapists.forEach((t) => { stats[t.id] = { totalSales: 0, flatCommission: 0, jobs: 0, total: 0, services: {}, svcDetail: {}, history: [] }; });

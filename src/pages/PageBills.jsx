@@ -3,9 +3,9 @@ import { FileText, Search, ShieldAlert, TriangleAlert, Pencil, Trash2, Calendar,
 import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, Kpi, alertDialog, confirmDialog, DatePicker, inSingleDay } from '../components/ui';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged } from '../lib/bookingRealtime';
-import { bkkNow, fmtBkk, bizDateOf, bizToday, bkkToday } from '../utils/bkk';
+import { bkkNow, fmtBkk, bizToday, bkkToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
-import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal } from '../lib/billing';
+import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal, billBizDay } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
 import OpenBillsSection from '../components/OpenBills';
@@ -93,7 +93,7 @@ export default function PageBills({ data, saveData, role }) {
     if (b.status === 'merged' && statusFilter !== 'merged') return false;
     const q = query.trim().toLowerCase();
     const matchQ = !q || (b.customer || '').toLowerCase().includes(q) || (b.memberNo || '').toLowerCase().includes(q);
-    return matchQ && inSingleDay(bizDateOf(b.date || b.createdAt), filterDate) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
+    return matchQ && inSingleDay(billBizDay(b), filterDate) && (statusFilter === 'all' || b.status === statusFilter) && (payFilter === 'all' || b.paymentMethod === payFilter);
   });
   const totalSum = history.filter((b) => b.status === 'paid').reduce((s, b) => s + billTotal(b), 0);
 

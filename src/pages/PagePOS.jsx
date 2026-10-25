@@ -4,9 +4,9 @@ import {
   Hand, Footprints, Droplet, Flower2, Sparkles, Leaf, Package, ScanFace, HeartHandshake,
 } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
-import { chainTimes, serviceCategoryOrder } from '../lib/billing';
+import { chainTimes, serviceCategoryOrder, billBizDay } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
-import { bkkNow, bkkMinutes, bizToday, bizDateOf } from '../utils/bkk';
+import { bkkNow, bkkMinutes, bizToday } from '../utils/bkk';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { getOwnerPass } from '../lib/auth';
 import { onBookingsChanged } from '../lib/bookingRealtime';
@@ -342,7 +342,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     (data.bills || []).forEach((b) => {
       // ตรวจเฉพาะบิลที่ยังเปิดอยู่ (status = open) — ไม่นับบิลที่เช็คแล้ว (paid) หรือยกเลิก (cancelled)
       if (b.status !== 'open') return;
-      if (bizDateOf(b.date || b.createdAt || '') !== todayBiz) return; // ← บิลค้างวันอื่นไม่มาชน slot วันนี้
+      if (billBizDay(b) !== todayBiz) return; // ← บิลวันธุรกิจอื่น (รวมบิลจองอนาคต) ไม่มาชน slot วันนี้
       // โมเดลใหม่: หมอระดับบิล ก้อนเดียวทั้งบิล
       if (b.therapistId && b.startTime) {
         if (b.therapistId === activeTherapistId) {

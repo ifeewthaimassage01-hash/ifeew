@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil, UserRound } from 'lucide-react';
 import { Card, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
-import { bkkNow, bkkToday, bizDateOf, fmtBkk } from '../utils/bkk';
+import { bkkNow, bkkToday, fmtBkk } from '../utils/bkk';
 import { supabase } from '../lib/supabase';
-import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
+import { commBaht, freelanceDisplayName, isFreelance, billBizDay } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 
@@ -162,8 +162,8 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const allOpenBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
-  // วันทำการของบิลหน้าร้าน = bizDateOf (ตัดหลังเที่ยงคืน 3 โมงแบบแอปเดิม) — เดอร์จองฝั่ง booking ส่ง slot_date มาเอง
-  const billDayOf = (b) => bizDateOf(b.date || b.createdAt || '');
+  // วันธุรกิจ "ที่มีผล" ของบิล = billBizDay (บิลจองใช้วันให้บริการ — บิลอื่นตัดตามเที่ยงคืน 3 โมงแบบแอปเดิม)
+  const billDayOf = (b) => billBizDay(b);
   // เลือกวันอยู่ (แถบเลือกวัน) → กรองบิลหน้าร้านเหลือวันนั้น
   const openBills = dayFilter ? allOpenBills.filter((b) => billDayOf(b) === dayFilter) : allOpenBills;
 
@@ -586,7 +586,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
       const mins = rows2.reduce((s, it) => s + (it.totalMinutes || it.duration || 0), 0);
       const start = b.startTime || rows2[0]?.startTime || '';
       const startMin = timeToMinutes(start);
-      const dayKey = bizDateOf(b.date || b.createdAt || '');
+      const dayKey = billBizDay(b);
       return {
         b, rows2, mins,
         timeText: start ? `${clockStr(start)} น.` : fmtBkk(b.date, { hour: '2-digit', minute: '2-digit' }),

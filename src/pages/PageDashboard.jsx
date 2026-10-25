@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 // BUG-01/BUG-02 (reports): ใช้ตัวช่วยกลาง (billRows/rowNet/billTotal/billLinesOf) จาก billing.js
-import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf } from '../lib/billing';
-import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
+import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf, billBizDay } from '../lib/billing';
+import { bkkToday, bizToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
 // บิลจองลูกค้า (จบบริการ) นับรายได้/ค่าแรงด้วย — ฉีดเป็นบิลเสมือนตอนคำนวณ (data.bills จริงไม่แตะ)
@@ -94,8 +94,8 @@ export default function PageDashboard({ data, saveData }) {
   };
 
   // บิลนับตาม "วันที่ธุรกิจ" (00:00–02:59 = วันก่อนหน้า); รายจ่ายมีแค่วันที่นับตามปฏิทิน
-  // P1-6: ใช้ bizDateOf(b.date||b.createdAt) ให้เหมือน billing.js / PageCommission / PageBills (กันบิล date ว่างหลุด)
-  const rangeBills = paidBills.filter((b) => inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
+  // P1-6: ใช้ billBizDay(b) ให้เหมือน billing.js / PageCommission / PageBills (บิลจองใช้วันให้บริการ, กันบิล date ว่างหลุด)
+  const rangeBills = paidBills.filter((b) => inSingleDay(billBizDay(b), filterDate));
   const rangeSplit = calcSplit(rangeBills);
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   // GUARANTEE (พิกัด frontend-agent: PageDashboard.jsx ใต้ rangeSplit/netToday) — กันนับซ้ำ:
