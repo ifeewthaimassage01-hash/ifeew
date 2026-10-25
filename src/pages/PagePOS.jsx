@@ -2,15 +2,16 @@ import { useState, useMemo, useEffect, useRef, useId, useCallback } from 'react'
 import {
   ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, ChevronRight, Check, Fuel,
   Hand, Footprints, Droplet, Flower2, Sparkles, Leaf, Package, ScanFace, HeartHandshake,
+  Store, CalendarDays,
 } from 'lucide-react';
-import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
+import { Card, CardHead, EmptyState, formatDuration, alertDialog, confirmDialog } from '../components/ui';
 import { chainTimes, serviceCategoryOrder, billBizDay } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
-import { bkkNow, bkkMinutes, bizToday } from '../utils/bkk';
+import { bkkNow, bkkMinutes, bizToday, bkkToday } from '../utils/bkk';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { getOwnerPass } from '../lib/auth';
 import { onBookingsChanged } from '../lib/bookingRealtime';
-import { slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
+import { slotMinutesBkk, therapistKey, dayChipLabel } from '../booking/bookingUtils';
 
 const BREAK_MINUTES = 15;
 
@@ -180,6 +181,16 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   // Step: 1=รายการ, 2=ระยะเวลา, 3=หมอ, 4=เวลา, 5=ตรวจสอบ
   const [step, setStep] = useState(1);
 
+  // ประเภทลูกค้า: null = ยังไม่เลือก (หน้าเลือกประเภท), 'walkin' = ลูกค้าหน้าร้าน, 'booking' = ลูกค้าจอง
+  // flow จองเลื่อนเลขขั้น 1 ขั้น: 1=ชื่อลูกค้า 2=รายการ 3=ระยะเวลา 4=เวลา(เลือกวันได้) 5=ตรวจสอบ — ไม่มีขั้นหมอ
+  const [customerType, setCustomerType] = useState(null);
+  // บิลจอง: วันที่ให้บริการ (จองล่วงหน้าได้ถึง 7 วัน) + ชื่อลูกค้า + ผู้รับจอง
+  const [bizDate, setBizDate] = useState(bkkToday());
+  const [customerName, setCustomerName] = useState('');
+  const [bookerName, setBookerName] = useState('');
+  // ผู้รับจอง: แตะเลือกหมอที่เช็กชื่อ = รหัสหมอ · พิมพ์ชื่ออิสระ = '' (เจ้าของร้าน/พนักงาน ไม่ต้องเป็นหมอทะเบียน)
+  const [bookerId, setBookerId] = useState('');
+
   // Step 1-2: บริการที่หยิบไว้ (หลายบริการได้ หมอคนเดียวทั้งบิล)
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedDuration, setSelectedDuration] = useState(null);
@@ -206,6 +217,41 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const switchTherapistType = (t) => {
     setTherapistType(t);
     setSelectedTherapist(null);
+    setErr('');
+  };
+
+  /* ── บิลจอง (ลูกค้าโทรมาจอง) ──
+     ผู้รับจองแนะนำ = หมอที่เช็กชื่อวันนี้ (attendance[bizToday][therapistId] = { at, by }) */
+  const todayAtt = (data.attendance || {})[bizToday()] || {};
+  const bookerChips = therapistsList.filter((t) => Boolean(todayAtt[t.id]));
+  const pickBooker = (t) => { setBookerId(t.id); setBookerName(t.name); setErr(''); };
+  const setFreeBooker = (v) => {
+    setBookerName(v);
+    // พิมพ์ต่างจาก chip ที่เลือกไว้ → ยกเลิกรหัสหมอ (bookerId ใช้กับ chip เท่านั้น)
+    if (bookerId) {
+      const chipName = bookerChips.find((x) => x.id === bookerId)?.name || '';
+      if (v !== chipName) setBookerId('');
+    }
+    setErr('');
+  };
+
+  // ขั้น 0: เลือกประเภทลูกค้า → ขั้น 1 ของ flow นั้น (walk-in ขั้น 1 = รายการ · จองขั้น 1 = ชื่อลูกค้า)
+  const startFlow = (t) => {
+    setCustomerType(t);
+    setStep(1);
+    setErr('');
+  };
+
+  // กลับไปหน้าเลือกประเภทลูกค้า — ถ้ามีข้อมูลกรอก/หยิบไว้แล้ว ให้ยืนยันก่อนล้าง (กันแตะพลาด)
+  const backToTypePick = async () => {
+    const dirty = customerName.trim() || bookerName.trim() || pickedServices.length > 0;
+    if (dirty) {
+      const ok = await confirmDialog({ title: 'เปลี่ยนประเภทลูกค้า?', message: 'ข้อมูลที่กรอก/หยิบไว้จะถูกล้าง', confirmLabel: 'ล้างและเปลี่ยน' });
+      if (!ok) return;
+      resetAll();
+    }
+    setCustomerType(null);
+    setStep(1);
     setErr('');
   };
 
@@ -261,14 +307,17 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const wizardGuardRef = useRef(false);
 
   // บอก App ว่ากำลังเลือกหมอ/เวลา/ตรวจสอบบิล — realtime จะได้ไม่โหลดทับกลางคัน
+  // walk-in: ขั้นหมอ→ตรวจสอบ · จอง: ขั้น 1-3 เป็นแบบฟอร์ม (รีโหลดได้เหมือนเดิม) กันตั้งแต่ขั้นเวลา
   useEffect(() => {
-    const isWizardActive = step >= 3 && step <= 5;
+    const isWizardActive = customerType === 'booking'
+      ? step >= 4 && step <= 5
+      : step >= 3 && step <= 5;
     const prev = wizardGuardRef.current;
     wizardGuardRef.current = isWizardActive;
     if (prev !== isWizardActive) {
       window.dispatchEvent(new CustomEvent('ifeew-modal', { detail: { open: isWizardActive ? 1 : 0 } }));
     }
-  }, [step]);
+  }, [step, customerType]);
 
   // BUG-POS-03: ออกจากหน้าระหว่างอยู่ wizard → ปลด guard ให้ realtime กลับมาทำงาน
   useEffect(() => () => {
@@ -367,17 +416,43 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     return slots;
   }, [data.bills, activeTherapistId, webSlotByTherapistId]);
 
-  useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
+  // บิลจอง: กันคิว "รวมทุกหมอ" ของวันที่ให้บริการที่เลือก (bookedDate) — เพราะยังไม่รู้ว่าหมอคนใดจะให้บริการ
+  const bookedAllDay = useMemo(() => {
+    if (customerType !== 'booking') return [];
+    const slots = [];
+    (data.bills || []).forEach((b) => {
+      // ตรวจเฉพาะบิลที่ยังเปิดอยู่ — นับเฉพาะบิลของ "วันให้บริการ" ที่เลือก (บิลจองใช้ bookedDate)
+      if (b.status !== 'open') return;
+      if (billBizDay(b) !== bizDate) return;
+      // โมเดลใหม่: เวลาเริ่ม/จบระดับบิล
+      if (b.startTime) {
+        const start = timeToMinutes(b.startTime);
+        if (start != null) {
+          const end = b.endTime ? timeToMinutes(b.endTime) : start + 60;
+          if (end != null) slots.push({ start, end: end + BREAK_MINUTES });
+          return;
+        }
+      }
+      // โมเดลเก่า: ทีละแถว
+      const rows = b.customers || b.items || [];
+      rows.forEach((it) => {
+        const start = timeToMinutes(it.startTime);
+        if (start != null) slots.push({ start, end: start + (it.totalMinutes || it.duration || 60) + BREAK_MINUTES });
+      });
+    });
+    // เดอร์จองเว็บ (ยืนยันแล้ว) — ดึงเป็น "วันนี้" เท่านั้น จึงรวมเมื่อจองหน้าร้านของวันนี้
+    if (bizDate === bizToday()) {
+      webBookings.forEach((b) => {
+        if (b?.status !== 'confirmed') return;
+        const span = slotMinutesBkk(b);
+        if (!span) return;
+        slots.push({ start: span.start, end: span.end + BREAK_MINUTES });
+      });
+    }
+    return slots;
+  }, [customerType, data.bills, bizDate, webBookings]);
 
-  // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก) — ทั้งบิลก้อนเดียว
-  const timeError = useMemo(() => {
-    if (selectedStartTime == null || pickedServices.length === 0) return '';
-    if (selectedStartTime < OPEN_MIN) return `ร้านเปิด ${minutesToTime(OPEN_MIN)} — เลือกเวลาหลังจากนั้น`;
-    if (selectedStartTime > LAST_START_MIN) return `รับคิวสุดท้าย ${minutesToTime(LAST_START_MIN)} — เลือกเวลาไม่เกินนี้`;
-    const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
-    if (clash) return 'เวลานี้ชนกับคิวที่จองแล้ว ลองขยับเวลา';
-    return '';
-  }, [selectedStartTime, pickedServices.length, billEnd, bookedSlots]);
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [step]);
 
   // สถานะของ 1 ช่องเวลา: ว่าง / ชนคิว / นอกช่วงรับคิว (เกิน 22:30)
   const slotState = (t) => {
@@ -388,13 +463,35 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     return clash ? 'clash' : 'free';
   };
 
+  // บิลจอง: ช่องเวลาใดชนคิว "ทั้งวัน" (ทุกหมอรวมกัน) — ต่างจากหน้าร้านที่กันต่อหมอ
+  const bookedSlotState = (t) => {
+    if (pickedServices.length === 0) return 'oob';
+    if (t < OPEN_MIN || t > LAST_START_MIN) return 'oob';
+    const clash = bookedAllDay.some((s) => t < s.end && t + billSpan > s.start);
+    return clash ? 'clash' : 'free';
+  };
+  // ตัวเลือกสถานะช่องเวลาตาม flow: จอง = กันทั้งวัน · หน้าร้าน = กันต่อหมอ (ผลเดิมทุกอย่าง)
+  const chooserSlotState = (t) => (customerType === 'booking' ? bookedSlotState(t) : slotState(t));
+
+  // ตรวจเวลาที่ pick: อยู่ในเวลาเปิดร้าน + ไม่ชนคิว (รวมพัก) — ทั้งบิลก้อนเดียว
+  // บิลจองชนคิวได้จาก "ทุกหมอ" ของวันนั้น (bookedAllDay) · หน้าร้านชนคิวของหมอที่เลือก (bookedSlots เดิม)
+  const timeError = useMemo(() => {
+    if (selectedStartTime == null || pickedServices.length === 0) return '';
+    if (selectedStartTime < OPEN_MIN) return `ร้านเปิด ${minutesToTime(OPEN_MIN)} — เลือกเวลาหลังจากนั้น`;
+    if (selectedStartTime > LAST_START_MIN) return `รับคิวสุดท้าย ${minutesToTime(LAST_START_MIN)} — เลือกเวลาไม่เกินนี้`;
+    const ranges = customerType === 'booking' ? bookedAllDay : bookedSlots;
+    const clash = ranges.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
+    if (clash) return 'เวลานี้ชนกับคิวที่จองแล้ว ลองขยับเวลา';
+    return '';
+  }, [selectedStartTime, pickedServices.length, billEnd, customerType, bookedAllDay, bookedSlots]);
+
   // ช่วงว่างถัดไป (ละเอียด 15 นาที) นับจากเวลาฐาน — ใช้กับปุ่มแนะนำ + auto-snap
   const nextFreeFrom = (base) => {
     if (pickedServices.length === 0) return null;
     const start = Math.max(snap15(base ?? nowMinutes()), OPEN_MIN);
-    // BUG-POS-02: ใช้ billSpan ในการกวาดหาช่องว่าง
+    // BUG-POS-02: ใช้ billSpan ในการกวาดหาช่องว่าง — บิลจองกวาดด้วยสถานะ "ทั้งวัน"
     for (let t = start; t <= LAST_START_MIN; t += GRID_STEP) {
-      if (slotState(t) === 'free') return t;
+      if (chooserSlotState(t) === 'free') return t;
     }
     return null;
   };
@@ -402,7 +499,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   // ตัวเลือกเวลาเริ่ม 12:00 → 22:30 (รับคิวสุดท้าย 22:30) + สถานะแต่ละช่อง (ว่าง/ชนคิว)
   const timeSlots = [];
   for (let t = OPEN_MIN; t <= LAST_START_MIN; t += GRID_STEP) {
-    const s = slotState(t);
+    const s = chooserSlotState(t);
     if (s === 'oob') continue;
     timeSlots.push({ v: t, l: minutesToTime(t), s });
   }
@@ -423,7 +520,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     snapGuard.current.doneFor = key;
     const next = nextFreeFrom(selectedStartTime);
     if (next != null) setSelectedStartTime(next);
-  }, [step, pickedServices.length, selectedStartTime, timeError, activeTherapistId, billMinutes, bookedSlots]);
+  }, [step, pickedServices.length, selectedStartTime, timeError, activeTherapistId, billMinutes, bookedSlots, customerType, bookedAllDay]);
 
   const subtotal = pickedServices.reduce((s, p) => s + p.price, 0);
   const discVal = Math.max(0, Math.min(subtotal, Number(discount) || 0));
@@ -444,6 +541,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setTherapistType('resident');
     setFuelChecked(true);
     setLooping(false);
+    // ล้างข้อมูลบิลจอง + กลับไปหน้าเลือกประเภทลูกค้า
+    setCustomerName('');
+    setBookerName('');
+    setBookerId('');
+    setBizDate(bkkToday());
+    setCustomerType(null);
   };
 
   const handleSelectCategory = (cat) => {
@@ -492,20 +595,32 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       price: priceFor(selectedDuration) + extraPrice,
     }]);
     resetServicePick();
-    setStep(looping ? 4 : 3);
+    // จอง: ขั้นถัดไปคือเวลา (ขั้น 4) เสมอ · หน้าร้าน: รอบวน→ขั้น 4, รอบปกติ→ขั้นหมอ (เดิม)
+    setStep(customerType === 'booking' ? 4 : (looping ? 4 : 3));
   };
 
   const removePickedService = (key) => {
     setPickedServices((prev) => prev.filter((p) => p.key !== key));
   };
 
-  const validPick = pickedServices.length > 0 && activeTherapistId && selectedStartTime != null && !timeError;
+  // ปุ่ม "เช็คบิล →" ขั้นเวลาเปิดได้เมื่อ: มีบริการ + เวลาถูกต้อง (+ หมอ เฉพาะหน้าร้าน — บิลจองตั้งหมอทีหลัง)
+  const validPick = pickedServices.length > 0
+    && selectedStartTime != null
+    && !timeError
+    && (customerType === 'booking' || activeTherapistId);
 
   // เปิดบิลไว้ก่อน (ยังไม่เช็คบิล) — ไม่ต้องอนุมัติเจ้าของร้าน, สถานะ open
   const openDraftBill = () => {
     // BUG-POS-04: ใช้ ref กันดับเบิลแตะแบบ synchronous
     if (creatingRef.current) return;
     if (pickedServices.length === 0) { setErr('เพิ่มบริการอย่างน้อย 1 รายการก่อนเปิดบิล'); return; }
+    // บิลจอง: ไม่บังคับหมอ (ยังไม่รู้ว่าใครให้บริการ — ตั้งหมอทีหลังที่การ์ดบิลที่เปิดอยู่)
+    if (customerType === 'booking') {
+      if (selectedStartTime == null || timeError) { setErr('เลือกเวลาเริ่มให้ถูกต้องก่อนเปิดบิลจอง'); return; }
+      setErr('');
+      openBill();
+      return;
+    }
     if (!activeTherapistId) { setErr('เลือกหมอนวดก่อนเปิดบิล'); return; }
     if (selectedStartTime == null || timeError) { setErr('เลือกเวลาเริ่มให้ถูกต้องก่อนเปิดบิล'); return; }
     setErr('');
@@ -515,8 +630,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   const openBill = async () => {
     // BUG-POS-04: guard แบบ synchronous ก่อน state creating
     if (creatingRef.current) return;
+    const isBooking = customerType === 'booking';
     // ตรวจซ้ำก่อนเซฟ: กันเครื่องอื่นจองช่วงเวลาเดียวกันเข้าไปก่อนแล้ว
-    const clash = bookedSlots.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
+    // (บิลจอง: กันคิว "ทั้งวัน" — เลือกไม่ได้เพราะยังไม่รู้หมอ · หน้าร้าน: กันคิวของหมอที่เลือก เดิม)
+    const clashRanges = isBooking ? bookedAllDay : bookedSlots;
+    const clash = clashRanges.some((s) => selectedStartTime < s.end && (billEnd ?? selectedStartTime) > s.start);
     if (clash) {
       setErr('เวลานี้ชนกับคิวที่จองแล้ว (มีผู้ใช้งานคนอื่นจองไปก่อน) ลองเลือกเวลาว่างถัดไป');
       return;
@@ -529,18 +647,24 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     const times = chainTimes(selectedStartTime, pickedServices.map((p) => p.minutes || 0), BREAK_MINUTES);
     const endMin = times.length ? times[times.length - 1].end : selectedStartTime;
     const newBill = {
-      id, date: stamp, customer: '', memberNo: '',
+      id, date: stamp,
+      customer: isBooking ? customerName.trim() : '', memberNo: '',
+      // บิลจอง: ประเภทลูกค้า + วันที่ให้บริการ + ผู้รับจอง (หมอเว้นว่างตั้งทีหลัง) · หน้าร้าน: walkin
+      customerType: isBooking ? 'booking' : 'walkin',
+      ...(isBooking ? { bookedDate: bizDate, bookerName: bookerName.trim(), bookerId } : {}),
       // โมเดลใหม่: หมอ + เวลาเริ่ม/จบ ระดับบิล
-      therapistId: activeTherapistId, therapistName: activeTherapistName,
+      therapistId: isBooking ? '' : activeTherapistId,
+      therapistName: isBooking ? '' : activeTherapistName,
       startTime: minutesToTime(selectedStartTime),
       endTime: minutesToTime(endMin),
-      // ค่าน้ำมันหมอวิ่ง ฿30/รอบ — รายจ่ายร้าน ไม่บวกยอดลูกค้า
-      fuel: therapistType === 'visiting' && fuelChecked ? 30 : 0,
+      // ค่าน้ำมันหมอวิ่ง ฿30/รอบ — รายจ่ายร้าน ไม่บวกยอดลูกค้า (บิลจองไม่มีหมอ ไม่มีค่าน้ำมัน)
+      fuel: isBooking ? 0 : (therapistType === 'visiting' && fuelChecked ? 30 : 0),
       items: pickedServices.map((p, i) => ({
         serviceId: p.serviceId,
         serviceName: (p.addons || []).length ? `${p.serviceName} + ${(p.addons || []).map((a) => a.name).join(', ')}` : p.serviceName,
         category: p.category,
-        therapistId: activeTherapistId, therapistName: activeTherapistName,
+        therapistId: isBooking ? '' : activeTherapistId,
+        therapistName: isBooking ? '' : activeTherapistName,
         qty: 1, price: p.price, discount: 0, net: p.price,
         duration: p.minutes, totalMinutes: p.minutes,
         startTime: minutesToTime(times[i].start),
@@ -549,21 +673,31 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       subtotal, discount: discVal, total, paymentMethod, status: 'open', createdAt: stamp,
       promotion: promoName || '',
     };
+    const auditEntry = isBooking
+      ? {
+          id: `A-${Date.now()}`, timestamp: stamp, user: 'ระบบ POS',
+          action: 'เปิดบิลจอง (รอลูกค้า)',
+          detail: `คุณ${customerName.trim()} · ${dayChipLabel(bizDate)} ${minutesToTime(selectedStartTime)} น. · รับจอง ${bookerName.trim()}`,
+          oldValue: '-', newValue: 'open', approvedBy: '-',
+        }
+      : {
+          id: `A-${Date.now()}`, timestamp: stamp, user: 'ระบบ POS',
+          action: 'เปิดบิล (รอเช็คบิล)', detail: `฿ ${total.toLocaleString()} · ${activeTherapistName} · ${pickedServices.length} บริการ`,
+          oldValue: '-', newValue: 'open', approvedBy: '-',
+        };
     saveData({
       ...data,
       bills: [...(data.bills || []), newBill],
-      auditLog: [...(data.auditLog || []), {
-        id: `A-${Date.now()}`, timestamp: stamp, user: 'ระบบ POS',
-        action: 'เปิดบิล (รอเช็คบิล)', detail: `฿ ${total.toLocaleString()} · ${activeTherapistName} · ${pickedServices.length} บริการ`,
-        oldValue: '-', newValue: 'open', approvedBy: '-',
-      }],
+      auditLog: [...(data.auditLog || []), auditEntry],
     });
     setPickedServices([]); setDiscount(''); setPromoId('');
     resetAll();
     setStep(1);
     await alertDialog({
-      title: 'เปิดบิลแล้ว',
-      message: `${newBill.items.map((i) => i.serviceName).join(' · ')} · ${activeTherapistName} · ฿ ${total.toLocaleString()}`,
+      title: isBooking ? 'เปิดบิลจองแล้ว' : 'เปิดบิลแล้ว',
+      message: isBooking
+        ? `คุณ${newBill.customer} · ${dayChipLabel(newBill.bookedDate)} ${newBill.startTime} น. · ${newBill.items.map((i) => i.serviceName).join(' · ')} · ฿ ${total.toLocaleString()}`
+        : `${newBill.items.map((i) => i.serviceName).join(' · ')} · ${activeTherapistName} · ฿ ${total.toLocaleString()}`,
     });
     if (onNavigate) onNavigate('bills');
     } finally {
@@ -577,24 +711,100 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     <div>
       {err && <div className="err-banner"><TriangleAlert size={16} strokeWidth={1.9} className="eic" /> {err}</div>}
 
-      <div className="steps">
-        {[
-          { n: 1, label: 'รายการ' },
-          { n: 2, label: 'ระยะเวลา' },
-          { n: 3, label: 'หมอนวด' },
-          { n: 4, label: 'เวลา' },
-          { n: 5, label: `ตรวจสอบ${pickedServices.length > 0 ? ` (${pickedServices.length})` : ''}` },
-        ].map((s, i) => (
-          <div key={s.n} className={`step${step === s.n ? ' cur' : ''}${step > s.n ? ' done' : ''}`}>
-            <span className="step-dot">{step > s.n ? '✓' : s.n}</span>
-            <span className="st"><b>{s.label}</b><small>ขั้น {s.n}/5</small></span>
-            {i < 4 && <span className={`step-link${step > s.n ? ' done' : ''}`} />}
+      {/* ขั้น 0: เลือกประเภทลูกค้า — ยังไม่เลือกจึงไม่แสดงแถบขั้น */}
+      {customerType === null && (
+        <Card>
+          <CardHead title="ลูกค้าแบบไหน?" hint="เลือกก่อนเริ่มเปิดบิล" />
+          <div className="typepick-grid">
+            <button type="button" className="typepick-card" onClick={() => startFlow('walkin')}>
+              <span className="typepick-ico"><Store size={26} strokeWidth={1.6} /></span>
+              <b>ลูกค้าหน้าร้าน</b>
+              <small>รายการ → ระยะเวลา → หมอนวด → เวลา → ตรวจสอบ</small>
+            </button>
+            <button type="button" className="typepick-card typepick-green" onClick={() => startFlow('booking')}>
+              <span className="typepick-ico"><CalendarDays size={26} strokeWidth={1.6} /></span>
+              <b>ลูกค้าจอง</b>
+              <small>โทรมาจองล่วงหน้า · ชื่อลูกค้า + ผู้รับจอง (ตั้งหมอทีหลัง)</small>
+            </button>
           </div>
-        ))}
-      </div>
+        </Card>
+      )}
 
-      {/* STEP 1: รายการล้วน */}
-      {step === 1 && (
+      {/* แถบขั้น — labels ต่างกันตาม flow (จอง: ขั้น 1 = ชื่อลูกค้า) */}
+      {customerType !== null && (
+        <div className="steps">
+          {(customerType === 'booking'
+            ? ['ชื่อลูกค้า', 'รายการ', 'ระยะเวลา', 'เวลา', `ตรวจสอบ${pickedServices.length > 0 ? ` (${pickedServices.length})` : ''}`]
+            : ['รายการ', 'ระยะเวลา', 'หมอนวด', 'เวลา', `ตรวจสอบ${pickedServices.length > 0 ? ` (${pickedServices.length})` : ''}`]
+          ).map((label, i) => {
+            const n = i + 1;
+            return (
+              <div key={n} className={`step${step === n ? ' cur' : ''}${step > n ? ' done' : ''}`}>
+                <span className="step-dot">{step > n ? '✓' : n}</span>
+                <span className="st"><b>{label}</b><small>ขั้น {n}/5</small></span>
+                {i < 4 && <span className={`step-link${step > n ? ' done' : ''}`} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {customerType === 'booking' && (
+        <div className="pos-type-badge"><CalendarDays size={13} strokeWidth={1.9} /> ลูกค้าจอง</div>
+      )}
+
+      {/* BOOKING STEP 1: ชื่อลูกค้า + ผู้รับจอง — บิลจอง = ลูกค้าโทรมาจอง (เปิดไว้รอลูกค้า) */}
+      {step === 1 && customerType === 'booking' && (
+        <Card>
+          <CardHead title="ชื่อลูกค้า" hint="บิลจอง — บันทึกชื่อลูกค้าเพื่อเปิดบิลไว้ล่วงหน้า" />
+          <div className="field">
+            <label>ชื่อลูกค้า</label>
+            <input
+              value={customerName}
+              onChange={(e) => { setCustomerName(e.target.value); setErr(''); }}
+              placeholder="เช่น คุณสม"
+              className="input"
+            />
+          </div>
+          <div className="field">
+            <label>รับจองโดย</label>
+            <div className="preset-row mt0">
+              {bookerChips.map((t) => (
+                <button key={t.id} type="button" className={`preset-btn${bookerId === t.id ? ' on' : ''}`} aria-pressed={bookerId === t.id} onClick={() => pickBooker(t)}>
+                  {t.name}
+                </button>
+              ))}
+            </div>
+            {bookerChips.length === 0 && <p className="muted">วันนี้ยังไม่มีใครเช็กชื่อ — พิมพ์ชื่อได้เลย</p>}
+            <div className="search-wrap mt8">
+              <Search size={16} />
+              <input
+                value={bookerName}
+                onChange={(e) => setFreeBooker(e.target.value)}
+                placeholder="พิมพ์ชื่ออิสระ… เจ้าของร้าน/พนักงาน ไม่ต้องเป็นหมอทะเบียน"
+                className="input"
+              />
+            </div>
+          </div>
+          <div className="stepnav">
+            <button className="btn btn-ghost fg1" onClick={backToTypePick}>← เปลี่ยนประเภทลูกค้า</button>
+            <button
+              className="btn btn-primary fg16"
+              disabled={!(customerName.trim() && bookerName.trim())}
+              onClick={() => {
+                if (!customerName.trim() || !bookerName.trim()) { setErr('กรอกชื่อลูกค้าและผู้รับจองให้ครบก่อน'); return; }
+                setErr('');
+                setStep(2);
+              }}
+            >
+              ถัดไป →
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {/* STEP 1: รายการล้วน (จอง: ขั้น 2) */}
+      {step === (customerType === 'booking' ? 2 : 1) && (
         <>
           {pickedServices.length > 0 && (
             <Card>
@@ -644,15 +854,15 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           {visibleCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
           {selectedCategory && (
           <div className="stepnav">
-            <button className="btn btn-primary btn-block" onClick={() => setStep(2)}>ถัดไป →</button>
+            <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)}>ถัดไป →</button>
           </div>
           )}
         </Card>
         </>
       )}
 
-      {/* STEP 2: ระยะเวลา */}
-      {step === 2 && selectedCategory && (
+      {/* STEP 2: ระยะเวลา (จอง: ขั้น 3) — walk-in ขั้น 3 คือขั้นเลือกหมอนวด */}
+      {step === (customerType === 'booking' ? 3 : 2) && selectedCategory && (
         <Card>
           <CardHead
             title={selectedCategory}
@@ -685,14 +895,14 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             </div>
           )}
           <div className="stepnav">
-            <button className="btn btn-ghost fg1" onClick={() => { resetServicePick(); setStep(1); }}>← กลับ</button>
+            <button className="btn btn-ghost fg1" onClick={() => { resetServicePick(); setStep(customerType === 'booking' ? 2 : 1); }}>← กลับ</button>
             <button className="btn btn-primary fg16" onClick={addPickedService} disabled={!selectedDuration}>ถัดไป →</button>
           </div>
         </Card>
       )}
 
-      {/* STEP 3: หมอนวด (คนเดียวทั้งบิล) */}
-      {step === 3 && pickedServices.length > 0 && (
+      {/* STEP 3: หมอนวด (คนเดียวทั้งบิล) — เฉพาะลูกค้าหน้าร้าน (บิลจองไม่มีขั้นหมอ) */}
+      {step === 3 && customerType === 'walkin' && pickedServices.length > 0 && (
         <Card>
           <CardHead
             title="เลือกหมอนวด"
@@ -735,14 +945,30 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
         </Card>
       )}
 
-      {/* STEP 4: เวลาเริ่มเดียวทั้งบิล */}
-      {step === 4 && pickedServices.length > 0 && activeTherapistId && (
+      {/* STEP 4: เวลาเริ่มเดียวทั้งบิล (บิลจอง: เลือกวันที่ให้บริการได้ ไม่ต้องมีหมอก่อน) */}
+      {step === 4 && pickedServices.length > 0 && (customerType === 'booking' || activeTherapistId) && (
         <Card>
           <CardHead
             title="เลือกเวลาเริ่ม"
-            hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
+            hint={`${pickedServices.length} บริการ${customerType === 'booking' ? ` · บิลจอง · ${dayChipLabel(bizDate)}` : ` · ${activeTherapistName}`}`}
           />
           <div className="field">
+            {/* บิลจอง: วันที่ให้บริการ (จองล่วงหน้าได้ถึง 7 วัน) */}
+            {customerType === 'booking' && (
+              <div className="field typepick-days">
+                <label>วันที่ให้บริการ</label>
+                <div className="preset-row mt0">
+                  {[0, 1, 2, 3, 4, 5, 6, 7].map((off) => {
+                    const d = bkkToday(off);
+                    return (
+                      <button key={d} type="button" className={`preset-btn${bizDate === d ? ' on' : ''}`} aria-pressed={bizDate === d} onClick={() => { setBizDate(d); setErr(''); }}>
+                        {dayChipLabel(d)}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {/* ป้าย "เวลาเริ่ม" อยู่ในปุ่ม picker อยู่แล้ว (sub) — ไม่ซ้ำ label นอก */}
             <TimeSlotPicker
               value={selectedStartTime}
@@ -778,8 +1004,14 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           )}
 
           <div className="stepnav stepnav-3">
-            <button className="btn btn-ghost fg09" onClick={() => setStep(looping ? 2 : 3)}>← กลับ</button>
-            <button className="btn btn-ghost fg1" onClick={() => { setErr(''); setLooping(true); resetServicePick(); setStep(1); }}>
+            <button className="btn btn-ghost fg09" onClick={() => setStep(customerType === 'booking' ? 3 : (looping ? 2 : 3))}>← กลับ</button>
+            <button
+              className="btn btn-ghost fg1"
+              onClick={() => {
+                if (customerType === 'booking') { setErr(''); resetServicePick(); setStep(2); return; }
+                setErr(''); setLooping(true); resetServicePick(); setStep(1);
+              }}
+            >
               <Plus size={16} /> เพิ่มรายการ
             </button>
             <button className="btn btn-primary fg11" onClick={() => setStep(5)} disabled={!validPick}>
@@ -796,7 +1028,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             <CardHead
               title="รายการในบิล"
               hint={`${pickedServices.length} บริการ · ${activeTherapistName}`}
-              right={<button className="btn btn-ghost btn-sm" onClick={() => setStep(1)}>+ เพิ่มบริการ</button>}
+              right={<button className="btn btn-ghost btn-sm" onClick={() => setStep(customerType === 'booking' ? 2 : 1)}>+ เพิ่มบริการ</button>}
             />
             {pickedServices.length === 0 && <EmptyState title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
             {chained.map((p, idx) => (
@@ -830,11 +1062,20 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 )}
               </div>
               <div className="summary-box">
-                <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
+                {customerType === 'booking' ? (
+                  <>
+                    <div className="r"><span>ลูกค้า</span><b>คุณ{customerName.trim() || '—'}</b></div>
+                    <div className="r"><span>วันที่ให้บริการ</span><b>{dayChipLabel(bizDate)}</b></div>
+                    <div className="r"><span>รับจองโดย</span><b>{bookerName.trim() || '—'}</b></div>
+                    <div className="r"><span>หมอ</span><b>ยังไม่ระบุ — ตั้งหมอเมื่อลูกค้าถึงร้าน</b></div>
+                  </>
+                ) : (
+                  <div className="r"><span>หมอ</span><b>{activeTherapistName}{therapistType === 'visiting' ? ' (หมอวิ่ง)' : ''}</b></div>
+                )}
                 <div className="r"><span>รวมย่อย</span><b>฿ {subtotal.toLocaleString()}</b></div>
                 <div className="r"><span>ส่วนลด{promoName ? ` (${promoName})` : ''}</span><b>−฿ {discVal.toLocaleString()}</b></div>
                 <div className="r grand"><span><b>สุทธิ</b></span><b className="grand-total">฿ {total.toLocaleString()}</b></div>
-                {therapistType === 'visiting' && (
+                {customerType !== 'booking' && therapistType === 'visiting' && (
                   <button type="button" className={`fuel-check${fuelChecked ? ' on' : ''}`} onClick={() => setFuelChecked(!fuelChecked)} aria-pressed={fuelChecked} aria-label="ค่าน้ำมันหมอวิ่ง 30 บาทต่อรอบ">
                     <span className="fuel-ic"><Fuel size={17} strokeWidth={1.9} /></span>
                     <span className="fuel-tx">ค่าน้ำมันหมอวิ่ง <b>+฿ 30/รอบ</b><small className="muted">รายจ่ายร้าน ไม่บวกในบิล</small></span>
@@ -843,7 +1084,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                 )}
               </div>
               <button className="btn btn-primary btn-block mt4" onClick={openDraftBill} disabled={creating} aria-busy={creating}>
-                <ReceiptText size={18} /> {creating ? 'กำลังเปิดบิล…' : `เปิดบิล · ฿ ${total.toLocaleString()}`}
+                <ReceiptText size={18} /> {creating ? 'กำลังเปิดบิล…' : `${customerType === 'booking' ? 'เปิดบิลจอง' : 'เปิดบิล'} · ฿ ${total.toLocaleString()}`}
               </button>
             </Card>
           )}

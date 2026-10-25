@@ -44,7 +44,7 @@
 **Interfaces:**
 - Produces: บิลฝั่ง client มีฟิลด์: `customerType ('walkin'|'booking', ขาด = 'walkin')`, `bookedDate ('YYYY-MM-DD'|'')`, `bookerName (string)`, `bookerId (string)` — ซิงก์คู่คอลัมน์ DB `customer_type / booked_date / booker_name / booker_id` (text)
 
-- [ ] **Step 1: สร้าง SQL** — หัวไฟล์คอมเมนต์ลอกสไตล์ `migration_bill_fields.sql` (ต้องรันเองใน SQL Editor, idempotent, ก่อนรันแอปยังเซฟได้แบบลดรูป) เนื้อหา 4 บรรทัด:
+- [x] **Step 1: สร้าง SQL** — หัวไฟล์คอมเมนต์ลอกสไตล์ `migration_bill_fields.sql` (ต้องรันเองใน SQL Editor, idempotent, ก่อนรันแอปยังเซฟได้แบบลดรูป) เนื้อหา 4 บรรทัด:
 
 ```sql
 alter table public.bills add column if not exists customer_type text not null default 'walkin';
@@ -53,11 +53,11 @@ alter table public.bills add column if not exists booker_name text not null defa
 alter table public.bills add column if not exists booker_id text not null default '';
 ```
 
-- [ ] **Step 2: `toBillRow`** เพิ่ม 4 คีย์: `customer_type: b.customerType || 'walkin'`, `booked_date: b.bookedDate || ''`, `booker_name: b.bookerName || ''`, `booker_id: b.bookerId || ''`
-- [ ] **Step 3: `fromBillRow`** เพิ่ม: `customerType: r.customer_type || 'walkin'`, `bookedDate: r.booked_date || ''`, `bookerName: r.booker_name || ''`, `bookerId: r.booker_id || ''`
-- [ ] **Step 4: `BILL_DROP_KEYS`** เพิ่ม 4 สตริง `'customer_type', 'booked_date', 'booker_name', 'booker_id'`
-- [ ] **Step 5: `npm run build`** → PASS
-- [ ] **Step 6: commit** `feat(bills): sync ฟิลด์บิลจอง (ประเภทลูกค้า/วันที่ให้บริการ/ผู้รับจอง) + migration SQL`
+- [x] **Step 2: `toBillRow`** เพิ่ม 4 คีย์: `customer_type: b.customerType || 'walkin'`, `booked_date: b.bookedDate || ''`, `booker_name: b.bookerName || ''`, `booker_id: b.bookerId || ''`
+- [x] **Step 3: `fromBillRow`** เพิ่ม: `customerType: r.customer_type || 'walkin'`, `bookedDate: r.booked_date || ''`, `bookerName: r.booker_name || ''`, `bookerId: r.booker_id || ''`
+- [x] **Step 4: `BILL_DROP_KEYS`** เพิ่ม 4 สตริง `'customer_type', 'booked_date', 'booker_name', 'booker_id'`
+- [x] **Step 5: `npm run build`** → PASS
+- [x] **Step 6: commit** `feat(bills): sync ฟิลด์บิลจอง (ประเภทลูกค้า/วันที่ให้บริการ/ผู้รับจอง) + migration SQL`
 
 ---
 
@@ -71,7 +71,7 @@ alter table public.bills add column if not exists booker_id text not null defaul
 - Consumes: `bizDateOf` (มี import แล้วในไฟล์ที่เกี่ยว)
 - Produces: `billBizDay(b) → 'YYYY-MM-DD'` — `b.customerType === 'booking' && b.bookedDate ? b.bookedDate : bizDateOf(b.date || b.createdAt || '')`
 
-- [ ] **Step 1: เพิ่มฟังก์ชัน** ใน `src/lib/billing.js` ใกล้ `billTotal`:
+- [x] **Step 1: เพิ่มฟังก์ชัน** ใน `src/lib/billing.js` ใกล้ `billTotal`:
 
 ```js
 // วันธุรกิจที่ "มีผล" ของบิล — บิลจอง (customerType 'booking') ใช้วันให้บริการ (bookedDate) ทุกสถานะ
@@ -83,10 +83,10 @@ export function billBizDay(b) {
 }
 ```
 
-- [ ] **Step 2: แทน call site ทุกจุด** ที่ระบุใน Files — ให้การหา "วันธุรกิจของบิล" ใช้ `billBizDay(b)` ทั้งหมด (`OpenBills`: `billDayOf` เปลี่ยนเป็น `(b) => billBizDay(b)`; `PagePOS` จุดกรองบิลคำนวณคิว ~L345 ใช้ `billBizDay(b) === bizToday()` — หลังจุดนี้บิลจองของวันอื่นจะไม่ถูกนับเป็นบิลวันนี้ ซึ่งตั้งใจแล้ว: คิวจองของวันอื่นจัดการเฉพาะ memo ใน Task 3 Step 3.11)
-- [ ] **Step 3: ตรวจ** — `grep -rn bizDateOf src` ควรเหลือแค่นิยามใน `bkk.js` + `billing.js` (ตัว implement) — ทุก file อื่นควรผ่าน `billBizDay`
-- [ ] **Step 4: `npm run build`** → PASS
-- [ ] **Step 5: commit** `refactor(bills): วันธุรกิจที่มีผล (billBizDay) ใช้เดียวกันทุกมุมมอง`
+- [x] **Step 2: แทน call site ทุกจุด** ที่ระบุใน Files — ให้การหา "วันธุรกิจของบิล" ใช้ `billBizDay(b)` ทั้งหมด (`OpenBills`: `billDayOf` เปลี่ยนเป็น `(b) => billBizDay(b)`; `PagePOS` จุดกรองบิลคำนวณคิว ~L345 ใช้ `billBizDay(b) === bizToday()` — หลังจุดนี้บิลจองของวันอื่นจะไม่ถูกนับเป็นบิลวันนี้ ซึ่งตั้งใจแล้ว: คิวจองของวันอื่นจัดการเฉพาะ memo ใน Task 3 Step 3.11)
+- [x] **Step 3: ตรวจ** — `grep -rn bizDateOf src` ควรเหลือแค่นิยามใน `bkk.js` + `billing.js` (ตัว implement) — ทุก file อื่นควรผ่าน `billBizDay`
+- [x] **Step 4: `npm run build`** → PASS
+- [x] **Step 5: commit** `refactor(bills): วันธุรกิจที่มีผล (billBizDay) ใช้เดียวกันทุกมุมมอง`
 
 ---
 
@@ -106,24 +106,24 @@ export function billBizDay(b) {
   - walk-in เพิ่มเพียง `customerType: 'walkin'` อื่นเดิมทุกอย่าง
   - audit จอง: `action: 'เปิดบิลจอง (รอรับบริการ)'`, `detail: คุณ{ชื่อ} · {dayChipLabel(bizDate)} {HH:mm} · รับจอง {bookerName}`
 
-- [ ] **Step 3.1: `bookingUtils.js`** — เพิ่ม export `TH_WD`, `TH_MO`, `dayChipLabel(d)` — ผลต้องตรงกับฉบับ OpenBills: วันนี้ → `วันนี้`, วันอื่น → `จันทร์ 27 ต.ค.` (คำนวณ weekday ด้วย `Date.UTC` กัน TZ เครื่อง)
-- [ ] **Step 3.2: state ใหม่** — `customerType` (`null` เริ่มต้น / `'walkin'` / `'booking'`), `bizDate` (default `bkkToday()`), `customerName`, `bookerName`, `bookerId` (string ทั้งชุด default `''`)
-- [ ] **Step 3.3: หน้าเลือกประเภท (ขั้น 0)** — แสดงเมื่อ `customerType === null` (ซ่อนแถบขั้น 1-5) ให้ 2 ปุ่มขนาดใหญ่: `ลูกค้าหน้าร้าน` (icon `Store`), `ลูกค้าจอง` (icon `CalendarDays`) + hint บรรยาย flow สั้น ๆ; CSS ก้อนใหม่ชื่อ `.typepick-*` (รูปร่างใกล้เคียงการ์ด `dur-card` เดิม), เขียนใน `src/index.css`
-- [ ] **Step 3.4: `startFlow(t)`** — `setCustomerType(t); setStep(1); setErr('')` — walk-in ขั้น 1 = รายการ (JSX เดิม), booking ขั้น 1 = ชื่อลูกค้า
-- [ ] **Step 3.5: แถบขั้นต่อ flow** — labels walk-in `['รายการ','ระยะเวลา','หมอนวด','เวลา','ตรวจสอบ']`, booking `['ชื่อลูกค้า','รายการ','ระยะเวลา','เวลา','ตรวจสอบ']` — เมื่อ `customerType === 'booking'` ให้แถบขั้น/หัวการ์ดแสดงป้าย `ลูกค้าจอง` ชัดเจน
-- [ ] **Step 3.6: ขั้นจอง 1 ชื่อลูกค้า + รับจองโดย** (JSX เงื่อนไข `step === 1 && customerType === 'booking'`):
+- [x] **Step 3.1: `bookingUtils.js`** — เพิ่ม export `TH_WD`, `TH_MO`, `dayChipLabel(d)` — ผลต้องตรงกับฉบับ OpenBills: วันนี้ → `วันนี้`, วันอื่น → `จันทร์ 27 ต.ค.` (คำนวณ weekday ด้วย `Date.UTC` กัน TZ เครื่อง)
+- [x] **Step 3.2: state ใหม่** — `customerType` (`null` เริ่มต้น / `'walkin'` / `'booking'`), `bizDate` (default `bkkToday()`), `customerName`, `bookerName`, `bookerId` (string ทั้งชุด default `''`)
+- [x] **Step 3.3: หน้าเลือกประเภท (ขั้น 0)** — แสดงเมื่อ `customerType === null` (ซ่อนแถบขั้น 1-5) ให้ 2 ปุ่มขนาดใหญ่: `ลูกค้าหน้าร้าน` (icon `Store`), `ลูกค้าจอง` (icon `CalendarDays`) + hint บรรยาย flow สั้น ๆ; CSS ก้อนใหม่ชื่อ `.typepick-*` (รูปร่างใกล้เคียงการ์ด `dur-card` เดิม), เขียนใน `src/index.css`
+- [x] **Step 3.4: `startFlow(t)`** — `setCustomerType(t); setStep(1); setErr('')` — walk-in ขั้น 1 = รายการ (JSX เดิม), booking ขั้น 1 = ชื่อลูกค้า
+- [x] **Step 3.5: แถบขั้นต่อ flow** — labels walk-in `['รายการ','ระยะเวลา','หมอนวด','เวลา','ตรวจสอบ']`, booking `['ชื่อลูกค้า','รายการ','ระยะเวลา','เวลา','ตรวจสอบ']` — เมื่อ `customerType === 'booking'` ให้แถบขั้น/หัวการ์ดแสดงป้าย `ลูกค้าจอง` ชัดเจน
+- [x] **Step 3.6: ขั้นจอง 1 ชื่อลูกค้า + รับจองโดย** (JSX เงื่อนไข `step === 1 && customerType === 'booking'`):
   - field `ชื่อลูกค้า` → `setCustomerName`
   - block `รับจองโดย`: ลิสต์ chip จาก `therapistsList.filter(t => (data.attendance?.[bizToday()] || {})[t.id])` แตะ → `setBookerId(t.id); setBookerName(t.name)`; + `input` `พิมพ์ชื่ออิสระ` (placeholder: ชื่อเจ้าของร้าน/พนักงาน ไม่ต้องเป็นหมอทะเบียน) พิมพ์ → `setBookerName(value)`, ถ้า value ต่างจาก chip ที่เซ็ตไว้ → `setBookerId('')`
   - ถ้าวันนี้ไม่มีใครเช็กชื่อ → ข้อความ `วันนี้ยังไม่มีใครเช็กชื่อ — พิมพ์ชื่อได้เลย`
   - ปุ่ม `← เปลี่ยนประเภทลูกค้า` กลับขั้น 0 — ถ้ามีข้อมูล (`customerName/bookerName/pickedServices`) ให้ `confirmDialog` ยืนยันก่อน reset
-- [ ] **Step 3.7: nav ขั้นจอง 1** — ปุ่ม `ถัดไป →` disabled จน `customerName.trim() && bookerName.trim()`; และใน `onClick` ตรวจซ้ำ — ถ้าไม่ครบให้ `setErr('กรอกชื่อลูกค้าและผู้รับจองให้ครบก่อน')` แล้วไม่ไปต่อ
-- [ ] **Step 3.8: JSX ขั้น อื่น ใช้เลขขั้นตาม flow** — จองใช้เลขขั้นเลื่อน: จองขั้น 2 = รายการ (JSX เดิมของขั้น 1), จองขั้น 3 = ระยะเวลา (JSX เดิมขั้น 2) โดยหมายเหตุ (walk-in ขั้น 3 = หมอนวด) — เงื่อนไข render: `step === (customerType === 'booking' ? 2 : 1)` สำหรับ รายการ / `step === (customerType === 'booking' ? 3 : 2)` สำหรับ ระยะเวลา และขั้นหมอนวดของ walk-in คงเงื่อนไข `step === 3 && customerType === 'walkin'`
-- [ ] **Step 3.9: nav ต่อขั้น แยกตาม flow** — `addPickedService` (จบขั้นระยะเวลา): walk-in คงพฤติกรรมเดิมเป๊ะ, booking `setStep(4)`; ปุ่ม `+ เพิ่มรายการ` (บนขั้นเลือกเวลา): walk-in คงเดิม, booking `setStep(2)`; ปุ่ม `← กลับ` (ขั้นเลือกเวลา): walk-in คงเดิม, booking `setStep(3)`; ปุ่ม `+ เพิ่มบริการ` (ขั้นตรวจสอบ): walk-in `setStep(1)`, booking `setStep(2)`
-- [ ] **Step 3.10: ขั้นเวลาจอง: ชิปวันที่ให้บริการ** — เหนือ `TimeSlotPicker` เพิ่มแถว 8 ชิป (`bkkToday(0..7)` + `dayChipLabel`); เลือก → `setBizDate(d)`; ไม่ต้อง reset เวลา (ตัว auto-snap ในขั้น 3.11 จะขยับให้ถ้าชน)
-- [ ] **Step 3.11: slot จอง: กันทุกคิวของวันนั้น** — สร้าง memo `bookedAllDay`: ช่วง `[start, end + 15 นาที)` จากบิล open ที่ `billBizDay(b) === bizDate` (อ่านเวลาจาก bill-level `startTime/endTime` ก่อน หากไม่มีค่อยใช้ระดับแถวตามโมเดลเก่า) + เมื่อ `bizDate === bizToday()` รวมคิวเว็บจองยืนยัน (ใช้วิธีเดิมของ PagePOS ที่แทรก `webBookings` ลง `slotState`) แบบช่วงเดียวกัน; ฟังก์ชัน `bookedSlotState(t)`: `t < OPEN_MIN || t > LAST_START_MIN` → `oob`, overlap ช่วงใดใน `bookedAllDay` → `clash`, อื่น → ว่าง; `const chooserSlotState = (t) => customerType === 'booking' ? bookedSlotState(t) : slotState(t)` — ให้ `timeSlots` / `nextFreeFrom` / `timeError` ใช้ `chooserSlotState` แทน `slotState` ทุกจุดในขั้นเวลา (walk-in ได้ผลเดียวกับเดิม เพราะ chooser ส่งต่อ `slotState`)
-- [ ] **Step 3.12: review ของจอง + `openBill` จอง** — ในขั้น 5 เมื่อจอง: แถว `หมอ: ยังไม่ระบุ — ตั้งหมอเมื่อลูกค้าถึงร้าน` แทนเดิม; ซ่อนส่วนหมอวิ่ง/ค่าน้ำมัน; ปุ่มเปลี่ยน label `เปิดบิลจอง · ฿ …`; `openBill` แยก path (จอง): ตรวจเงื่อนไขที่จำเป็นตาม Interfaces ข้างบน (ไม่บังคับหมอ) + สร้างบิลพร้อม audit ที่ระบุ แล้ว reset (`resetAll` + `setCustomerType(null)` + alert + `onNavigate('bills')` เหมือนเดิม); `openDraftBill` walk-in ยังตรวจหมอเดิม
-- [ ] **Step 3.13: guard realtime ต่อ flow** — `isWizardActive`: walk-in `step >= 3 && step <= 5` (เดิม), booking `step >= 4 && step <= 5` — ช่วง guard active ห้าม realtime reload ทับ; ขั้นจอง 1-3 (กรอกข้อมูล) ไม่อยู่ใน guard — input ทั้งชุดอยู่บน local state จึงรีโหลดเบื้องหลังได้เหมือนเดิม; `resetAll` เพิ่ม: `setCustomerName(''); setBookerName(''); setBookerId(''); setBizDate(bkkToday()); setCustomerType(null)`
-- [ ] **Step 3.14: ตรวจ + commit** — `npm run build` → PASS → `feat(pos): wizard เลือก ลูกค้าหน้าร้าน/ลูกค้าจอง + เปิดบิลจองล่วงหน้า`
+- [x] **Step 3.7: nav ขั้นจอง 1** — ปุ่ม `ถัดไป →` disabled จน `customerName.trim() && bookerName.trim()`; และใน `onClick` ตรวจซ้ำ — ถ้าไม่ครบให้ `setErr('กรอกชื่อลูกค้าและผู้รับจองให้ครบก่อน')` แล้วไม่ไปต่อ
+- [x] **Step 3.8: JSX ขั้น อื่น ใช้เลขขั้นตาม flow** — จองใช้เลขขั้นเลื่อน: จองขั้น 2 = รายการ (JSX เดิมของขั้น 1), จองขั้น 3 = ระยะเวลา (JSX เดิมขั้น 2) โดยหมายเหตุ (walk-in ขั้น 3 = หมอนวด) — เงื่อนไข render: `step === (customerType === 'booking' ? 2 : 1)` สำหรับ รายการ / `step === (customerType === 'booking' ? 3 : 2)` สำหรับ ระยะเวลา และขั้นหมอนวดของ walk-in คงเงื่อนไข `step === 3 && customerType === 'walkin'`
+- [x] **Step 3.9: nav ต่อขั้น แยกตาม flow** — `addPickedService` (จบขั้นระยะเวลา): walk-in คงพฤติกรรมเดิมเป๊ะ, booking `setStep(4)`; ปุ่ม `+ เพิ่มรายการ` (บนขั้นเลือกเวลา): walk-in คงเดิม, booking `setStep(2)`; ปุ่ม `← กลับ` (ขั้นเลือกเวลา): walk-in คงเดิม, booking `setStep(3)`; ปุ่ม `+ เพิ่มบริการ` (ขั้นตรวจสอบ): walk-in `setStep(1)`, booking `setStep(2)`
+- [x] **Step 3.10: ขั้นเวลาจอง: ชิปวันที่ให้บริการ** — เหนือ `TimeSlotPicker` เพิ่มแถว 8 ชิป (`bkkToday(0..7)` + `dayChipLabel`); เลือก → `setBizDate(d)`; ไม่ต้อง reset เวลา (ตัว auto-snap ในขั้น 3.11 จะขยับให้ถ้าชน)
+- [x] **Step 3.11: slot จอง: กันทุกคิวของวันนั้น** — สร้าง memo `bookedAllDay`: ช่วง `[start, end + 15 นาที)` จากบิล open ที่ `billBizDay(b) === bizDate` (อ่านเวลาจาก bill-level `startTime/endTime` ก่อน หากไม่มีค่อยใช้ระดับแถวตามโมเดลเก่า) + เมื่อ `bizDate === bizToday()` รวมคิวเว็บจองยืนยัน (ใช้วิธีเดิมของ PagePOS ที่แทรก `webBookings` ลง `slotState`) แบบช่วงเดียวกัน; ฟังก์ชัน `bookedSlotState(t)`: `t < OPEN_MIN || t > LAST_START_MIN` → `oob`, overlap ช่วงใดใน `bookedAllDay` → `clash`, อื่น → ว่าง; `const chooserSlotState = (t) => customerType === 'booking' ? bookedSlotState(t) : slotState(t)` — ให้ `timeSlots` / `nextFreeFrom` / `timeError` ใช้ `chooserSlotState` แทน `slotState` ทุกจุดในขั้นเวลา (walk-in ได้ผลเดียวกับเดิม เพราะ chooser ส่งต่อ `slotState`)
+- [x] **Step 3.12: review ของจอง + `openBill` จอง** — ในขั้น 5 เมื่อจอง: แถว `หมอ: ยังไม่ระบุ — ตั้งหมอเมื่อลูกค้าถึงร้าน` แทนเดิม; ซ่อนส่วนหมอวิ่ง/ค่าน้ำมัน; ปุ่มเปลี่ยน label `เปิดบิลจอง · ฿ …`; `openBill` แยก path (จอง): ตรวจเงื่อนไขที่จำเป็นตาม Interfaces ข้างบน (ไม่บังคับหมอ) + สร้างบิลพร้อม audit ที่ระบุ แล้ว reset (`resetAll` + `setCustomerType(null)` + alert + `onNavigate('bills')` เหมือนเดิม); `openDraftBill` walk-in ยังตรวจหมอเดิม
+- [x] **Step 3.13: guard realtime ต่อ flow** — `isWizardActive`: walk-in `step >= 3 && step <= 5` (เดิม), booking `step >= 4 && step <= 5` — ช่วง guard active ห้าม realtime reload ทับ; ขั้นจอง 1-3 (กรอกข้อมูล) ไม่อยู่ใน guard — input ทั้งชุดอยู่บน local state จึงรีโหลดเบื้องหลังได้เหมือนเดิม; `resetAll` เพิ่ม: `setCustomerName(''); setBookerName(''); setBookerId(''); setBizDate(bkkToday()); setCustomerType(null)`
+- [x] **Step 3.14: ตรวจ + commit** — `npm run build` → PASS → `feat(pos): wizard เลือก ลูกค้าหน้าร้าน/ลูกค้าจอง + เปิดบิลจองล่วงหน้า`
 
 ---
 

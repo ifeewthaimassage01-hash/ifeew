@@ -1,5 +1,6 @@
 // ค่าคงที่ + helper ของหน้าจัดการการจอง (ฝั่งร้าน)
 // รวม adminConstants.js + adminUtils.js ของเว็บจอง และฟอร์แมตที่ POS ไม่มี (src/lib/format.js)
+import { bkkToday } from '../utils/bkk';
 
 /* ══════════════════════════════════════════════════════════════════
    ค่าคงที่
@@ -9,6 +10,20 @@ export const LIST_LIMIT = 200;     // จำนวนรายการสูง
 // ชื่อร้าน: หน้า admin ไม่ดึง booking-config (ต้องใช้ได้แม้ระบบปิดรับจอง)
 // → ใช้ค่าคงที่ตัวเดียวกับที่ AppShell ใช้เป็น fallback
 export const SHOP_NAME = "I'FEEW";
+
+/* ชื่อวัน/เดือนไทย + label ชิปเลือกวัน (จาก OpenBills — แชร์ให้ POS บิลจองใช้ด้วย) */
+export const TH_WD = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์', 'เสาร์'];
+export const TH_MO = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+/** label เต็มของวัน (สำหรับข้อความ/aria) — "วันนี้" / "ศุกร์ 23 ต.ค." */
+export function dayChipLabel(d) {
+  const [y, m, dd] = String(d || '').split('-').map(Number);
+  if (!y || !m || !dd) return String(d || '—');
+  if (d === bkkToday()) return 'วันนี้';
+  const t = new Date(Date.UTC(y, m - 1, dd)); // FIX: weekday คำนวณด้วย UTC กัน machine-local getDay เพี้ยนถ้าเครื่องไม่เซต +7 (เช่นเดียวกับ dayList)
+  const dow = t.getUTCDay();
+  return `${TH_WD[dow]} ${dd} ${TH_MO[m - 1]}`;
+}
 
 /* ══════════════════════════════════════════════════════════════════
    สถานะการจอง (ของหน้า admin)

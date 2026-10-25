@@ -1,0 +1,67 @@
+/* หน้า POS — ส่วนเสริมของ flow "ลูกค้าหน้าร้าน / ลูกค้าจอง" (แยกไว้จาก index.css) */
+
+/* ขั้น 0: เลือกประเภทลูกค้า — การ์ด 2 ใบ (หน้าร้าน / จอง) */
+.typepick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.typepick-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 16px 14px;
+  border-radius: var(--r-md);
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
+}
+
+.typepick-card:active { transform: scale(0.985); }
+
+.typepick-card b { font-size: 15px; font-weight: 700; }
+.typepick-card small { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+
+.typepick-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brown-tint);
+  color: var(--brown-dark);
+  margin-bottom: 6px;
+}
+
+/* ลูกค้าจอง = เขียว (สดใสกว่าหน้าร้าน) */
+.typepick-card.typepick-green .typepick-ico {
+  background: #e4ecdf;
+  color: var(--green-ok);
+}
+.typepick-card.typepick-green { border-color: #cdd9c9; }
+.typepick-card.typepick-green:active,
+.typepick-card:active { border-color: var(--brown); }
+.typepick-card.typepick-green:active { border-color: var(--green-ok); }
+
+/* ป้ายประเภทลูกค้า คู่กับแถบขั้น (ของ flow จอง) */
+.pos-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 10px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #e4ecdf;
+  color: var(--green-ok);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* แถวชิปเลือกวันที่ให้บริการ (ขั้นเวลาของบิลจอง) */
+.typepick-days label { margin-bottom: 0; }
