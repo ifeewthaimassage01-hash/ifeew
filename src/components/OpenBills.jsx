@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Card, CardHead, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil, UserRound } from 'lucide-react';
+import { Card, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, bkkToday, bizDateOf, fmtBkk } from '../utils/bkk';
 import { supabase } from '../lib/supabase';
 import { commBaht, freelanceDisplayName, isFreelance } from '../lib/billing';
@@ -576,30 +576,38 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
     alertDialog({ title: `รวม ${count} บิลแล้ว`, message: `บิลรวม ฿ ${bill.total.toLocaleString()} — เช็คบิลได้จากการ์ด "บิลที่เปิดอยู่"` });
   };
 
+  /* ── แถวออเดอร์หน้าร้าน (แบบ mockup 5 พ.ย. 2026) ──
+     เรียงตามเวลา (ปุ่ม "เรียงตามเวลา" ▲/▼) — คีย์ = วันทำการ + เวลาเริ่มแถวแรก
+     จัดข้อมูลต่อบิลครั้งเดียวต่อ render — บิลเปิดน้อย ไม่หนัก */
+  const [walkSort, setWalkSort] = useState('asc');
+  const walkRowsSorted = (() => {
+    const items = openBills.map((b) => {
+      const rows2 = billRows(b);
+      const mins = rows2.reduce((s, it) => s + (it.totalMinutes || it.duration || 0), 0);
+      const start = b.startTime || rows2[0]?.startTime || '';
+      const startMin = timeToMinutes(start);
+      const dayKey = bizDateOf(b.date || b.createdAt || '');
+      return {
+        b, rows2, mins,
+        timeText: start ? `${clockStr(start)} น.` : fmtBkk(b.date, { hour: '2-digit', minute: '2-digit' }),
+        sortKey: `${dayKey} ${String(startMin == null ? 9999 : startMin).padStart(4, '0')}`,
+        svcName: rows2.length ? serviceNameOf(rows2[0]) : '—',
+        docName: therapistNameOf(b, rows2),
+        docExtra: isFreelance(b.therapistId || rows2[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '',
+        customer: b.customer || '',
+        total: billTotal(b),
+      };
+    });
+    items.sort((x, y) => (walkSort === 'asc' ? x.sortKey.localeCompare(y.sortKey) : y.sortKey.localeCompare(x.sortKey)));
+    return items;
+  })();
+
   return (
     <div id="open-bills" style={{ scrollMarginTop: 16 }}>
-      {/* การ์ดเปิดตลอด (เดิมเคยซ่อนเมื่อไม่มีบิล) — กลุ่ม "ลูกค้าจอง" (children)
-          ก็นับเป็นบิลที่เปิดอยู่ด้วย จึงต้องแสดงแม้ไม่มีบิลหน้าร้าน */}
+      {/* แถบเลือกวันที่ — ตัวกรองร่วมของสองกลุ่ม (ออเดอร์หน้าร้าน + ออเดอร์จอง)
+          ลอก UI หน้าเลือกช่วงเวลาของเว็บจอง 100% เลือกแล้วกรองทั้งสองกลุ่มพร้อมกัน */}
+      {onDayFilter && dayList.length > 0 && (
       <Card>
-          <CardHead
-            title="บิลที่เปิดอยู่"
-            hint={mergeMode
-              ? 'แตะการ์ดเพื่อเลือกบิลที่จะรวม'
-              : [openBills.length > 0 && `ลูกค้าหน้าร้าน ${openBills.length}`, bookingsHint].filter(Boolean).join(' · ') || 'ไม่มีบิลที่เปิดอยู่'}
-            right={openBills.length >= 2 ? (
-              <button
-                className={mergeMode ? 'btn btn-primary auto' : 'btn btn-ghost auto'}
-                style={{ padding: '9px 15px', fontSize: 13 }}
-                onClick={() => { setMergeMode(!mergeMode); setMergeSel([]); }}
-              >
-                {mergeMode ? 'ปิดโหมดรวม' : 'รวมบิล'}
-              </button>
-            ) : null}
-          />
-          {/* เลือกวันที่ — ลอก UI หน้าเลือกช่วงเวลาของเว็บจอง 100%
-              เลือกแล้วกรองทั้งกลุ่มลูกค้าหน้าร้านและกลุ่มลูกค้าจองพร้อมกัน */}
-          {onDayFilter && dayList.length > 0 && (
-            <>
               <div className="bk-datehead">
                 <div>
                   <div className="bk-datehead-t">
@@ -641,96 +649,121 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
                   </button>
                 ))}
               </div>
-            </>
+      </Card>
+      )}
+
+      {/* ══ กลุ่ม 1 · ออเดอร์หน้าร้าน (บิลสถานะ open) — ธีมน้ำตาล (แบบ mockup 5 พ.ย. 2026) ══
+          โครง Flexbox แถวเดียว: [ซ้าย · orow-main: ลำดับ | ป้ายหน้าร้าน+เวลา | บริการ+รายละเอียด(หมอ/ลูกค้า)]
+                                  [ขวา · orow-cta: ยอดเงิน บน + ปุ่ม แก้ไข/ยกเลิก/เช็คบิล ล่าง (ซ้าย→ขวา)]
+          แตะแถว = แก้ไขบิล · ปุ่มน้ำตาล = เช็คบิล (ชำระเงิน/ออกใบเสร็จ) */}
+      <section className="osec osec-brown" aria-label="ออเดอร์หน้าร้าน">
+        <header className="osec-head">
+          <span className="osec-ic" aria-hidden="true"><Store size={16} strokeWidth={2} /></span>
+          <h2>หน้าร้าน</h2>
+          <span className="osec-count num" title="จำนวนบิลหน้าร้านที่เปิดอยู่">{openBills.length}</span>
+          <span className="osec-head-sp" />
+          {openBills.length >= 2 && (
+            <button type="button" className={`osec-mini${mergeMode ? ' on' : ''}`} onClick={() => { setMergeMode(!mergeMode); setMergeSel([]); }}>
+              <Combine size={13} strokeWidth={2} /> {mergeMode ? 'ปิดโหมดรวม' : 'รวมบิล'}
+            </button>
           )}
+          <button
+            type="button"
+            className="osec-sort"
+            onClick={() => setWalkSort((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            aria-label={walkSort === 'asc' ? 'เรียงตามเวลา (เร็ว→สาย) — กดเพื่อกลับทิศ' : 'เรียงตามเวลา (สาย→เร็ว) — กดเพื่อกลับทิศ'}
+            title={walkSort === 'asc' ? 'เรียงเช้า→ค่ำ — กดเพื่อกลับทิศ' : 'เรียงค่ำ→เช้า — กดเพื่อกลับทิศ'}
+          >
+            เรียงตามเวลา {walkSort === 'asc' ? <ChevronUp size={13} strokeWidth={2.2} /> : <ChevronDown size={13} strokeWidth={2.2} />}
+          </button>
+        </header>
+        <div className="osec-body">
           {mergeMode && (
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              margin: '0 0 12px', padding: '10px 12px',
+              margin: '0 0 10px', padding: '10px 12px',
               background: 'var(--brown-tint)', borderRadius: 12, border: '1px solid var(--line)',
             }}>
-              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }}>เลือกแล้ว {mergeSel.length} บิล</span>
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, minWidth: 0 }}>แตะแถวเพื่อเลือก · เลือกแล้ว {mergeSel.length} บิล</span>
               <button className="btn btn-ghost auto" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0 }} onClick={() => setMergeSel([])} disabled={mergeSel.length === 0}>ล้าง</button>
               <button className="btn btn-primary auto" style={{ padding: '8px 14px', fontSize: 13, flexShrink: 0, whiteSpace: 'nowrap' }} onClick={openMergeReview} disabled={mergeSel.length < 2}>
                 รวม {mergeSel.length} บิล
               </button>
             </div>
           )}
-          
-          {bookingsHint != null && openBills.length > 0 && (
-            <div className="bk-sep-label"><b>ลูกค้าหน้าร้าน</b><span className="muted num" style={{ fontSize: 12 }}>{openBills.length} บิล</span></div>
-          )}
-
           {openBills.length === 0 ? (
-            <EmptyState
-              icon={FileText}
-              title="ไม่มีบิลหน้าร้านที่เปิดอยู่"
-              subtitle={dayFilter
-                ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
-                : 'เปิดบิลใหม่จากหน้า POS'}
-            />
-          ) : openBills.map((b) => {
-            const rows = billRows(b);
-            const docName = therapistNameOf(b, rows);
-            const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
-            const msel = mergeMode && mergeSel.includes(b.id);
-            return (
-            <div
-              key={b.id}
-              className="ob-card"
-              style={msel ? { outline: '2px solid var(--brown)', outlineOffset: '-2px' } : undefined}
-              onClick={mergeMode ? () => toggleMergeSel(b.id) : undefined}
-            >
-              <div className="ob-head">
-                {mergeMode ? (
-                  <span
-                    aria-label={msel ? `เลือกบิล ${docName} อยู่` : `แตะเพื่อเลือกบิล ${docName}`}
-                    style={{
-                      width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, color: '#fff',
-                      border: msel ? 'none' : '1.5px dashed var(--line)',
-                      background: msel ? 'var(--brown)' : 'transparent',
-                    }}
-                  >{msel ? '✓' : ''}</span>
-                ) : (
-                  <span className="ob-ava">{(docName || '?').charAt(0)}</span>
-                )}
-                <span className="ob-who">
-                  <b>{docName}{docExtra}</b>
-                  <span className="muted">{fmtBkk(b.date, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {rows.length} บริการ{b.startTime ? ` · เริ่ม ${b.startTime}` : ''}</span>
-                </span>
-                <StatusBadge status="open" />
-              </div>
-              <div className="ob-rows">
-              {rows.map((it, i) => (
-                <div key={i} className="ob-row">
-                  <span className="ob-time muted">{(it.startTime || it.endTime) ? `${it.startTime || '?'}–${clockStr(it.endTime) || '?'}` : '—'}</span>
-                  <span className="ob-name">{serviceNameOf(it)}</span>
-                  <b className="ob-price">฿ {(it.net ?? it.price ?? 0).toLocaleString()}</b>
-                </div>
-              ))}
-              </div>
-              {b.promotion ? <div className="ob-promo muted">โปร: {b.promotion}</div> : null}
-              <div className="ob-total">
-                <span className="ob-sum">
-                  <span className="ob-grand">฿ {billTotal(b).toLocaleString()}</span>
-                </span>
-                {!mergeMode && (
-                  <span className="ob-btns">
-                    <button onClick={() => startEdit(b)} className="btn btn-ghost">แก้ไข</button>
-                    <button onClick={() => startCheckoutBill(b)} className="btn btn-primary">เช็คบิล</button>
-                    {canVoid && <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button>}
-                  </span>
-                )}
-              </div>
+            <div className="osec-empty">
+              <EmptyState
+                icon={FileText}
+                title="ไม่มีออเดอร์หน้าร้าน"
+                subtitle={dayFilter
+                  ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
+                  : 'เปิดบิลใหม่จากหน้า POS'}
+              />
             </div>
+          ) : walkRowsSorted.map((r, i) => {
+            const msel = mergeMode && mergeSel.includes(r.b.id);
+            return (
+              <article
+                key={r.b.id}
+                className={`orow${msel ? ' sel' : ''}`}
+                onClick={mergeMode ? () => toggleMergeSel(r.b.id) : () => startEdit(r.b)}
+                title={mergeMode ? (msel ? 'เลือกบิลนี้อยู่ — แตะเพื่อเอาออก' : 'แตะเพื่อเลือกรวมบิล') : 'แตะเพื่อแก้ไขบิล'}
+                role={mergeMode ? 'button' : undefined}
+                aria-pressed={mergeMode ? msel : undefined}
+                aria-label={`ออเดอร์หน้าร้าน ลำดับ ${i + 1} · ${r.svcName} · เวลา ${r.timeText} · ฿ ${r.total.toLocaleString()}`}
+              >
+                <div className="orow-main">
+                  <span className="orow-tag">
+                    <span className="orow-pill pink"> หน้าร้าน</span>
+                    <span className="orow-time num">{r.timeText}</span>
+                  </span>
+                  <span className="orow-svc" title={`หมอ: ${r.docName}${r.docExtra}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
+                    <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
+                    <small className="num">{formatDuration(r.mins) || '—'}{r.docName ? ` · ${r.docName}${r.docExtra}` : ''}</small>
+                  </span>
+                </div>
+                <span className="orow-cta">
+                  <b className="orow-amt num">฿ {r.total.toLocaleString()}</b>
+                  {mergeMode ? null : (
+                    <span className="orow-actions">
+                      <button
+                        type="button"
+                        className="orow-link"
+                        title={`แก้ไขบิล ${r.b.id}`}
+                        aria-label={`แก้ไขบิล ${r.b.id}`}
+                        onClick={(e) => { e.stopPropagation(); startEdit(r.b); }}
+                      >
+                        <Pencil size={11} strokeWidth={2} />
+                      </button>
+                      <button
+                        type="button"
+                        className="orow-link danger"
+                        title={`ยกเลิกบิล ${r.b.id}`}
+                        aria-label={`ยกเลิกบิล ${r.b.id}`}
+                        onClick={(e) => { e.stopPropagation(); requestVoid(r.b); }}
+                      >
+                        <Trash2 size={11} strokeWidth={2} />
+                      </button>
+                      <button
+                        type="button"
+                        className="orow-btn brown"
+                        title={`เช็คบิล (ชำระเงิน/ออกใบเสร็จ) ฿ ${r.total.toLocaleString()}`}
+                        onClick={(e) => { e.stopPropagation(); startCheckoutBill(r.b); }}
+                      >
+                         <ChevronRight size={13} strokeWidth={2.4} />
+                      </button>
+                    </span>
+                  )}
+                </span>
+              </article>
             );
           })}
+        </div>
+      </section>
 
-          {/* กลุ่ม "ลูกค้าจอง" — การจองจากเว็บลูกค้า นับเป็นบิลที่เปิดอยู่เช่นกัน */}
-          {children}
-        </Card>
+      {/* กลุ่ม 2 · ออเดอร์จอง (children = BookingBillsSection — การ์ดธีมเขียว) */}
+      {children}
 
       {editTarget && (
         <Modal onClose={() => setEditTarget(null)}>

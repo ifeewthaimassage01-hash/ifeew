@@ -72,18 +72,18 @@ export default function RoleGate({ onSelect }) {
       <div className="gate-card">
         <div className="gate-mark"><img src="./logo.jpg" alt="I'FEEW" /></div>
         <h1 className="gate-title">I'FEEW</h1>
-        <p className="gate-sub">Thai Massage · เลือกบทบาทเพื่อเข้าใช้งาน</p>
+        <p className="gate-sub">Thai Massage</p>
 
         {mode === 'select' ? (
           <>
           <div className="gate-roles">
             <button className="gate-role" onClick={() => onSelect('staff')}>
               <span className="gate-ric"><UserRound size={22} strokeWidth={1.9} /></span>
-              <span><b>พนักงาน</b><small>เปิดบิล · ประวัติ · ค่าแรง</small></span>
+              <span><b>พนักงาน</b></span>
             </button>
             <button className="gate-role" onClick={() => { setMode('owner'); setErr(''); setPass(''); }}>
               <span className="gate-ric"><KeyRound size={22} strokeWidth={1.9} /></span>
-              <span><b>เจ้าของร้าน</b><small>ภาพรวม · จัดการทั้งหมด</small></span>
+              <span><b>เจ้าของร้าน</b></span>
             </button>
           </div>
         
@@ -108,7 +108,6 @@ export default function RoleGate({ onSelect }) {
           </form>
         )}
 
-        <p className="gate-foot">Clean & Warm Spa · {bkkYear()}</p>
       </div>
     </div>
   );

@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect, useRef, useId, useCallback } from 'react';
-import { ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, Check, Fuel } from 'lucide-react';
+import {
+  ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, ChevronRight, Check, Fuel,
+  Hand, Footprints, Droplet, Flower2, Sparkles, Leaf, Package, ScanFace, HeartHandshake,
+} from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog } from '../components/ui';
-import { chainTimes, categoryEn, serviceCategoryOrder } from '../lib/billing';
+import { chainTimes, serviceCategoryOrder } from '../lib/billing';
 import { generateBillId } from '../lib/ids';
 import { bkkNow, bkkMinutes, bizToday, bizDateOf } from '../utils/bkk';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
@@ -48,6 +51,24 @@ const GRID_STEP = 15;
 
 /* ป้ายสถานะของแต่ละช่องเวลา — ว่าง = ไม่มีป้าย */
 const SLOT_TAG = { free: '', clash: 'ชนคิว', oob: 'เกินเวลา' };
+
+/* ไอคอนวงกลมของแต่ละหมวด (POS ขั้น 1) — หากตรงคีย์เวิร์ดชื่อหมวดกว่า 1 รายการ ตัวที่เจอก่อน wins
+   หมวดที่ไม่ตรงรายการเลย = ใช้ไอคอนกลาง ๆ (HeartHandshake) */
+const CATEGORY_ICON_RULES = [
+  [/น้ำมัน/, Droplet],
+  [/อโรมา|สปา/, Flower2],
+  [/ไทย/, Hand],
+  [/เท้า/, Footprints],
+  [/หน้า/, ScanFace],
+  [/สมุนไพร/, Leaf],
+  [/ขัด/, Sparkles],
+  [/แพ็กเกจ|คอร์ส/, Package],
+];
+function categoryIcon(cat) {
+  const name = String(cat || '');
+  for (const [re, Icon] of CATEGORY_ICON_RULES) if (re.test(name)) return Icon;
+  return HeartHandshake;
+}
 
 /* Dropdown เลือกเวลาเริ่มตัวเดียว — เมนูเป็นช่วงละ 15 นาที พร้อมจุดสีบอกสถานะ
    ว่าง (เขียว) · ชนคิว (แดง) · เกินเวลาร้าน (จาง)
@@ -595,21 +616,27 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           )}
           <Card>
           <CardHead title="เลือกรายการ" hint={`${visibleCats.length} รายการ`} />
-          <div className="cat-grid">
+          <div className="svc-list">
             {visibleCats.map((c) => {
               const durs = durationsForCat(c);
               if (durs.length === 0) return null;
               const prices = durs.map((d) => d.price);
               const min = Math.min(...prices);
               const max = Math.max(...prices);
+              /* เวลา: มีเดียว = "1 ชม" · หลายเวลา = "30 นาที – 2 ชม" (เลือกเอาในขั้น 2) */
+              const durHint = durs.length === 1
+                ? formatDuration(durs[0].duration)
+                : `${formatDuration(durs[0].duration)} – ${formatDuration(durs[durs.length - 1].duration)}`;
+              const Icon = categoryIcon(c);
               return (
-                <button key={c} type="button" aria-pressed={selectedCategory === c} className={`cat-card${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
-                  <span className="cat-card-main">
+                <button key={c} type="button" aria-pressed={selectedCategory === c} className={`svc-row${selectedCategory === c ? ' on' : ''}`} onClick={() => handleSelectCategory(c)}>
+                  <span className="svc-ico" aria-hidden="true"><Icon size={22} strokeWidth={1.6} /></span>
+                  <span className="svc-main">
                     <b>{c}</b>
-                    {categoryEn(c, data.serviceCategoryEn) ? <small className="cat-en">{categoryEn(c, data.serviceCategoryEn)}</small> : null}
-                    <span className="cat-price num">฿ {min.toLocaleString()}{max !== min ? ` – ${max.toLocaleString()}` : ''}</span>
+                    <small>{durHint}</small>
                   </span>
-                  <span className="cat-card-arrow" aria-hidden="true">{selectedCategory === c ? '✓' : '›'}</span>
+                  <span className="svc-price num">฿ {min.toLocaleString()}{max !== min ? ` – ${max.toLocaleString()}` : ''}</span>
+                  <ChevronRight className="svc-arrow" size={18} strokeWidth={1.9} aria-hidden="true" />
                 </button>
               );
             })}
