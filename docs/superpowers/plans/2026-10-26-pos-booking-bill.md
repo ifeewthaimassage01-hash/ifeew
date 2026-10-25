@@ -235,8 +235,8 @@ const manualBkDayCounts = useMemo(
 
 **Files:** แก้จุดที่พบในการตรวจเท่านั้น (เรคอร์ดผลผ่านไม่ผ่าน)
 
-- [ ] **Step 7.1: `npm run build`** → PASS
-- [ ] **Step 7.2: สอนผู้ใช้รัน SQL ครั้งเดียว** — นำ `supabase/migration_pos_booking_bill.sql` ไป Supabase Dashboard → SQL Editor (idempotent รันซ้ำได้); หลังรัน ให้ reload แอป — ฟิลด์บิลจองครบ + banner เตือนหาย
+- [x] **Step 7.1: `npm run build`** → PASS
+- [x] **Step 7.2: สอนผู้ใช้รัน SQL ครั้งเดียว** — นำ `supabase/migration_pos_booking_bill.sql` ไป Supabase Dashboard → SQL Editor (idempotent รันซ้ำได้); หลังรัน ให้ reload แอป — ฟิลด์บิลจองครบ + banner เตือนหาย
 - [ ] **Step 7.3: manual walkthrough** — `npm run dev` + `.env` Supabase จริง:
 
 - **✓1 walk-in regression:** เปิดบิลหน้าร้านครบ flow → เช็คบิล/ยกเลิก/แก้ไข/รวมบิล เดิมเป๊ะ; ยอดดาชบอร์ด/คอมมิชชันของวันไม่แปลกจากเดิม
