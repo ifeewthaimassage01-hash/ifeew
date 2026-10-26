@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert, Image as ImageIcon, CheckCircle2, Loader2, UserRound, Users, ChevronUp, ChevronDown, ChevronRight, Clock } from 'lucide-react';
+import { CalendarCheck, RefreshCw, TriangleAlert, Image as ImageIcon, CheckCircle2, Loader2, UserRound, Users, ChevronUp, ChevronDown, ChevronRight, Clock, Pencil, Trash2 } from 'lucide-react';
 import { alertDialog, Modal, formatDuration } from '../components/ui';
 import { bkkMinutes, bkkToday } from '../utils/bkk';
 import { getOwnerPass } from '../lib/auth';
@@ -76,7 +76,7 @@ function CompleteTherapistDialog({ booking, therapists, finishingName, onFinish,
 /** สถานะที่ถือว่าเป็น "บิลเปิด" อยู่ (สอดคล้อง isTodoBooking + confirmed) */
 const OPEN_STATUSES = ['pending', 'confirmed', 'cancel_requested'];
 
-export default function BookingBillsSection({ data, onActiveCount, onDayCounts, dayFilter }) {
+export default function BookingBillsSection({ data, onActiveCount, onDayCounts, dayFilter, ownBookingRows, ownBookingCount, startEdit, requestVoid, startCheckoutBill, onLoading }) {
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
@@ -152,8 +152,8 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
   /* รายงานจำนวนขึ้นหน้า — badge แท็บ "บิลที่เปิดอยู่" + hint หัวการ์ดรวมคิดกัน
      (นับตามที่โชว์จริง: เลือกวันอยู่ = นับวันนั้น) */
   useEffect(() => {
-    onActiveCount?.(open.length);
-  }, [open.length, onActiveCount]);
+    onActiveCount?.(open.length + (ownBookingCount || 0));
+  }, [open.length, ownBookingCount, onActiveCount]);
 
   /* จำนวนจองเปิดรายวัน (ทุกวันใน strip ถัดไป) → pill บนชิปเลือกวัน
      "วันไหนมีจองบ้าง" (คำขอผู้ใช้ 23 ต.ค. 2026) — นับจาก openAll ตัวเดียวกัน */
@@ -168,6 +168,11 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
   useEffect(() => {
     onDayCounts?.(dayCounts);
   }, [dayCounts, onDayCounts]);
+
+  // รายงานสถานะโหลดขึ้นหน้า — กัน OpenBillsSection สรุป "ว่าง" ก่อนดึงการจองเว็บเสร็จ
+  useEffect(() => {
+    onLoading?.(loading);
+  }, [loading, onLoading]);
 
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
      guard แบบเดียวกับฝั่งหน้าร้าน (App.reload): งดโหลดกลาง dialog — ดูสลีป · เลือกหมอจบบริการ
@@ -191,6 +196,11 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
     );
   }
 
+  /* ไม่มีทั้งการจองเว็บและบิลจองร้านรับเอง (รวมช่วงกำลังโหลด — ไม่โชว์ข้อความ/การ์ดว่าง)
+     → OpenBillsSection จะโชว์ empty state ใหญ่แทน (กัน flash ด้วย bkLoading ฝั่งหน้า) */
+  const hasContent = open.length > 0 || (ownBookingCount || 0) > 0;
+  if (!hasContent && !authErr && !error && !slipView && !finishOf) return null;
+
   return (
     <>
       {/* ══ กลุ่ม 2 · ออเดอร์จอง — ธีมเขียว (แบบ mockup 5 พ.ย. 2026) ══
@@ -200,7 +210,7 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
         <header className="osec-head">
           <span className="osec-ic" aria-hidden="true"><CalendarCheck size={16} strokeWidth={2} /></span>
           <h2>จอง</h2>
-          <span className="osec-count num" title="จำนวนการจอง (บิลจอง) ที่เปิดอยู่">{open.length}</span>
+          <span className="osec-count num" title="จำนวนการจอง (บิลจอง) ที่เปิดอยู่">{open.length + (ownBookingCount || 0)}</span>
           <span className="osec-head-sp" />
 
           <button
@@ -214,6 +224,61 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
           </button>
         </header>
         <div className="osec-body">
+          {/* บิลจองร้านรับเอง (จาก data.bills) — แสดงใน section เดียวกับการจองจากเว็บ */}
+          {ownBookingRows && ownBookingRows.length > 0 && ownBookingRows.map((r, i) => (
+            <article
+              key={r.b.id}
+              className="orow"
+              onClick={() => startEdit && startEdit(r.b)}
+              title="แตะเพื่อแก้ไขบิล"
+              aria-label={`บิลจอง ลำดับ ${i + 1} · ${r.svcName} · เวลา ${r.timeText} · ฿ ${r.total.toLocaleString()}`}
+            >
+              <div className="orow-main">
+                <span className="orow-tag">
+                  <span className="orow-pill green"> จอง</span>
+                  <span className="orow-time num">{r.timeText}</span>
+                </span>
+                <span className="orow-svc" title={`รับจองโดย ${r.booker || '—'}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
+                  <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
+                  <small className="num">
+                    {formatDuration(r.mins) || '—'} · รับจองโดย {r.booker || '—'}{r.customer ? ` · ${r.customer}` : ''}
+                    {r.hasDoc ? ` · ${r.docName}${r.docExtra}` : ''}
+                  </small>
+                </span>
+              </div>
+              <span className="orow-cta">
+                <b className="orow-amt num">฿ {r.total.toLocaleString()}</b>
+                <span className="orow-actions">
+                  <button
+                    type="button"
+                    className="orow-link"
+                    title={`แก้ไขบิล ${r.b.id}`}
+                    aria-label={`แก้ไขบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); startEdit && startEdit(r.b); }}
+                  >
+                    <Pencil size={11} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orow-link danger"
+                    title={`ยกเลิกบิล ${r.b.id}`}
+                    aria-label={`ยกเลิกบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); requestVoid && requestVoid(r.b); }}
+                  >
+                    <Trash2 size={11} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orow-btn brown"
+                    title={`เช็คบิล (ชำระเงิน/ออกใบเสร็จ) ฿ ${r.total.toLocaleString()}`}
+                    onClick={(e) => { e.stopPropagation(); startCheckoutBill && startCheckoutBill(r.b); }}
+                  >
+                     <ChevronRight size={13} strokeWidth={2.4} />
+                  </button>
+                </span>
+              </span>
+            </article>
+          ))}
           {authErr ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
               <TriangleAlert size={14} style={{ flexShrink: 0 }} /> {authErr}
@@ -222,11 +287,7 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
               <TriangleAlert size={14} style={{ flexShrink: 0 }} /> โหลดรายการจองไม่สำเร็จ — {error}
             </div>
-          ) : loading ? (
-            <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>กำลังโหลดการจอง…</p>
-          ) : open.length === 0 ? (
-            <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>ไม่มีการจองจากเว็บที่เปิดอยู่</p>
-          ) : (
+          ) : open.length === 0 ? null : (
             sortedOpen.map((b, i) => {
               const slip = slipState(b);
               const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';

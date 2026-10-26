@@ -80,6 +80,7 @@ export default function PageBills({ data, saveData, role }) {
   // บิลจอง (ลูกค้าจอง) ก็ "คิดเป็นบิลที่เปิดอยู่" — จำนวนรายงานขึ้นจาก BookingBillsSection
   const [bkOpenCount, setBkOpenCount] = useState(0);
   const [bkDayCounts, setBkDayCounts] = useState({}); // จำนวนจองรายวัน → pill บนชิปเลือกวัน
+  const [bkLoading, setBkLoading] = useState(true); // การจองเว็บยังโหลดอยู่ → ยังไม่สรุปว่าวันนี้ว่าง
   // แถบเลือกวันของการ์ด "บิลที่เปิดอยู่" (แบบเว็บจอง) — เริ่มต้นที่วันนี้
   const [openDay, setOpenDay] = useState(bkkToday());
 
@@ -246,10 +247,10 @@ export default function PageBills({ data, saveData, role }) {
 
       {tab === 'open' && (
         <>
-          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay} dayCounts={computedDayCounts}>
+          <OpenBillsSection data={data} saveData={saveData} role={role} bookingsHint={`ลูกค้าจอง ${bkOpenCount}`} dayFilter={openDay} onDayFilter={setOpenDay} dayCounts={computedDayCounts} bookingsLoading={bkLoading}>
             {/* บิลจอง — ข้อมูลที่จองจากเว็บ แสดงในการ์ดเดียวกับบิลเปิด (แยกป้าย ลูกค้าหน้าร้าน/ลูกค้าจอง)
                 · กลุ่มนี้ถูกตัวกรองวันเดียวกัน */}
-            <BookingBillsSection data={data} onActiveCount={setBkOpenCount} onDayCounts={setBkDayCounts} dayFilter={openDay} />
+            <BookingBillsSection data={data} saveData={saveData} role={role} onActiveCount={setBkOpenCount} onDayCounts={setBkDayCounts} dayFilter={openDay} onLoading={setBkLoading} />
           </OpenBillsSection>
         </>
       )}

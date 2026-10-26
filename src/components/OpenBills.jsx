@@ -1,5 +1,6 @@
+import * as React from 'react';
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil, UserRound } from 'lucide-react';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil } from 'lucide-react';
 import { Card, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, bkkToday, fmtBkk } from '../utils/bkk';
 import { supabase } from '../lib/supabase';
@@ -8,7 +9,7 @@ import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 /* ชื่อวัน/เดือนไทย + label วัน แชร์ไฟล์เดียวกับ POS บิลจอง (กันนิยามซ้ำหลายไฟล์) */
-import { TH_WD, TH_MO, dayChipLabel, slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
+import { TH_WD, TH_MO, slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
 
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
@@ -145,7 +146,7 @@ function ReceiptCard({ items, services, therapists, subtotal, disc, discLabel, t
 /* บิลที่เปิดค้างไว้ (ยังไม่เช็คบิล) — แสดงในหน้า POS พร้อมปุ่มแก้ไข / เช็คบิล / ยกเลิก
    children = กลุ่ม "ลูกค้าจอง" (BookingBillsSection) — การจองจากเว็บ นับเป็นบิลที่เปิดอยู่
    เช่นเดียวกัน แค่มีป้ายแยกลูกค้าหน้าร้าน / ลูกค้าจอง (22 ต.ค. 2026) */
-export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter, dayCounts }) {
+export default function OpenBillsSection({ data, saveData, role, children, bookingsHint, dayFilter, onDayFilter, dayCounts, bookingsLoading }) {
   // ปุ่มยกเลิกโชว์ทุก role — modal ยกเลิกบังคับใส่รหัสเจ้าของร้านอยู่แล้ว
   const canVoid = true;
   const allOpenBills = [...(data.bills || [])].filter((b) => b.status === 'open').reverse();
@@ -260,6 +261,8 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   const [assignTarget, setAssignTarget] = useState(null);
   const [assignSeg, setAssignSeg] = useState('regular');
   const [assignName, setAssignName] = useState('');
+  // true = เปิดหน้าเลือกหมอ "จากการกดเช็คบิล" → เลือกเสร็จวนกลับเข้าเช็คบิลต่ออัตโนมัติ
+  const [assignThenCheckout, setAssignThenCheckout] = useState(false);
 
   // BUG-OB-02: มี modal แก้ไข/เช็คบิล/ยกเลิก/รวมบิล/ตั้งหมอเปิดอยู่ → บอก App ให้หยุด realtime reload กลางการแก้
   useEffect(() => {
@@ -440,9 +443,10 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
   };
 
   const startCheckoutBill = (b) => {
-    // บิลจอง (ร้านรับเอง): ต้องตั้งหมอก่อนเช็คบิล — กันเช็คบิลตอนไม่มีหมอ (คอมมิชชันคำนวณไม่ได้)
+    // บิลจอง (ร้านรับเอง): ยังไม่มีหมอ → ขึ้นหน้าเลือกหมอทันที เลือกเสร็จวนกลับเข้าเช็คบิลต่อ
     if (b.customerType === 'booking' && !((b.therapistId || '') || (billRows(b)[0]?.therapistId || ''))) {
-      alertDialog({ title: 'ตั้งหมอก่อนเช็คบิล', message: 'บิลจองต้องมีหมอก่อน — กดปุ่มตั้งหมอที่บิลจองก่อนเช็คบิล' });
+      setAssignThenCheckout(true);
+      openAssign(b);
       return;
     }
     setCheckoutTarget(b);
@@ -573,6 +577,16 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
           });
         } catch { /* ดึงไม่ได้ (network/ไม่มีสิทธิ์) → ไม่เตือน ตามพฤติกรรม warn-only */ }
       }
+    }
+    if (assignThenCheckout) {
+      // มาจากปุ่มเช็คบิล → ไม่ต้องขึ้นสรุป "ตั้งหมอเสร็จ" เข้าหน้าเช็คบิลต่อทันที
+      // (ถ้าเวลาชนคิวยังเตือนก่อน — warn-only เหมือนเดิม)
+      setAssignThenCheckout(false);
+      if (clash) {
+        await alertDialog({ title: 'เวลาชนคิว', message: 'เวลาชนคิวของหมอคนนี้ — กดแก้ไขบิลเพื่อย้ายเวลาได้หลังเช็คบิล' });
+      }
+      startCheckoutBill(updated);
+      return;
     }
     await alertDialog(clash
       ? { title: 'ตั้งหมอเสร็จ — เวลาชนคิว', message: 'เวลาชนคิวของหมอคนนี้ ควรย้ายเวลาในแก้ไขบิล' }
@@ -786,10 +800,22 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
       </Card>
       )}
 
+      {/* ══ ไม่มีทั้งบิลหน้าร้านและการจองในวันที่เลือก → empty state ใหญ่ (แทนการ์ดว่าง 2 ใบ) ══
+          bookingsLoading = การจองเว็บยังโหลดอยู่ → รอก่อน อย่าเพิ่งสรุปว่าว่าง */}
+      {openBills.length === 0 && (dayCounts?.[dayFilter] || 0) === 0 && !bookingsLoading && (
+        <div className="big-empty" role="status">
+          <span className="big-empty-ic" aria-hidden="true"><CalendarDays size={26} strokeWidth={1.8} /></span>
+          <b>ยังไม่มีกิจกรรมในวันนี้</b>
+          <small>เปิดบิลใหม่ได้จากหน้า POS · การจองจะขึ้นเมื่อมีลูกค้าจอง</small>
+        </div>
+      )}
+
       {/* ══ กลุ่ม 1 · ออเดอร์หน้าร้าน (บิลสถานะ open) — ธีมน้ำตาล (แบบ mockup 5 พ.ย. 2026) ══
           โครง Flexbox แถวเดียว: [ซ้าย · orow-main: ลำดับ | ป้ายหน้าร้าน+เวลา | บริการ+รายละเอียด(หมอ/ลูกค้า)]
                                   [ขวา · orow-cta: ยอดเงิน บน + ปุ่ม แก้ไข/ยกเลิก/เช็คบิล ล่าง (ซ้าย→ขวา)]
-          แตะแถว = แก้ไขบิล · ปุ่มน้ำตาล = เช็คบิล (ชำระเงิน/ออกใบเสร็จ) */}
+          แตะแถว = แก้ไขบิล · ปุ่มน้ำตาล = เช็คบิล (ชำระเงิน/ออกใบเสร็จ)
+          ซ่อนเมื่อไม่มีบิล — โชว์เฉพาะกลุ่มที่มีข้อมูล (คำขอผู้ใช้) */}
+      {openBills.length > 0 && (
       <section className="osec osec-brown" aria-label="ออเดอร์หน้าร้าน">
         <header className="osec-head">
           <span className="osec-ic" aria-hidden="true"><Store size={16} strokeWidth={2} /></span>
@@ -827,13 +853,6 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               </button>
             </div>
           )}
-          {openBills.length === 0 && (
-            <p className="osec-note">
-              {dayFilter
-                ? `ไม่มีบิลในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
-                : 'เปิดบิลใหม่ได้จากหน้า POS'}
-            </p>
-          )}
           {walkRowsSorted.length > 0 && walkRowsSorted.map((r, i) => {
             const msel = mergeMode && mergeSel.includes(r.b.id);
             return (
@@ -849,7 +868,6 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
                 <div className="orow-main">
                   <span className="orow-tag">
                     <span className="orow-pill pink"> หน้าร้าน</span>
-                    <span className="orow-time num">{r.timeText}</span>
                   </span>
                   <span className="orow-svc" title={`หมอ: ${r.docName}${r.docExtra}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
                     <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
@@ -894,95 +912,17 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
           })}
         </div>
       </section>
+      )}
 
-      {/* ══ กลุ่ม 1B · บิลจอง ร้านรับเอง (ลูกค้าโทรมาจอง — เปิดบิลล่วงหน้า) — ธีมเขียว ══
-          เปิดบิลไว้ก่อนลูกค้าถึงร้าน จึงยังไม่มีหมอ → กดปุ่มตั้งหมอ (UserRound) ที่แถว
-          ต้องตั้งหมอก่อนเช็คบิลเสมอ · ยอดจัดกลุ่มตาม "วันที่ให้บริการ" (bookedDate) ไม่กระทบยอดหน้าร้าน */}
-      <section className="osec osec-green" aria-label="บิลจอง (ร้านรับเอง)">
-        <header className="osec-head">
-          <span className="osec-ic" aria-hidden="true"><UserRound size={16} strokeWidth={2} /></span>
-          <h2>จอง (ร้านรับเอง)</h2>
-          <span className="osec-count num" title="จำนวนบิลจอง (ร้านรับเอง) ที่เปิดอยู่">{shownBookBills.length}</span>
-        </header>
-        <div className="osec-body">
-          {shownBookBills.length === 0 && (
-            <p className="osec-note">
-              {dayFilter
-                ? `ไม่มีบิลจองในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
-                : 'ลูกค้าโทรมาจอง → เปิดบิลจองจากหน้า POS (เลือก "ลูกค้าจอง")'}
-            </p>
-          )}
-          {bookRowsSorted.length > 0 && bookRowsSorted.map((r, i) => (
-            <article
-              key={r.b.id}
-              className="orow"
-              onClick={() => startEdit(r.b)}
-              title="แตะเพื่อแก้ไขบิล"
-              aria-label={`บิลจอง ลำดับ ${i + 1} · ${r.svcName} · เวลา ${r.timeText} · ฿ ${r.total.toLocaleString()}`}
-            >
-              <div className="orow-main">
-                <span className="orow-tag">
-                  <span className="orow-pill green"> จอง</span>
-                  <span className="orow-time num">{r.timeText}</span>
-                  {!r.hasDoc && <span className="orow-pill amber" title="ยังไม่ได้ตั้งหมอ — ต้องตั้งหมอก่อนเช็คบิล">รอตั้งหมอ</span>}
-                </span>
-                <span className="orow-svc" title={`รับจองโดย ${r.booker || '—'}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
-                  <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
-                  <small className="num">
-                    {formatDuration(r.mins) || '—'} · รับจองโดย {r.booker || '—'}{r.customer ? ` · ${r.customer}` : ''}
-                    {r.hasDoc ? ` · ${r.docName}${r.docExtra}` : ''}
-                  </small>
-                </span>
-              </div>
-              <span className="orow-cta">
-                <b className="orow-amt num">฿ {r.total.toLocaleString()}</b>
-                <span className="orow-actions">
-                  <button
-                    type="button"
-                    className="orow-link"
-                    title={`แก้ไขบิล ${r.b.id}`}
-                    aria-label={`แก้ไขบิล ${r.b.id}`}
-                    onClick={(e) => { e.stopPropagation(); startEdit(r.b); }}
-                  >
-                    <Pencil size={11} strokeWidth={2} />
-                  </button>
-                  {!r.hasDoc && (
-                    <button
-                      type="button"
-                      className="orow-link"
-                      title={`ตั้งหมอบิลจอง ${r.b.id}`}
-                      aria-label={`ตั้งหมอบิลจอง ${r.b.id}`}
-                      onClick={(e) => { e.stopPropagation(); openAssign(r.b); }}
-                    >
-                      <UserRound size={11} strokeWidth={2} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="orow-link danger"
-                    title={`ยกเลิกบิล ${r.b.id}`}
-                    aria-label={`ยกเลิกบิล ${r.b.id}`}
-                    onClick={(e) => { e.stopPropagation(); requestVoid(r.b); }}
-                  >
-                    <Trash2 size={11} strokeWidth={2} />
-                  </button>
-                  <button
-                    type="button"
-                    className="orow-btn brown"
-                    title={`เช็คบิล (ชำระเงิน/ออกใบเสร็จ) ฿ ${r.total.toLocaleString()}`}
-                    onClick={(e) => { e.stopPropagation(); startCheckoutBill(r.b); }}
-                  >
-                    <ChevronRight size={13} strokeWidth={2.4} />
-                  </button>
-                </span>
-              </span>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      {/* กลุ่ม 2 · ออเดอร์จอง (children = BookingBillsSection — การ์ดธีมเขียว) */}
-      {children}
+      {/* ══ กลุ่ม · ออเดอร์จอง (รวมร้านรับเอง + จากเว็บ) — ธีมเขียว ══
+          cloneElement ส่ง ownBookingRows + handlers ให้ BookingBillsSection แสดงใน section เดียวกัน */}
+      {children && React.cloneElement(children, {
+        ownBookingRows: bookRowsSorted,
+        ownBookingCount: shownBookBills.length,
+        startEdit,
+        requestVoid,
+        startCheckoutBill,
+      })}
 
       {editTarget && (
         <Modal onClose={() => setEditTarget(null)}>
@@ -1103,7 +1043,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
           <div className="mcard-top" style={{ paddingRight: 34 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div>
-                <h3 style={{ fontSize: 17 }}>ตั้งหมอบิลจอง</h3>
+                <h3 style={{ fontSize: 17 }}>{assignThenCheckout ? 'เช็คบิล — เลือกหมอผู้ให้บริการ' : 'ตั้งหมอบิลจอง'}</h3>
                 <div className="muted">คุณ{assignTarget.customer || '—'} · {assignTarget.startTime ? `${clockStr(assignTarget.startTime)} น.` : 'ยังไม่ระบุเวลา'}</div>
               </div>
             </div>
@@ -1153,7 +1093,7 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               style={{ width: '100%' }}
               disabled={!(assignSeg === 'regular' ? assignName : assignName.trim())}
             >
-              ยืนยันตั้งหมอ
+              {assignThenCheckout ? 'ยืนยันและเช็คบิล' : 'ยืนยันตั้งหมอ'}
             </button>
           </div>
         </Modal>
