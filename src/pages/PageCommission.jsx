@@ -209,7 +209,7 @@ export default function PageCommission({ data, saveData, role }) {
                     <td>{r.label}</td>
                     <td className="r">× {r.qty}</td>
                     <td className="r mono">฿ {Math.round(r.net).toLocaleString()}</td>
-                    <td className="r"><b style={{ color: 'var(--brown-ink)' }}>฿ {Math.round(r.comm).toLocaleString()}</b></td>
+                    <td className="r"><b className="brown-ink">฿ {Math.round(r.comm).toLocaleString()}</b></td>
                   </tr>
                 ))}
               </tbody>
@@ -256,7 +256,7 @@ export default function PageCommission({ data, saveData, role }) {
           <CardHead title="หมอประจำ ตามบริการ" right={<span className="badge neutral">{priced.length}</span>} />
           <div className="refgrid">
             {priced.map((s) => (
-              <div key={s.id} className="refbox"><b>{svcLabel(s)}</b><small className="muted">฿ {s.price.toLocaleString()} · <b style={{ color: 'var(--brown-ink)' }}>ค่าแรง ฿ {commBaht(s).toLocaleString()}</b></small></div>
+              <div key={s.id} className="refbox"><b>{svcLabel(s)}</b><small className="muted">฿ {s.price.toLocaleString()} · <b className="brown-ink">ค่าแรง ฿ {commBaht(s).toLocaleString()}</b></small></div>
             ))}
           </div>
         </Card>
@@ -294,7 +294,7 @@ export default function PageCommission({ data, saveData, role }) {
                   <tbody>
                     {freelanceList.map(([tid, f]) => (
                       <tr key={tid}>
-                        <td><b style={{ fontWeight: 600 }}>{freelanceDisplayName(tid)}</b> <span className="badge neutral">นอกระบบ</span></td>
+                        <td><b className="fw600">{freelanceDisplayName(tid)}</b> <span className="badge neutral">นอกระบบ</span></td>
                         <td className="r">{f.jobs}</td>
                         <td className="r mono">฿ {Math.round(f.total).toLocaleString()}</td>
                       </tr>
@@ -309,13 +309,13 @@ export default function PageCommission({ data, saveData, role }) {
                 <Card key={tid}>
                   <div className="mcard-top">
                     <div className="pagehead-main">
-                      <div className="thera-ava" style={{ width: 46, height: 46 }}>{freelanceDisplayName(tid).charAt(0)}</div>
-                      <div><b style={{ fontSize: 14 }}>{freelanceDisplayName(tid)}</b><div className="muted">{f.jobs} งาน · นอกระบบ</div></div>
+                      <div className="thera-ava thera-ava-sm">{freelanceDisplayName(tid).charAt(0)}</div>
+                      <div><b className="fs14">{freelanceDisplayName(tid)}</b><div className="muted">{f.jobs} งาน · นอกระบบ</div></div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                  <div className="flex-between-baseline">
                     <span className="muted">{f.jobs} ครั้ง</span>
-                    <b style={{ fontSize: 22, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>฿ {Math.round(f.total).toLocaleString()}</b>
+                    <b className="grand-lg">฿ {Math.round(f.total).toLocaleString()}</b>
                   </div>
                 </Card>
               ))}
@@ -375,13 +375,13 @@ export default function PageCommission({ data, saveData, role }) {
                 const top = topupById[t.id];
                 return (
                   <tr key={t.id}>
-                    <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 600 }}>{t.name}</b>{top && <span className="badge info" style={{ marginLeft: 6 }}>ประกันมือ</span>}</td>
+                    <td><span className="muted">#{idx + 1}</span> <b className="fw600">{t.name}</b>{top && <span className="badge info ml6">ประกันมือ</span>}</td>
                     <td className="r">{s.jobs}</td>
                     <td className="r mono">฿ {Math.round(s.totalSales).toLocaleString()}</td>
-                    <td className="r"><b style={{ color: 'var(--brown-ink)' }}>฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
-                      {top && <small className="muted" style={{ display: 'block' }}>จริง ฿ {s.total.toLocaleString()} + ประกัน ฿ {top.shortfall.toLocaleString()}</small>}
+                    <td className="r"><b className="brown-ink">฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
+                      {top && <small className="muted d-block">จริง ฿ {s.total.toLocaleString()} + ประกัน ฿ {top.shortfall.toLocaleString()}</small>}
                     </td>
-                    <td className="r"><button className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด">ดู</button></td>
+                    <td className="r"><button className="btn btn-ghost btn-text-sm" onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด">ดู</button></td>
                   </tr>
                 );
               })}
@@ -399,19 +399,19 @@ export default function PageCommission({ data, saveData, role }) {
             <Card key={t.id}>
               <div className="mcard-top">
                 <div className="pagehead-main">
-                  <div className="thera-ava" style={{ width: 46, height: 46 }}>{(t.name || '?').charAt(0)}</div>
-                  <div><b style={{ fontSize: 14 }}>{t.name}</b><div className="muted">{s.jobs} งาน{top ? ' · ประกันมือ' : ''}</div></div>
+                  <div className="thera-ava thera-ava-sm">{ (t.name || '?').charAt(0) }</div>
+                  <div><b className="fs14">{t.name}</b><div className="muted">{s.jobs} งาน{top ? ' · ประกันมือ' : ''}</div></div>
                 </div>
                 <div className="mcard-actions">
                   {idx === 0 && s.totalSales > 0 && <span className="badge info"><Crown size={11} /> Top</span>}
                   <button className="card-eye-inline" onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด" aria-label="ดูประวัติการนวด"><Eye size={15} /></button>
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+              <div className="flex-between-baseline">
                 <span className="muted">ยอดขาย ฿ {Math.round(s.totalSales).toLocaleString()}</span>
-                <b style={{ fontSize: 22, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
+                <b className="grand-lg">฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
               </div>
-              {top && <div className="muted" style={{ textAlign: 'right', marginTop: 2 }}>จริง ฿ {s.total.toLocaleString()} + ประกัน ฿ {top.shortfall.toLocaleString()}</div>}
+              {top && <div className="muted ta-right mt2">จริง ฿ {s.total.toLocaleString()} + ประกัน ฿ {top.shortfall.toLocaleString()}</div>}
             </Card>
           );
         })}

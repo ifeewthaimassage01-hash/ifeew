@@ -123,9 +123,9 @@ export default function PageDashboard({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={tab === 'day' ? `สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}` : `สรุป${month.monthLabel}`} />
+      <PageHeader icon={LayoutDashboard} title="ภาพรวม" />
 
-      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="seg">
         <button onClick={() => setTab('day')} className={tab === 'day' ? 'on' : ''}>รายวัน</button>
         <button onClick={() => setTab('month')} className={tab === 'month' ? 'on' : ''}>รายเดือน</button>
       </div>
@@ -138,7 +138,7 @@ export default function PageDashboard({ data, saveData }) {
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป {filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
-        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div className="hero-grid grid-3">
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
@@ -147,7 +147,7 @@ export default function PageDashboard({ data, saveData }) {
 
       <Card>
         <CardHead title="แยกตามประเภทหมอ" hint="ยอดขาย · ค่าแรง" />
-        <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
+        <div className="mini2">
           <div className="mini-box"><div className="l">หมอประจำ · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
           <div className="mini-box hl"><div className="l">หมอประจำ · ค่าแรง</div><div className="v">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
           <div className="mini-box"><div className="l">หมอวิ่ง · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
@@ -166,7 +166,7 @@ export default function PageDashboard({ data, saveData }) {
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป{month.monthLabel}</span><span>{month.paidBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(month.net).toLocaleString()}</div>
-        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div className="hero-grid grid-3">
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(month.income).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(month.expenseAll).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(month.regComm).toLocaleString()}</div></div>
@@ -175,9 +175,9 @@ export default function PageDashboard({ data, saveData }) {
 
       <Card>
         <CardHead title="ใบสรุปประจำเดือน" />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary auto" style={{ flex: 1 }} onClick={() => window.print()}>PDF</button>
-          <button className="btn btn-ghost auto" style={{ flex: 1 }} onClick={() => downloadMonthExcel(reportData, stmtMonth)}>Excel</button>
+        <div className="flex-gap-8">
+          <button className="btn btn-primary auto fg1" onClick={() => window.print()}>PDF</button>
+          <button className="btn btn-ghost auto fg1" onClick={() => downloadMonthExcel(reportData, stmtMonth)}>Excel</button>
         </div>
       </Card>
       </>

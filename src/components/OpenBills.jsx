@@ -3,18 +3,13 @@ import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, Clock, ExternalLin
 import { Card, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, bkkToday, fmtBkk } from '../utils/bkk';
 import { supabase } from '../lib/supabase';
-import { commBaht, freelanceDisplayName, isFreelance, billBizDay } from '../lib/billing';
+import { commBaht, freelanceDisplayName, isFreelance, billBizDay, billRows, rowNet, billTotal } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
 import { uploadSlip, resolveImageUrl } from '../lib/images';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 /* ชื่อวัน/เดือนไทย + label วัน แชร์ไฟล์เดียวกับ POS บิลจอง (กันนิยามซ้ำหลายไฟล์) */
 import { TH_WD, TH_MO, dayChipLabel, slotMinutesBkk, therapistKey } from '../booking/bookingUtils';
 
-const billRows = (b) => b.items || b.customers || [];
-const rowNet = (i) => i.net ?? i.price ?? 0;
-// สูตรยอดบิลมาตรฐานทั้งแอป: ผลรวม net รายแถว − ส่วนลดท้ายบิล (ต้องตรงกับ total ที่เซฟ)
-// สูตรเดียวกับ PageBills.jsx / PageDashboard.jsx / MonthStatement.jsx
-const billTotal = (b) => Math.max(0, billRows(b).reduce((s, i) => s + rowNet(i), 0) - (b.discount || 0));
 const payMethods = ['เงินสด', 'QR Code / โอนเงิน'];
 const BREAK_MINUTES = 15;
 

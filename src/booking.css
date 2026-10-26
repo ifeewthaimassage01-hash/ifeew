@@ -45,11 +45,7 @@
 .kpi.alert .kpi-value { color: var(--st-bad); }
 .kpi.alert .kpi-sub { color: var(--st-bad); }
 
-.bk-adm-notice {
-  display: flex; gap: 8px; align-items: flex-start;
-  background: var(--st-bad-bg); border: 1px solid var(--st-bad-bd); color: var(--st-bad);
-  font-size: 12.5px; border-radius: var(--r-md); padding: 10px 13px; margin-bottom: 12px; line-height: 1.5;
-}
+
 
 /* ---------- สถานะกำลังโหลด ---------- */
 .bk-adm-loading { display: flex; justify-content: center; padding: 48px 0; }
@@ -208,19 +204,19 @@
 .bk-adm-sec-txt b { display: block; font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.25; }
 .bk-adm-sec-txt span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 
+
+
 /* การ์ดสรุป 2 กลุ่ม: "ที่ต้องทำ" กับ "สรุปวันนี้"
    — มือถือ 2 คอล (ตัวท้ายกินเต็มแถว) / ≥720 3 คอล (ตัวท้ายอยู่คอล 3 ไม่ล้นคอลใหม่) */
-.bk-adm-stats-todo, .bk-adm-stats-sum {
+.bk-adm-stats-todo {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);
 }
-.bk-adm-stats-todo > *:last-child,
-.bk-adm-stats-sum > *:last-child { grid-column: span 2; }
+.bk-adm-stats-todo > *:last-child { grid-column: span 2; }
 @media (min-width: 720px) {
-  .bk-adm-stats-todo, .bk-adm-stats-sum { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .bk-adm-stats-todo > *:last-child,
-  .bk-adm-stats-sum > *:last-child { grid-column: auto; }
+  .bk-adm-stats-todo { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bk-adm-stats-todo > *:last-child { grid-column: auto; }
 }
-.bk-adm-stats-sum { margin-bottom: var(--sp-5); }
+
 /* ไม่มีงานค้าง = บรรทัดเดียว (หัวข้อบอกอยู่แล้วว่า "ที่ต้องทำตอนนี้") */
 .bk-adm-note {
   margin: 0; padding: 10px 12px;
@@ -269,7 +265,7 @@
 /* สถานะว่าง */
 .bk-adm-empty { padding: var(--sp-3); margin-bottom: var(--sp-4); }
 .bk-adm-empty .empty { padding: var(--sp-5) var(--sp-3); }
-.bk-adm-empty-act { display: flex; justify-content: center; margin-top: var(--sp-3); }
+
 /* "ไม่มีรายการ" แบบบรรทัดเดียว: ไอคอน + ข้อความ + ปุ่มรีเฟรช */
 .bk-adm-empty-line {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -289,16 +285,8 @@
   .bk-adm-acts > * { flex: 1 1 100%; }
 }
 
-/* ---------- ป้ายแยกกลุ่มในการ์ด "บิลที่เปิดอยู่" — ลูกค้าหน้าร้าน / ลูกค้าจอง ---------- */
-.bk-sep-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 16px 0 10px;
-  padding-top: 14px;
-  border-top: 1px dashed var(--line);
-  font-size: 13px;
-}
+
+
 
 /* ---------- การ์ดจองผสานกลุ่มบิลเปิด (แฟมิลี ob-card แต่แยกลักษณะชัด) ---------- */
 .bkc { border: 1.5px dashed var(--brown); }

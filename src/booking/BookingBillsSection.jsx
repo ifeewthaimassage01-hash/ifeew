@@ -170,11 +170,17 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
   }, [dayCounts, onDayCounts]);
 
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
-     (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */
+     guard แบบเดียวกับฝั่งหน้าร้าน (App.reload): งดโหลดกลาง dialog — ดูสลีป · เลือกหมอจบบริการ
+     · modal ของแอป (.modal-ov เช่น เช็คบิล/แก้ไขบิลหน้าร้านที่เปิดค้างบนหน้าเดียวกัน)
+     เหตุการณ์ที่พลาดช่วง dialog เปิด รอบสำรอง 15 วิ ตามมาให้เองหลังปิด */
   const slipOpenRef = useRef(false);
   slipOpenRef.current = Boolean(slipView);
+  const finishOpenRef = useRef(false);
+  finishOpenRef.current = Boolean(finishOf);
   useEffect(() => onBookingsChanged(() => {
-    if (!slipOpenRef.current) loadData({ silent: true });
+    if (slipOpenRef.current || finishOpenRef.current) return;
+    if (typeof document !== 'undefined' && document.querySelector('.modal-ov')) return;
+    loadData({ silent: true });
   }), [loadData]);
 
   if (!key) {
@@ -330,18 +336,6 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
           )}
         </div>
       </section>
-
-
-      <p className="muted" style={{ fontSize: 12, margin: '6px 0 2px' }}>
-        {/* สถานะช่องรีอัลไทม์จริง: เขียว = เหตุการณ์ตอนนี้ทันที · ส้ม = ช่องตก ใช้รอบ 15 วิ สำรอง */}
-        <span className={`rt-dot${rt === 'connected' ? ' rt-on' : rt === 'down' ? ' rt-off' : ''}`} aria-hidden="true" />
-        {rt === 'connected'
-          ? 'อัปเดตทันทีแบบเรียลไทม์'
-          : (rt === 'down'
-            ? 'รายการจองอัปเดตเองทุก 15 วินาที (ช่วงนี้ช่องเรียลไทม์หลุด — ใช้รอบสำรอง)'
-            : 'รายการจองอัปเดตเองทุก 15 วินาที')}
-        {' · ยืนยัน/ปฏิเสธที่หน้า “จัดการการจอง”'}
-      </p>
 
       <SlipViewerDialog booking={slipView} onClose={() => setSlipView(null)} />
 

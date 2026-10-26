@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, TriangleAlert, X, ExternalLink } from 'lucide-react';
 
-export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
+export function PageHeader({ icon: Icon, title, subtitle, actions }) {
   return (
     <header className="pagehead">
-      {eyebrow && <div className="eyebrow"><span>{eyebrow}</span></div>}
       <div className="pagehead-row">
         <div className="pagehead-main">
           {Icon && <div className="pagehead-icon"><Icon size={22} strokeWidth={1.8} /></div>}

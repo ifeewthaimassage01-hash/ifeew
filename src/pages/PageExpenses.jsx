@@ -341,14 +341,14 @@ export default function PageExpenses({ data, saveData, role }) {
             </div>
           )}
 
-          <div style={{ maxWidth: 720 }}>
+          <div className="maxw-720">
             <Card>
               <CardHead title="บันทึกค่าใช้จ่าย" />
               {err && <div className="err-banner">⚠ {err}</div>}
               <form onSubmit={handleSubmit}>
                 <div className="f2">
                   <div className="field"><label>วันที่ *</label><input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input" /></div>
-                  <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
+                  <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0" className="input input-bold" /></div>
                 </div>
                 <div className="field"><label>หมายเหตุ *</label><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="ใช้จ่ายอะไร… เช่น ซื้อน้ำมันนวดร้านสมุนไพร" className="input" rows={2} /></div>
                 <div className="f2">
@@ -366,33 +366,33 @@ export default function PageExpenses({ data, saveData, role }) {
                     <input type="file" accept="image/*,application/pdf" hidden disabled={uploading} onChange={(e) => handleFile(e.target.files[0])} />
                   </label>
                   {uploading && (
-                    <div className="bar-track" style={{ margin: '8px 0 0' }}><span className="bar-fill" style={{ width: `${Math.max(2, progress)}%` }} /></div>
+                    <div className="bar-track bar-mt"><span className="bar-fill" style={{ width: `${Math.max(2, progress)}%` }} /></div>
                   )}
                   {receiptPreview && !receiptIsPdf && (
-                    <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <img src={receiptPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                    <div className="mt8 flex-gap-8">
+                      <img src={receiptPreview} alt="ใบเสร็จ" className="receipt-img" />
                       {form.receiptUrl && (
-                      <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(receiptPreview)}>
+                      <button type="button" className="mini-link slip-link" onClick={() => setViewImg(receiptPreview)}>
                         <ExternalLink size={13} /> เปิดดูรูปเต็ม
                       </button>
                       )}
-                      {uploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {progress}%</span>}
+                      {uploading && <span className="muted fs12">กำลังอัปโหลด… {progress}%</span>}
                     </div>
                   )}
                   {receiptPreview && receiptIsPdf && (
-                    <div style={{ marginTop: 8 }}>
+                    <div className="mt8">
                       {form.receiptUrl ? (
-                      <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                      <a href={receiptPreview} target="_blank" rel="noopener noreferrer" className="muted slip-link">
                         <ExternalLink size={13} /> เปิดดูใบเสร็จ (PDF)
                       </a>
                       ) : (
-                        <span className="muted" style={{ fontSize: 12 }}>แนบ PDF แล้ว กำลังอัปโหลด… {progress}%</span>
+                        <span className="muted fs12">แนบ PDF แล้ว กำลังอัปโหลด… {progress}%</span>
                       )}
                     </div>
                   )}
                 </div>
                 <button type="submit" className="btn btn-primary btn-block" disabled={uploading}><Plus size={18} /> บันทึกค่าใช้จ่าย {form.amount ? `· ฿ ${Number(form.amount).toLocaleString()}` : ''}</button>
-                {saved && <p className="okmsg"><CheckCircle2 size={14} style={{ verticalAlign: -2 }} /> บันทึกเรียบร้อย</p>}
+                {saved && <p className="okmsg"><CheckCircle2 size={14} className="check-ic-sm" /> บันทึกเรียบร้อย</p>}
               </form>
             </Card>
           </div>
@@ -402,7 +402,7 @@ export default function PageExpenses({ data, saveData, role }) {
       {tab === 'history' && (
         <>
           {/* ตัวกรองย่อย (chip) แยกจากแท็บหลัก เพื่อไม่ให้ดูเป็นแท็บซ้อนแท็บ */}
-          <div className="chip-row" style={{ marginBottom: 12 }}>
+          <div className="chip-row mb12">
             <button type="button" className={`chip${histView === 'day' ? ' on' : ''}`} onClick={() => setHistView('day')}>รายวัน</button>
             <button type="button" className={`chip${histView === 'month' ? ' on' : ''}`} onClick={() => setHistView('month')}>รายเดือน</button>
           </div>
@@ -411,7 +411,7 @@ export default function PageExpenses({ data, saveData, role }) {
             {histView === 'day' ? (
               <>
                 <CardHead title="ประวัติรายวัน" hint={`${dayList.length} รายการ · ฿ ${dayTotal.toLocaleString()}`} />
-                <div className="field" style={{ marginBottom: 12 }}>
+                <div className="field mb12">
                   <label>เลือกวันที่</label>
                   <input type="date" value={dayDate} onChange={(e) => e.target.value && setDayDate(e.target.value)} className="input" />
                 </div>
@@ -422,7 +422,7 @@ export default function PageExpenses({ data, saveData, role }) {
             ) : (
               <>
                 <CardHead title="ประวัติรายเดือน" hint={`${monthList.length} รายการ · ฿ ${monthTotal.toLocaleString()}`} />
-                <div className="field" style={{ marginBottom: 12 }}>
+                <div className="field mb12">
                   <label>เลือกเดือน</label>
                   <input type="month" value={monthSel} onChange={(e) => e.target.value && setMonthSel(e.target.value)} className="input" />
                 </div>
@@ -449,12 +449,12 @@ export default function PageExpenses({ data, saveData, role }) {
         <Modal onClose={closeEdit}>
           <button className="modal-x" onClick={closeEdit} aria-label="ปิด"><X size={16} /></button>
           <h3>แก้ไขรายจ่าย</h3>
-          <p className="muted" style={{ marginTop: 4 }}>{editing.id}</p>
-          {editErr && <div className="err-banner" style={{ marginTop: 10 }}>⚠ {editErr}</div>}
-          <div style={{ marginTop: 12 }}>
+          <p className="muted mt4">{editing.id}</p>
+          {editErr && <div className="err-banner mt10">⚠ {editErr}</div>}
+          <div className="mt12">
             <div className="f2">
               <div className="field"><label>วันที่ *</label><input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} className="input" /></div>
-              <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} placeholder="0" className="input" style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} /></div>
+              <div className="field"><label>จำนวนเงิน (฿) *</label><input type="number" value={editForm.amount} onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })} placeholder="0" className="input input-num" /></div>
             </div>
             <div className="field"><label>หมายเหตุ *</label><textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="input" rows={2} /></div>
             <div className="f2">
@@ -472,27 +472,27 @@ export default function PageExpenses({ data, saveData, role }) {
                 <input type="file" accept="image/*,application/pdf" hidden disabled={editUploading} onChange={(e) => handleEditFile(e.target.files[0])} />
               </label>
               {editUploading && (
-                <div className="bar-track" style={{ margin: '8px 0 0' }}><span className="bar-fill" style={{ width: `${Math.max(2, editProgress)}%` }} /></div>
+                <div className="bar-track bar-mt"><span className="bar-fill" style={{ width: `${Math.max(2, editProgress)}%` }} /></div>
               )}
               {editPreview && !editIsPdf && (
-                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <img src={editPreview} alt="ใบเสร็จ" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                <div className="mt8 flex-gap-8">
+                  <img src={editPreview} alt="ใบเสร็จ" className="receipt-img" />
                   {editForm.receiptUrl && (
-                  <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(editPreview)}>
+                  <button type="button" className="mini-link slip-link" onClick={() => setViewImg(editPreview)}>
                     <ExternalLink size={13} /> เปิดดูรูปเต็ม
                   </button>
                   )}
-                  {editUploading && <span className="muted" style={{ fontSize: 12 }}>กำลังอัปโหลด… {editProgress}%</span>}
+                  {editUploading && <span className="muted fs12">กำลังอัปโหลด… {editProgress}%</span>}
                 </div>
               )}
               {editPreview && editIsPdf && (
-                <div style={{ marginTop: 8 }}>
+                <div className="mt8">
                   {editForm.receiptUrl ? (
-                  <a href={editPreview} target="_blank" rel="noopener noreferrer" className="muted" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <a href={editPreview} target="_blank" rel="noopener noreferrer" className="muted slip-link">
                     <ExternalLink size={13} /> เปิดดูใบเสร็จ (PDF)
                   </a>
                   ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>แนบ PDF แล้ว กำลังอัปโหลด… {editProgress}%</span>
+                    <span className="muted fs12">แนบ PDF แล้ว กำลังอัปโหลด… {editProgress}%</span>
                   )}
                 </div>
               )}

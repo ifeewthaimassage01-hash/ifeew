@@ -5,7 +5,7 @@ import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged } from '../lib/bookingRealtime';
 import { bkkNow, fmtBkk, bizToday, bkkToday } from '../utils/bkk';
 import { deleteBillFromCloud, syncState } from '../data/cloudSync';
-import { freelanceDisplayName, svcLabel, isFreelance, billRows, billTotal, billBizDay } from '../lib/billing';
+import { freelanceDisplayName, svcLabel, isFreelance, billRows, rowNet, billTotal, billBizDay } from '../lib/billing';
 import { dayChipLabel } from '../booking/bookingUtils';
 import { getOwnerPass } from '../lib/auth';
 import { resolveImageUrl } from '../lib/images';
@@ -323,20 +323,20 @@ export default function PageBills({ data, saveData, role }) {
                           if (!slipUrl) return null;
                           if (isPdfUrl(slipUrl)) {
                             return (
-                              <a href={slipUrl} target="_blank" rel="noopener noreferrer" title="เปิดสลิป (PDF)" className="icon-btn" style={{ width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle' }}>
+                              <a href={slipUrl} target="_blank" rel="noopener noreferrer" title="เปิดสลิป (PDF)" className="icon-btn icon-sm">
                                 <ExternalLink size={14} />
                               </a>
                             );
                           }
                           return (
-                            <button type="button" onClick={() => setViewImg(slipUrl)} title="ดูสลิปใหญ่" aria-label={`ดูสลิปของบิล ${b.id}`} className="icon-btn" style={{ width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', verticalAlign: 'middle', position: 'relative' }}>
-                              <img src={slipUrl} alt="" style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 7, border: '1px solid var(--line)', display: 'block' }} />
-                              <span className="exp-zoom" aria-hidden="true" style={{ width: 13, height: 13 }}><Maximize2 size={8} /></span>
+                            <button type="button" onClick={() => setViewImg(slipUrl)} title="ดูสลิปใหญ่" aria-label={`ดูสลิปของบิล ${b.id}`} className="icon-btn icon-sm" style={{ position: 'relative' }}>
+                              <img src={slipUrl} alt="" className="icon-sm-img" />
+                              <span className="exp-zoom icon-zoom" aria-hidden="true"><Maximize2 size={8} /></span>
                             </button>
                           );
                         })()}
                         {' '}
-                        <button onClick={() => setDetailBill(b)} className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }}>ดู</button>
+                        <button onClick={() => setDetailBill(b)} className="btn btn-ghost btn-text-sm">ดู</button>
                         {canVoid && b.status === 'paid' && <> <button onClick={() => requestVoid(b)} className="btn-soft-danger">ยกเลิก</button></>}
                         {role !== 'staff' && <> <button onClick={() => deleteBill(b)} className="btn-soft-danger" title="ลบบิลถาวร (เจ้าของร้าน)">ลบ</button></>}
                       </td>
@@ -355,7 +355,7 @@ export default function PageBills({ data, saveData, role }) {
               const docName = therapistDisplay(b);
               const docExtra = isFreelance(b.therapistId || rows[0]?.therapistId, data.therapists) ? ' (หมอวิ่ง)' : '';
               return (
-                <div key={b.id} className="hcard" onClick={() => setDetailBill(b)} style={{ cursor: 'pointer' }}>
+                <div key={b.id} className="hcard hcard-click" onClick={() => setDetailBill(b)}>
                   <div className="hcard-head">
                     {(() => {
                       // รูปย่อสลิปแทนไอคอนใบเสร็จ — แตะเปิด lightbox ทันที (PDF = ไอคอนเปิดแท็บใหม่)
@@ -364,14 +364,13 @@ export default function PageBills({ data, saveData, role }) {
                         return (
                           <button
                             type="button"
-                            className="hcard-ava exp-ic-btn"
-                            style={{ width: 40, height: 40, padding: 0, position: 'relative' }}
+                            className="hcard-ava exp-ic-btn hcard-ava-sm"
                             onClick={(e) => { e.stopPropagation(); setViewImg(slipUrl); }}
                             title="ดูสลิปใหญ่"
                             aria-label={`ดูสลิปของบิล ${b.id}`}
                           >
-                            <img src={slipUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8, display: 'block' }} />
-                            <span className="exp-zoom" aria-hidden="true"><Maximize2 size={9} /></span>
+                            <img src={slipUrl} alt="" className="hcard-ava-img" />
+                            <span className="exp-zoom icon-zoom" aria-hidden="true"><Maximize2 size={9} /></span>
                           </button>
                         );
                       }
@@ -381,8 +380,7 @@ export default function PageBills({ data, saveData, role }) {
                             href={slipUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="hcard-ava"
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            className="hcard-ava hcard-ava-pdf"
                             onClick={(e) => e.stopPropagation()}
                             title="เปิดสลิป (PDF)"
                             aria-label={`เปิดสลิป (PDF) ของบิล ${b.id}`}
@@ -406,7 +404,7 @@ export default function PageBills({ data, saveData, role }) {
                   </div>
                   <div className="hcard-foot">
                     <StatusBadge status={b.status} />
-                    <span style={{ display: 'flex', gap: 6 }}>
+                    <span className="flex-gap-8">
                       <button className="bill-action-btn edit" onClick={(e) => { e.stopPropagation(); setDetailBill(b); }} title="ดูรายละเอียด"><Pencil size={14} /></button>
                       {canVoid && paid && (
                         <button className="bill-action-btn delete" onClick={(e) => { e.stopPropagation(); requestVoid(b); }} title="ยกเลิกบิล"><Trash2 size={14} /></button>
@@ -427,13 +425,13 @@ export default function PageBills({ data, saveData, role }) {
                 hint={bkHistErr ? '' : (bkHistLoading && bkHistory.length === 0) ? 'กำลังโหลด…' : `${bkCompleted.length} รายการ`}
               />
               {bkHistErr ? (
-                <p className="muted" style={{ fontSize: 13, margin: '0 0 2px' }}><TriangleAlert size={13} /> {bkHistErr}</p>
+                <p className="muted fs13"><TriangleAlert size={13} /> {bkHistErr}</p>
               ) : bkCompleted.length === 0 ? (
-                <p className="muted" style={{ fontSize: 13, margin: '0 0 2px' }}>
+                <p className="muted fs13">
                   {bkHistLoading ? 'กำลังโหลด…' : 'ยังไม่มีเดอร์จองที่จบบริการในช่วงนี้'}
                 </p>
               ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
+                <div className="grid-gap-10">
                   {bkCompleted.map((b) => {
                     const start = String(b?.slot_start || '');
                     const end = String(b?.slot_end || '');
@@ -443,7 +441,7 @@ export default function PageBills({ data, saveData, role }) {
                       : '';
                     const amt = Number(b?.amount || 0) || 0;
                     return (
-                      <div key={b.code || b.id} className="ob-card bkc" style={{ marginBottom: 0 }}>
+                      <div key={b.code || b.id} className="ob-card bkc mb0">
                         <div className="ob-head">
                           <span className="ob-ava" aria-hidden="true"><CalendarCheck size={19} strokeWidth={2} /></span>
                           <span className="ob-who">
@@ -475,7 +473,7 @@ export default function PageBills({ data, saveData, role }) {
                           </div>
                         </div>
                         <div className="ob-total">
-                          <span className="ob-sum muted num" style={{ fontSize: 12.5 }}>
+                          <span className="ob-sum muted num fs125">
                             <Calendar size={12} /> {fmtBkk(start, { day: 'numeric', month: 'short' })}
                           </span>
                           <span className={`bk-adm-badge ${b?.payment_status === 'paid' ? 'is-confirmed' : 'is-pending'}`}>
@@ -495,11 +493,11 @@ export default function PageBills({ data, saveData, role }) {
       {detailBill && (
         <Modal onClose={() => setDetailBill(null)}>
           <button className="modal-x" onClick={() => setDetailBill(null)} aria-label="ปิด"><X size={16} /></button>
-          <div className="mcard-top" style={{ paddingRight: 34 }}>
-            <div><div className="modal-eyebrow">BILL DETAIL</div><div style={{ fontSize: 15, fontWeight: 700 }}>{detailBill.customer || 'ลูกค้าหน้าร้าน'}{detailBill.memberNo ? ` · ${detailBill.memberNo}` : ''}</div><div className="muted">{fmtBkk(detailBill.date)}</div></div>
+          <div className="mcard-top pr34">
+            <div><div className="modal-eyebrow">BILL DETAIL</div><div className="fs15">{detailBill.customer || 'ลูกค้าหน้าร้าน'}{detailBill.memberNo ? ` · ${detailBill.memberNo}` : ''}</div><div className="muted">{fmtBkk(detailBill.date)}</div></div>
             <StatusBadge status={detailBill.status} />
           </div>
-          <div className="summary-box" style={{ marginTop: 12 }}>
+          <div className="summary-box mt12">
             {detailBill.customerType === 'booking' && (
               <>
                 <div className="r"><span>ประเภท</span><b>จอง (ร้านรับเอง)</b></div>
@@ -514,14 +512,14 @@ export default function PageBills({ data, saveData, role }) {
             {detailBill.slip && (
               <div className="r"><span>สลิป</span>
                 {resolveImageUrl(detailBill.slip) && !isPdfUrl(resolveImageUrl(detailBill.slip)) ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                    <button type="button" onClick={() => setViewImg(resolveImageUrl(detailBill.slip))} title="ดูสลิปใหญ่" aria-label="ดูสลิปใหญ่" style={{ padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}>
-                      <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)', display: 'block' }} />
+                  <span className="slip-row">
+                    <button type="button" className="slip-img-btn" onClick={() => setViewImg(resolveImageUrl(detailBill.slip))} title="ดูสลิปใหญ่" aria-label="ดูสลิปใหญ่">
+                      <img src={resolveImageUrl(detailBill.slip)} alt="สลิป" className="slip-img" />
                     </button>
-                    <button type="button" className="mini-link" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }} onClick={() => setViewImg(resolveImageUrl(detailBill.slip))}><ExternalLink size={13} /> เปิดดู</button>
+                    <button type="button" className="mini-link slip-link" onClick={() => setViewImg(resolveImageUrl(detailBill.slip))}><ExternalLink size={13} /> เปิดดู</button>
                   </span>
                 ) : resolveImageUrl(detailBill.slip) ? (
-                  <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}><ExternalLink size={13} /> เปิดดู (PDF)</a>
+                  <a href={resolveImageUrl(detailBill.slip)} target="_blank" rel="noopener noreferrer" className="slip-link"><ExternalLink size={13} /> เปิดดู (PDF)</a>
                 ) : <b>{detailBill.slip}</b>}
               </div>
             )}
@@ -531,22 +529,22 @@ export default function PageBills({ data, saveData, role }) {
             <div key={i} className="tline">
               <span className="q">{i + 1}</span>
               <span className="tt"><b>{serviceDisplay(it)}{it.qty > 1 ? ` ×${it.qty}` : ''}</b><small>พนักงาน: {freelanceDisplayName(it.therapistName || it.therapistId || detailBill.therapistName || detailBill.therapistId || '—')}{isFreelance(it.therapistId || detailBill.therapistId, data.therapists) ? ' (หมอวิ่ง)' : ''}</small></span>
-              <b style={{ fontVariantNumeric: 'tabular-nums' }}>฿ {(it.net || 0).toLocaleString()}</b>
+              <b className="num">฿ {(it.net || 0).toLocaleString()}</b>
             </div>
           ))}
           <div className="perf" />
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+          <div className="flex-end">
             <span className="muted">ยอดรวม</span>
-            <span style={{ fontFamily: 'var(--font-display)', fontSize: 34 }}>฿ {billTotal(detailBill).toLocaleString()}</span>
+            <span className="grand-lg">฿ {billTotal(detailBill).toLocaleString()}</span>
           </div>
           {canVoid && detailBill.status === 'paid' && (
             <div className="modal-row">
-              <button onClick={() => { requestVoid(detailBill); if (role !== 'staff') setDetailBill(null); }} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ยกเลิกบิลนี้</button>
+              <button onClick={() => { requestVoid(detailBill); if (role !== 'staff') setDetailBill(null); }} className="btn-soft-danger btn-modal-full">ยกเลิกบิลนี้</button>
             </div>
           )}
           {role !== 'staff' && (
             <div className="modal-row">
-              <button onClick={() => deleteBill(detailBill)} className="btn-soft-danger" style={{ padding: 12, fontSize: 14, flex: 1 }}>ลบบิลนี้ถาวร</button>
+              <button onClick={() => deleteBill(detailBill)} className="btn-soft-danger btn-modal-full">ลบบิลนี้ถาวร</button>
             </div>
           )}
         </Modal>
@@ -555,14 +553,14 @@ export default function PageBills({ data, saveData, role }) {
       {voidTarget && (
         <Modal onClose={() => { setVoidTarget(null); setAuthPass(''); setVoidErr(''); }}>
           <button className="modal-x" onClick={() => { setVoidTarget(null); setAuthPass(''); setVoidErr(''); }} aria-label="ปิด"><X size={16} /></button>
-          <div className="pagehead-main" style={{ marginBottom: 6 }}>
-            <div className="pagehead-icon" style={{ background: 'var(--red)' }}><ShieldAlert size={22} /></div>
+          <div className="pagehead-main ph-mb6">
+            <div className="pagehead-icon ph-icon-red"><ShieldAlert size={22} /></div>
             <div><h3>ยกเลิกบิล</h3><p className="muted">{voidTarget.customer || 'ลูกค้าหน้าร้าน'} · ยอด ฿ {billTotal(voidTarget).toLocaleString()} · ต้องอนุมัติโดยเจ้าของร้าน</p></div>
           </div>
-          {voidErr && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {voidErr}</div>}
+          {voidErr && <div className="err-banner"><TriangleAlert size={15} className="err-ic" aria-hidden="true" /> {voidErr}</div>}
           <div className="field"><label>รหัสเจ้าของร้าน</label><input type="password" value={authPass} onChange={(e) => { setAuthPass(e.target.value); setVoidErr(''); }} placeholder="รหัสเจ้าของร้าน" className="input" /></div>
           <div className="modal-row">
-            <button onClick={confirmVoid} disabled={!authPass} className="btn btn-danger" style={{ width: '100%' }}>อนุมัติยกเลิก</button>
+            <button onClick={confirmVoid} disabled={!authPass} className="btn btn-danger btn-w100">อนุมัติยกเลิก</button>
           </div>
         </Modal>
       )}

@@ -97,7 +97,6 @@ export default function BookingPage({ data }) {
     <div className="bk-adm">
       <PageHeader
         icon={CalendarCheck}
-        eyebrow="จัดการการจอง"
         title="จองออนไลน์"
         subtitle={`ยืนยันหรือปฏิเสธการจองที่ลูกค้าทำผ่านเว็บไซต์ — ${rt === 'connected' ? 'ข้อมูลอัปเดตทันทีแบบเรียลไทม์' : 'ระบบรีโหลดอัตโนมัติทุก 15 วินาที'}`}
         actions={(

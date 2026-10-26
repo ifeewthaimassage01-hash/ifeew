@@ -102,7 +102,7 @@ function PushAdminCard() {
           ? (on ? <span className="badge paid">เปิดอยู่</span> : <span className="badge neutral">ปิดอยู่</span>)
           : <span className="badge void">ไม่รองรับ</span>}
       />
-      <p className="muted" style={{ margin: '0 0 10px' }}>
+      <p className="muted mb10">
         {supported
           ? (on ? 'เครื่องนี้รับแจ้งเตือนบิลใหม่ + สรุปรายวันแล้ว' : 'เปิดไว้เพื่อรับแจ้งเตือนบิลใหม่ + สรุปรายวันบนเครื่องนี้')
           : 'เบราว์เซอร์นี้ไม่รองรับ Push (ลอง Chrome / Edge / Safari ล่าสุด)'}
@@ -112,8 +112,8 @@ function PushAdminCard() {
           ? <button onClick={disable} disabled={busy} className="btn btn-ghost btn-block"><BellOff size={16} /> {busy ? 'กำลังปิด…' : 'ปิดแจ้งเตือนเครื่องนี้'}</button>
           : <button onClick={enable} disabled={busy} className="btn btn-primary btn-block"><Bell size={16} /> {busy ? 'กำลังเปิด…' : 'เปิดแจ้งเตือน'}</button>
       )}
-      {msg && <p className="muted" style={{ margin: '8px 0 0' }}>{msg}</p>}
-      <p className="muted" style={{ margin: '8px 0 0' }}>iOS ต้องติดตั้งแอปลงหน้าจอหลักก่อน</p>
+      {msg && <p className="muted mt8">{msg}</p>}
+      <p className="muted mt8">iOS ต้องติดตั้งแอปลงหน้าจอหลักก่อน</p>
     </Card>
   );
 }
@@ -170,18 +170,18 @@ function UpdateAppCard() {
   return (
     <Card>
       <CardHead title="อัปเดตแอป" hint={`เวอร์ชันปัจจุบัน: ${__APP_VERSION__}`} />
-      <p className="muted" style={{ margin: '0 0 10px' }}>
+      <p className="muted mb10">
         แอปเช็คเวอร์ชันใหม่อัตโนมัติ — ถ้ามีการอัปเดตเซิร์ฟเวอร์ แอปจะรีเฟรชตัวเองเมื่อไม่มีงานค้าง
       </p>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button onClick={check} disabled={busy} className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }}>
+      <div className="flex-gap-8 fw-wrap">
+        <button onClick={check} disabled={busy} className="btn btn-primary auto btn-md">
           <RefreshCw size={15} /> {busy ? 'กำลังตรวจสอบ…' : 'ตรวจสอบอัปเดต'}
         </button>
-        <button onClick={hardClear} disabled={busy} className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }}>
+        <button onClick={hardClear} disabled={busy} className="btn btn-ghost auto btn-md">
           <Trash2 size={15} /> ล้างแคช &amp; รีเฟรช
         </button>
       </div>
-      {msg && <p className="muted" style={{ margin: '8px 0 0' }}>{msg}</p>}
+      {msg && <p className="muted mt8">{msg}</p>}
     </Card>
   );
 }
@@ -771,7 +771,7 @@ export default function PageManage({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={Settings2} title="จัดการร้าน" eyebrow="ทีมงาน · บริการ · ระบบ" />
+      <PageHeader icon={Settings2} title="จัดการร้าน" />
 
       {/* มือถือ: dropdown เลือกหมวด (แท็บ 6 อันล้นจอเล็ก) */}
       <div className="mg-picker">
@@ -807,21 +807,21 @@ export default function PageManage({ data, saveData }) {
         ))}
       </div>
 
-      {err && <div className="err-banner"><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
+      {err && <div className="err-banner"><TriangleAlert size={15} className="err-ic" /> {err}</div>}
 
       {tab === 'staff' && (
         <Card>
-          <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddT} title="เพิ่มพนักงาน" aria-label="เพิ่มพนักงาน"><Plus size={15} /> <span className="btn-t">เพิ่มพนักงาน</span></button>} />
+          <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto btn-md" onClick={openAddT} title="เพิ่มพนักงาน" aria-label="เพิ่มพนักงาน"><Plus size={15} /> <span className="btn-t">เพิ่มพนักงาน</span></button>} />
           <div className="search-wrap mg-search">
             <Search size={16} />
             <input value={staffQuery} onChange={(e) => setStaffQuery(e.target.value)} placeholder="ค้นหาพนักงาน…" className="input" />
           </div>
           {shownTherapists.map((t) => (
             <div key={t.id} className="mrow">
-              <span className="thera-ava" style={{ width: 42, height: 42, fontSize: 19 }}>{(t.name || '?').charAt(0)}</span>
+              <span className="thera-ava thera-ava-xs">{ (t.name || '?').charAt(0) }</span>
               <span className="grow">
-                <b style={{ fontSize: 13.5 }}>{t.name}</b>
-                <span style={{ display: 'flex', gap: 6, marginTop: 3 }}>
+                <b className="fs15">{t.name}</b>
+                <span className="flex-gap-6-mt3">
                   <span className={`badge ${t.active === false ? 'void' : 'neutral'}`}>{t.active === false ? 'พักงาน' : 'ใช้งาน'}</span>
                 </span>
               </span>
@@ -839,9 +839,9 @@ export default function PageManage({ data, saveData }) {
         <Card>
           <CardHead
             title="รายการ + ราคา"
-            right={<span style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-ghost auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openOrder} disabled={orderedCats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
-              <button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddC} title="เพิ่มรายการ" aria-label="เพิ่มรายการ"><Plus size={15} /> <span className="btn-t">เพิ่มรายการ</span></button>
+            right={<span className="flex-gap-8">
+              <button className="btn btn-ghost auto btn-md" onClick={openOrder} disabled={orderedCats.length < 2} title="ลากสลับลำดับรายการ" aria-label="จัดลำดับรายการ"><ArrowUpDown size={15} /> <span className="btn-t">จัดลำดับ</span></button>
+              <button className="btn btn-primary auto btn-md" onClick={openAddC} title="เพิ่มรายการ" aria-label="เพิ่มรายการ"><Plus size={15} /> <span className="btn-t">เพิ่มรายการ</span></button>
             </span>}
           />
           {catRows.map(({ name, en, timed, hourly }, idx) => (
@@ -879,15 +879,15 @@ export default function PageManage({ data, saveData }) {
         <Card>
           <CardHead
             title="บริการเสริม"
-            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddA} title="เพิ่มบริการเสริม" aria-label="เพิ่มบริการเสริม"><Plus size={15} /> <span className="btn-t">เพิ่มเสริม</span></button>}
+            right={<button className="btn btn-primary auto btn-md" onClick={openAddA} title="เพิ่มบริการเสริม" aria-label="เพิ่มบริการเสริม"><Plus size={15} /> <span className="btn-t">เพิ่มเสริม</span></button>}
           />
           {addons.map((a) => (
             <div key={a.id} className="mrow">
               <span className="grow">
-                <b style={{ fontSize: 13.5 }}>{a.name}</b>
-                <small className="muted" style={{ display: 'block' }}>+{a.minutes} นาที</small>
+                <b className="fs15">{a.name}</b>
+                <small className="muted d-block">+{a.minutes} นาที</small>
               </span>
-              <b style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>+฿ {(a.price || 0).toLocaleString()}</b>
+              <b className="num nowrap">+฿ {(a.price || 0).toLocaleString()}</b>
               <button className={`switch${a.active === false ? '' : ' on'}`} onClick={() => toggleA(a)} title={a.active === false ? 'แตะเพื่อเปิดใช้' : 'แตะเพื่อปิด'} aria-label={`สลับเปิดปิด ${a.name}`}><i /><span>{a.active === false ? 'ปิด' : 'เปิด'}</span></button>
               <button className="icon-btn" onClick={() => openEditA(a)} aria-label={`แก้ไข ${a.name}`}><Pencil size={15} /></button>
               <button className="icon-btn danger" onClick={() => deleteA(a)} aria-label={`ลบ ${a.name}`}><Trash2 size={15} /></button>
@@ -901,7 +901,7 @@ export default function PageManage({ data, saveData }) {
         <Card>
           <CardHead
             title="โปรโมชัน"
-            right={<button className="btn btn-primary auto" style={{ padding: '9px 15px', fontSize: 13 }} onClick={openAddP} title="เพิ่มโปรโมชัน" aria-label="เพิ่มโปรโมชัน"><Plus size={15} /> <span className="btn-t">เพิ่มโปร</span></button>}
+            right={<button className="btn btn-primary auto btn-md" onClick={openAddP} title="เพิ่มโปรโมชัน" aria-label="เพิ่มโปรโมชัน"><Plus size={15} /> <span className="btn-t">เพิ่มโปร</span></button>}
           />
           <div className="promo-list">
             {promos.map((p) => (
@@ -935,8 +935,8 @@ export default function PageManage({ data, saveData }) {
           </div>
           <Card>
             <CardHead title="ปรับยอดประกันมือ" />
-            <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input" style={{ fontWeight: 700, fontSize: 17, fontVariantNumeric: 'tabular-nums' }} /></div>
-            <p className="muted" style={{ margin: '0 0 10px' }}>ใช้เช็กชื่อให้ครบตามยอดนี้ต่อวัน</p>
+            <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input input-bold" /></div>
+            <p className="muted mb10">ใช้เช็กชื่อให้ครบตามยอดนี้ต่อวัน</p>
             <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
           </Card>
         </>
@@ -1002,7 +1002,7 @@ export default function PageManage({ data, saveData }) {
                     ><GripVertical size={18} /></span>
                     <span className="ord-grow">
                       <b>{c}{en ? <small className="muted"> ({en})</small> : null}</b>
-                      <small className="muted" style={{ display: 'block' }}>{n} ช่วงเวลา</small>
+                      <small className="muted d-block">{n} ช่วงเวลา</small>
                     </span>
                     <span className="ord-btns">
                       <button className="icon-btn" onClick={() => moveDraft(c, -1)} disabled={i === 0} aria-label={`ย้าย ${c} ขึ้น`} title="ย้ายขึ้น"><ChevronUp size={15} /></button>
@@ -1033,15 +1033,15 @@ export default function PageManage({ data, saveData }) {
         <Modal onClose={() => { setShowT(false); setErr(''); }}>
           <button className="modal-x" onClick={() => { setShowT(false); setErr(''); }} aria-label="ปิด"><X size={16} /></button>
           <h3>{editingT ? `แก้ไข ${editingT.name}` : 'เพิ่มพนักงาน'}</h3>
-          {err && <div className="err-banner" style={{ marginTop: 10 }}><TriangleAlert size={15} style={{ flexShrink: 0, marginTop: 2 }} /> {err}</div>}
-          <div className="field" style={{ marginTop: 12 }}><label>ชื่อ *</label><input value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} placeholder="เช่น คุณนิด" className="input" /></div>
+          {err && <div className="err-banner mt10"><TriangleAlert size={15} className="err-ic" /> {err}</div>}
+          <div className="field mt12"><label>ชื่อ *</label><input value={tForm.name} onChange={(e) => setTForm({ ...tForm, name: e.target.value })} placeholder="เช่น คุณนิด" className="input" /></div>
           <div className="field"><label>สถานะ</label>
             <select value={tForm.active ? 'on' : 'off'} onChange={(e) => setTForm({ ...tForm, active: e.target.value === 'on' })} className="input">
               <option value="on">ใช้งาน</option><option value="off">พักงาน</option>
             </select>
           </div>
           <div className="modal-row">
-            <button onClick={saveT} className="btn btn-primary" style={{ width: '100%' }}><CheckCircle2 size={16} /> บันทึก</button>
+            <button onClick={saveT} className="btn btn-primary btn-w100"><CheckCircle2 size={16} /> บันทึก</button>
           </div>
         </Modal>
       )}

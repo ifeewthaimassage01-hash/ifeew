@@ -101,7 +101,7 @@ export function TopBar({ active, items, role, onNavigate, onExit, data, saveData
       {showMenu && (
         <Modal onClose={() => setShowMenu(false)}>
           <button className="modal-x" onClick={() => setShowMenu(false)} aria-label="ปิด"><X size={16} /></button>
-          <div className="modal-eyebrow">เมนูร้าน</div>
+          <div className="navsheet-title">เมนูร้าน</div>
           <nav className="navsheet" aria-label="เมนูเพิ่มเติม">
             {secondary.map((item) => {
               const Icon = item.icon;

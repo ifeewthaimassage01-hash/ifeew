@@ -33,14 +33,19 @@
   padding: 16px 14px;
   min-height: 128px;
   border-radius: var(--r-md);
-  border: 1.5px solid var(--line);
-  background: var(--surface);
+  /* เติมพื้นแทนการวาดขอบซ้ำในการ์ดขาว — กันอาการ "การ์ดซ้อนการ์ด" */
+  border: 1px solid transparent;
+  background: var(--surface-2);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
 }
 
+@media (hover: hover) {
+  .typepick-card:hover { background: var(--brown-tint-2); border-color: var(--line); }
+}
+.typepick-card:focus-visible { outline: 2px solid var(--brown-ink); outline-offset: 2px; }
 .typepick-card:active { transform: scale(0.985); }
 
 .typepick-card b { font-size: var(--fs-lead); font-weight: 700; line-height: 1.3; }
