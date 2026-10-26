@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserRound, KeyRound, ArrowLeft, TriangleAlert } from 'lucide-react';
+import { UserRound, KeyRound, ArrowLeft, TriangleAlert, ChevronRight } from 'lucide-react';
 import { bkkYear } from '../utils/bkk';
 import { resolveOwnerPass } from '../lib/auth';
 
@@ -75,19 +75,24 @@ export default function RoleGate({ onSelect }) {
         <p className="gate-sub">Thai Massage</p>
 
         {mode === 'select' ? (
-          <>
           <div className="gate-roles">
             <button className="gate-role" onClick={() => onSelect('staff')}>
               <span className="gate-ric"><UserRound size={22} strokeWidth={1.9} /></span>
-              <span><b>พนักงาน</b></span>
+              <span className="gate-rt">
+                <b>พนักงาน</b>
+                <small>เปิดบิล · เช็คบิล · รายจ่าย · ค่าแรง</small>
+              </span>
+              <ChevronRight size={18} strokeWidth={2} className="gate-chev" aria-hidden="true" />
             </button>
             <button className="gate-role" onClick={() => { setMode('owner'); setErr(''); setPass(''); }}>
               <span className="gate-ric"><KeyRound size={22} strokeWidth={1.9} /></span>
-              <span><b>เจ้าของร้าน</b></span>
+              <span className="gate-rt">
+                <b>เจ้าของร้าน</b>
+                <small>ต้องใช้รหัสผ่าน · เห็นภาพรวมทั้งร้าน</small>
+              </span>
+              <ChevronRight size={18} strokeWidth={2} className="gate-chev" aria-hidden="true" />
             </button>
           </div>
-        
-          </>
         ) : (
           <form onSubmit={submitOwner} className="gate-form">
             <div className="field">

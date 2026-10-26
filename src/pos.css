@@ -1,10 +1,28 @@
-/* หน้า POS — ส่วนเสริมของ flow "ลูกค้าหน้าร้าน / ลูกค้าจอง" (แยกไว้จาก index.css) */
+/* หน้า POS — ส่วนเสริมของ flow "ลูกค้าหน้าร้าน / ลูกค้าจอง" (แยกไว้จาก index.css)
+   ใช้ token ชุดเดียวกับ index.css: --fs-* / --st-* / --tap */
+
+/* บรรทัดสรุปวันนี้ (บนสุดของหน้า POS) — ตัวเลขงานค้าง 1 บรรทัด ไม่ใช่การ์ด */
+.pos-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 40px;
+  margin-bottom: 12px;
+  padding: 0 2px;
+  font-size: var(--fs-small);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pos-strip-i { display: inline-flex; align-items: center; gap: 6px; }
+.pos-strip-i b { color: var(--ink); font-weight: 700; font-size: var(--fs-body); }
+.pos-strip-d { width: 1px; height: 14px; background: var(--line); flex-shrink: 0; }
 
 /* ขั้น 0: เลือกประเภทลูกค้า — การ์ด 2 ใบ (หน้าร้าน / จอง) */
 .typepick-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: var(--gap-2);
 }
 
 .typepick-card {
@@ -13,6 +31,7 @@
   align-items: flex-start;
   gap: 4px;
   padding: 16px 14px;
+  min-height: 128px;
   border-radius: var(--r-md);
   border: 1.5px solid var(--line);
   background: var(--surface);
@@ -24,8 +43,8 @@
 
 .typepick-card:active { transform: scale(0.985); }
 
-.typepick-card b { font-size: 15px; font-weight: 700; }
-.typepick-card small { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+.typepick-card b { font-size: var(--fs-lead); font-weight: 700; line-height: 1.3; }
+.typepick-card small { font-size: var(--fs-micro); color: var(--muted); line-height: 1.5; }
 
 .typepick-ico {
   width: 44px;
@@ -35,19 +54,17 @@
   align-items: center;
   justify-content: center;
   background: var(--brown-tint);
-  color: var(--brown-dark);
+  color: var(--brown-ink);
   margin-bottom: 6px;
 }
 
-/* ลูกค้าจอง = เขียว (สดใสกว่าหน้าร้าน) */
+/* ลูกค้าจอง = เขียว (สดใสกว่าหน้าร้าน) — เฉพาะไอคอน ไม่แตะขอบการ์ด
+   (ขอบเขียวใบเดียวทำให้ดูเหมือนถูกเลือกไว้แล้ว) */
 .typepick-card.typepick-green .typepick-ico {
-  background: #e4ecdf;
-  color: var(--green-ok);
+  background: var(--st-ok-bg);
+  color: var(--st-ok);
 }
-.typepick-card.typepick-green { border-color: #cdd9c9; }
-.typepick-card.typepick-green:active,
-.typepick-card:active { border-color: var(--brown); }
-.typepick-card.typepick-green:active { border-color: var(--green-ok); }
+.typepick-card:active { border-color: var(--brown-ink); }
 
 /* ป้ายประเภทลูกค้า คู่กับแถบขั้น (ของ flow จอง) */
 .pos-type-badge {
@@ -57,9 +74,9 @@
   margin: 2px 0 10px;
   padding: 5px 12px;
   border-radius: 999px;
-  background: #e4ecdf;
-  color: var(--green-ok);
-  font-size: 12px;
+  background: var(--st-ok-bg);
+  color: var(--st-ok);
+  font-size: var(--fs-micro);
   font-weight: 700;
 }
 
@@ -81,6 +98,8 @@
   width: 100%;
   text-align: left;
   padding: 10px 12px;
+  /* 2 บรรทัดในคอลัมน์กลาง + ป้าย = สูงเกิน 44px อยู่แล้ว; กันต่ำกว่านี้ */
+  min-height: var(--tap);
   border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface-2);
@@ -93,15 +112,15 @@
 .bkq-day {
   padding: 3px 9px;
   border-radius: 999px;
-  background: #e4ecdf;
-  color: var(--green-ok);
-  font-size: 11px;
+  background: var(--st-ok-bg);
+  color: var(--st-ok);
+  font-size: var(--fs-micro);
   font-weight: 700;
   white-space: nowrap;
 }
 
 .bkq-time {
-  font-size: 12px;
+  font-size: var(--fs-small);
   font-weight: 700;
   color: var(--muted);
   white-space: nowrap;
@@ -114,24 +133,26 @@
   flex-direction: column;
   gap: 1px;
 }
-.bkq-main b { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+.bkq-main b { font-size: var(--fs-body); font-weight: 700; line-height: 1.3; }
 .bkq-main small {
-  font-size: 11.5px;
+  font-size: var(--fs-micro);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* "รอตั้งหมอ" = งานค้าง (amber) ไม่ใช่คำเตือน (แดง) */
 .bkq-wait {
   padding: 3px 9px;
   border-radius: 999px;
-  background: #f7ecd7;
-  color: #8a6320;
-  font-size: 10.5px;
+  background: var(--st-pending-bg);
+  color: var(--st-pending);
+  border: 1px solid var(--st-pending-bd);
+  font-size: var(--fs-micro);
   font-weight: 700;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.bkq-go { color: var(--brown); flex-shrink: 0; }
+.bkq-go { color: var(--faint); flex-shrink: 0; }

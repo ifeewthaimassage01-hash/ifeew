@@ -1089,14 +1089,16 @@ label.filebtn {
   padding: 15px; width: 100%; transition: border-color 0.13s, background 0.13s;
 }
 .gate-role:active { transform: scale(0.99); }
-.gate-role:hover { border-color: var(--brown); background: var(--brown-tint-2); }
+.gate-role:hover { border-color: var(--brown-ink); background: var(--brown-tint-2); }
+.gate-rt { display: flex; flex-direction: column; gap: 2px; min-width: 0; text-align: left; }
+.gate-chev { margin-left: auto; color: var(--faint); flex-shrink: 0; }
 .gate-ric {
   width: 48px; height: 48px; border-radius: 14px; flex-shrink: 0;
   background: var(--surface-2); border: 0;
   display: flex; align-items: center; justify-content: center; color: var(--brown-ink);
 }
-.gate-role b { font-size: 15px; display: block; }
-.gate-role small { color: var(--muted); font-size: 12px; }
+.gate-role b { font-size: var(--fs-lead); display: block; font-weight: 700; }
+.gate-role small { color: var(--muted); font-size: var(--fs-small); display: block; line-height: 1.4; }
 .gate-foot { font-size: var(--fs-micro); color: var(--faint); margin-top: 18px; }
 .role-chip {
   display: inline-flex; align-items: center;
@@ -1855,6 +1857,11 @@ label.filebtn {
 .osec-mini.on { background: #fff; border-color: #fff; color: #6f5439; }
 .osec-body { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: #fcfaf6; }
 .osec-empty { padding: 6px 4px; }
+/* กลุ่มว่าง = บรรทัดเดียว (หัวกลุ่มบอกจำนวน 0 อยู่แล้ว) — เดิมกินพื้นที่ ~200px ต่อกลุ่ม */
+.osec-note {
+  font-size: var(--fs-small); color: var(--muted); line-height: 1.55;
+  padding: 3px 2px; margin: 0;
+}
 
 /* แถวออเดอร์ — Flexbox (คำขอผู้ใช้): คอนเทนเนอร์หลัก space-between แยกสองฝั่งชัดเจน
       · orow-main (ซ้าย): ลำดับ + ป้าย/เวลา + บริการ/รายละเอียด — หมอ/ลูกค้าอยู่บรรทัดรองของคอลัมน์บริการ

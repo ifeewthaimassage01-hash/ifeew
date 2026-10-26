@@ -136,7 +136,7 @@ export default function PageDashboard({ data, saveData }) {
       {guaranteeMsg && singleDay && <div className="alert ok">{guaranteeMsg}</div>}
 
       <div className="hero-dark">
-        <div className="hero-top"><span>สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
+        <div className="hero-top"><span>สรุป {filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
         <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
@@ -146,17 +146,12 @@ export default function PageDashboard({ data, saveData }) {
       </div>
 
       <Card>
-        <CardHead title="หมอประจำ" />
+        <CardHead title="แยกตามประเภทหมอ" hint="ยอดขาย · ค่าแรง" />
         <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
-        </div>
-      </Card>
-      <Card>
-        <CardHead title="หมอวิ่ง" />
-        <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</div></div>
+          <div className="mini-box"><div className="l">หมอประจำ · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
+          <div className="mini-box hl"><div className="l">หมอประจำ · ค่าแรง</div><div className="v">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
+          <div className="mini-box"><div className="l">หมอวิ่ง · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
+          <div className="mini-box hl"><div className="l">หมอวิ่ง · ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</div></div>
         </div>
       </Card>
       </>

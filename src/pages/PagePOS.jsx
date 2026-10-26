@@ -248,6 +248,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     .filter((b) => b.status === 'open' && b.customerType === 'booking')
     .sort((a, z) => `${a.bookedDate || ''} ${a.startTime || ''}`.localeCompare(`${z.bookedDate || ''} ${z.startTime || ''}`)), [data.bills]);
 
+  // บิลค้าง (ยังไม่เช็คบิล) ทั้งหมด — ตัวเลขเดียวกับป้ายบนเมนู "บิล" (อ่านค่าเท่านั้น)
+  const openBillsCount = useMemo(() => (data.bills || []).filter((b) => b.status === 'open').length, [data.bills]);
+
   // กลับไปหน้าเลือกประเภทลูกค้า — ถ้ามีข้อมูลกรอก/หยิบไว้แล้ว ให้ยืนยันก่อนล้าง (กันแตะพลาด)
   const backToTypePick = async () => {
     const dirty = customerName.trim() || bookerName.trim() || pickedServices.length > 0;
@@ -717,17 +720,20 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     <div>
       {err && <div className="err-banner"><TriangleAlert size={16} strokeWidth={1.9} className="eic" /> {err}</div>}
 
+      {/* บรรทัดสรุปวันนี้ — ตัวเลขที่พนักงานต้องรู้ก่อนเริ่มงาน (อ่านจาก data เท่านั้น ไม่คำนวณเงินใหม่)
+          แทนกล่องว่างสูงครึ่งจอ: ไม่มีงานค้างก็ยังเห็นบรรทัดเดียวว่า 0 */}
+      <div className="pos-strip" role="status">
+        <span className="pos-strip-i"><ReceiptText size={15} strokeWidth={1.9} aria-hidden="true" /> บิลค้าง <b className="num">{openBillsCount}</b> ใบ</span>
+        <span className="pos-strip-d" aria-hidden="true" />
+        <span className="pos-strip-i"><CalendarDays size={15} strokeWidth={1.9} aria-hidden="true" /> คิวจองล่วงหน้า <b className="num">{bkQueue.length}</b> คิว</span>
+      </div>
+
       {/* ══ การ์ด "คิวที่จองล่วงหน้า" — บิลจอง (ลูกค้าโทรมาจอง) ที่เปิดไว้ ══
-          แตะแถว → ไปหน้าบิล (ตั้งหมอ/แก้ไข/เช็คบิล) · ยอดจัดกลุ่มตามวันให้บริการ */}
-      <Card>
-        <CardHead title="คิวที่จองล่วงหน้า" hint={bkQueue.length > 0 ? `${bkQueue.length} รายการ` : ''} />
-        {bkQueue.length === 0 ? (
-          <EmptyState
-            icon={CalendarDays}
-            title="ยังไม่มีคิวที่จองไว้"
-            subtitle='ลูกค้าโทรมาจอง → เลือก "ลูกค้าจอง" ด้านล่างเพื่อเปิดบิลจอง'
-          />
-        ) : (
+          แตะแถว → ไปหน้าบิล (ตั้งหมอ/แก้ไข/เช็คบิล) · ยอดจัดกลุ่มตามวันให้บริการ
+          ไม่มีคิว = ไม่แสดงการ์ด — หน้า POS ต้องเริ่มที่งานหลัก (เปิดบิลใหม่) ไม่ใช่กล่องว่างสูงครึ่งจอ */}
+      {bkQueue.length > 0 && (
+        <Card>
+          <CardHead title="คิวที่จองล่วงหน้า" hint={`${bkQueue.length} รายการ`} />
           <div className="bkq-list">
             {bkQueue.map((b) => {
               const rows = b.items || b.customers || [];
@@ -755,8 +761,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               );
             })}
           </div>
-        )}
-      </Card>
+        </Card>
+      )}
 
       {/* ขั้น 0: เลือกประเภทลูกค้า — ยังไม่เลือกจึงไม่แสดงแถบขั้น */}
       {customerType === null && (
@@ -766,12 +772,12 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             <button type="button" className="typepick-card" onClick={() => startFlow('walkin')}>
               <span className="typepick-ico"><Store size={26} strokeWidth={1.6} /></span>
               <b>ลูกค้าหน้าร้าน</b>
-              <small>รายการ → ระยะเวลา → หมอนวด → เวลา → ตรวจสอบ</small>
+              <small>เดินเข้ามาใช้บริการ — เลือกบริการ หมอ และเวลาเลย</small>
             </button>
             <button type="button" className="typepick-card typepick-green" onClick={() => startFlow('booking')}>
               <span className="typepick-ico"><CalendarDays size={26} strokeWidth={1.6} /></span>
               <b>ลูกค้าจอง</b>
-              <small>โทรมาจองล่วงหน้า · ชื่อลูกค้า + ผู้รับจอง (ตั้งหมอทีหลัง)</small>
+              <small>โทรมาจองล่วงหน้า — บันทึกชื่อไว้ ตั้งหมอทีหลัง</small>
             </button>
           </div>
         </Card>
@@ -851,7 +857,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       )}
 
       {/* STEP 1: รายการล้วน (จอง: ขั้น 2) */}
-      {step === (customerType === 'booking' ? 2 : 1) && (
+      {customerType !== null && step === (customerType === 'booking' ? 2 : 1) && (
         <>
           {pickedServices.length > 0 && (
             <Card>

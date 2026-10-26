@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, FileText, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil, UserRound } from 'lucide-react';
-import { Card, EmptyState, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
+import { ShieldAlert, TriangleAlert, Plus, Trash2, Upload, X, Clock, ExternalLink, Loader2, CheckCircle2, CalendarDays, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Store, Combine, Pencil, UserRound } from 'lucide-react';
+import { Card, StatusBadge, Modal, Lightbox, alertDialog, confirmDialog, formatDuration } from './ui';
 import { bkkNow, bkkToday, fmtBkk } from '../utils/bkk';
 import { supabase } from '../lib/supabase';
 import { commBaht, freelanceDisplayName, isFreelance, billBizDay } from '../lib/billing';
@@ -806,15 +806,17 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               <Combine size={13} strokeWidth={2} /> {mergeMode ? 'ปิดโหมดรวม' : 'รวมบิล'}
             </button>
           )}
-          <button
-            type="button"
-            className="osec-sort"
-            onClick={() => setWalkSort((d) => (d === 'asc' ? 'desc' : 'asc'))}
-            aria-label={walkSort === 'asc' ? 'เรียงตามเวลา (เร็ว→สาย) — กดเพื่อกลับทิศ' : 'เรียงตามเวลา (สาย→เร็ว) — กดเพื่อกลับทิศ'}
-            title={walkSort === 'asc' ? 'เรียงเช้า→ค่ำ — กดเพื่อกลับทิศ' : 'เรียงค่ำ→เช้า — กดเพื่อกลับทิศ'}
-          >
-            เรียงตามเวลา {walkSort === 'asc' ? <ChevronUp size={13} strokeWidth={2.2} /> : <ChevronDown size={13} strokeWidth={2.2} />}
-          </button>
+          {openBills.length > 0 && (
+            <button
+              type="button"
+              className="osec-sort"
+              onClick={() => setWalkSort((d) => (d === 'asc' ? 'desc' : 'asc'))}
+              aria-label={walkSort === 'asc' ? 'เรียงตามเวลา (เร็ว→สาย) — กดเพื่อกลับทิศ' : 'เรียงตามเวลา (สาย→เร็ว) — กดเพื่อกลับทิศ'}
+              title={walkSort === 'asc' ? 'เรียงเช้า→ค่ำ — กดเพื่อกลับทิศ' : 'เรียงค่ำ→เช้า — กดเพื่อกลับทิศ'}
+            >
+              เรียงตามเวลา {walkSort === 'asc' ? <ChevronUp size={13} strokeWidth={2.2} /> : <ChevronDown size={13} strokeWidth={2.2} />}
+            </button>
+          )}
         </header>
         <div className="osec-body">
           {mergeMode && (
@@ -830,17 +832,14 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
               </button>
             </div>
           )}
-          {openBills.length === 0 ? (
-            <div className="osec-empty">
-              <EmptyState
-                icon={FileText}
-                title="ไม่มีออเดอร์หน้าร้าน"
-                subtitle={dayFilter
-                  ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
-                  : 'เปิดบิลใหม่จากหน้า POS'}
-              />
-            </div>
-          ) : walkRowsSorted.map((r, i) => {
+          {openBills.length === 0 && (
+            <p className="osec-note">
+              {dayFilter
+                ? `ไม่มีบิลในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
+                : 'เปิดบิลใหม่ได้จากหน้า POS'}
+            </p>
+          )}
+          {walkRowsSorted.length > 0 && walkRowsSorted.map((r, i) => {
             const msel = mergeMode && mergeSel.includes(r.b.id);
             return (
               <article
@@ -911,17 +910,14 @@ export default function OpenBillsSection({ data, saveData, role, children, booki
           <span className="osec-count num" title="จำนวนบิลจอง (ร้านรับเอง) ที่เปิดอยู่">{shownBookBills.length}</span>
         </header>
         <div className="osec-body">
-          {shownBookBills.length === 0 ? (
-            <div className="osec-empty">
-              <EmptyState
-                icon={CalendarDays}
-                title="ไม่มีบิลจอง (ร้านรับเอง)"
-                subtitle={dayFilter
-                  ? `ในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
-                  : 'ลูกค้าโทรมาจอง → เปิดบิลจองจากหน้า POS (เลือก "ลูกค้าจอง")'}
-              />
-            </div>
-          ) : bookRowsSorted.map((r, i) => (
+          {shownBookBills.length === 0 && (
+            <p className="osec-note">
+              {dayFilter
+                ? `ไม่มีบิลจองในวันที่ ${dayChipLabel(dayFilter)} — ของวันอื่นยังอยู่ตามปกติ`
+                : 'ลูกค้าโทรมาจอง → เปิดบิลจองจากหน้า POS (เลือก "ลูกค้าจอง")'}
+            </p>
+          )}
+          {bookRowsSorted.length > 0 && bookRowsSorted.map((r, i) => (
             <article
               key={r.b.id}
               className="orow"
