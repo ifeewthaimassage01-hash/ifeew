@@ -1,4 +1,4 @@
-/* ══════════════════════════════════════════════════════════════════
+﻿/* ══════════════════════════════════════════════════════════════════
    หน้าจัดการการจองออนไลน์ (ฝั่งเจ้าของร้าน) — ย้ายจากเว็บจอง ifeew-booking
    ใช้ตัวแปรสี/ฟอนต์ชุดเดียวกับแอป POS (index.css) · mobile-first
    ──────────────────────────────────────────────────────────────────
@@ -39,15 +39,15 @@
 }
 
 /* ---------- ส่วนเสริมของแอป POS ที่หน้านี้ใช้เพิ่ม ---------- */
-.badge.ok { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
-.kpi.alert { background: var(--red-bg); border-color: #ecbcb4; }
-.kpi.alert .kpi-label { color: var(--red); opacity: 0.9; }
-.kpi.alert .kpi-value { color: var(--red); }
-.kpi.alert .kpi-sub { color: var(--red); opacity: 0.8; }
+.badge.ok { background: var(--st-ok-bg); color: var(--st-ok); border-color: var(--st-ok-bd); }
+.kpi.alert { background: var(--st-bad-bg); border-color: var(--st-bad-bd); }
+.kpi.alert .kpi-label { color: var(--st-bad); }
+.kpi.alert .kpi-value { color: var(--st-bad); }
+.kpi.alert .kpi-sub { color: var(--st-bad); }
 
 .bk-adm-notice {
   display: flex; gap: 8px; align-items: flex-start;
-  background: var(--red-bg); border: 1px solid #ecbcb4; color: var(--red);
+  background: var(--st-bad-bg); border: 1px solid var(--st-bad-bd); color: var(--st-bad);
   font-size: 12.5px; border-radius: var(--r-md); padding: 10px 13px; margin-bottom: 12px; line-height: 1.5;
 }
 
@@ -84,18 +84,19 @@
 .bk-adm-when { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); }
 
 /* ---------- badge สถานะ ---------- */
+/* ใช้ชุด token --st-* ของ index.css (ชุดสถานะเดียวทั้งแอป) */
 .bk-adm-badge {
-  display: inline-flex; align-items: center; padding: 3px 9px;
-  border-radius: 999px; font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; padding: 4px 9px;
+  border-radius: 999px; font-size: var(--fs-micro); font-weight: 700;
   border: 1px solid transparent; white-space: nowrap;
 }
-.bk-adm-badge.is-pending { background: var(--amber-bg); color: var(--amber-text); border-color: #ecdcba; }
-.bk-adm-badge.is-confirmed { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
-.bk-adm-badge.is-cancelled { background: var(--surface-2); color: var(--muted); border-color: var(--line); }
-.bk-adm-badge.is-expired { background: var(--surface-2); color: var(--faint); border-color: var(--line); }
-.bk-adm-badge.is-cancel-requested { background: var(--red-bg); color: var(--red); border-color: #ecbcb4; }
+.bk-adm-badge.is-pending { background: var(--st-pending-bg); color: var(--st-pending); border-color: var(--st-pending-bd); }
+.bk-adm-badge.is-confirmed { background: var(--st-ok-bg); color: var(--st-ok); border-color: var(--st-ok-bd); }
+.bk-adm-badge.is-cancelled { background: var(--st-neutral-bg); color: var(--st-neutral); border-color: var(--st-neutral-bd); }
+.bk-adm-badge.is-expired { background: var(--st-neutral-bg); color: var(--st-neutral); border-color: var(--st-neutral-bd); }
+.bk-adm-badge.is-cancel-requested { background: var(--st-bad-bg); color: var(--st-bad); border-color: var(--st-bad-bd); }
 /* จบบริการ = รับลูกค้าเสร็จแล้ว — น้ำตาลกลาง (ต่างจาก "ยืนยันแล้ว" เขียว) */
-.bk-adm-badge.is-completed { background: var(--brown-tint); color: var(--brown-dark); border-color: #e4d3bd; }
+.bk-adm-badge.is-completed { background: var(--brown-tint); color: var(--brown-ink); border-color: #e4d3bd; }
 
 /* ---------- ข้อมูลลูกค้า ---------- */
 .bk-adm-rows { margin-top: 10px; display: grid; gap: 6px; }
@@ -104,7 +105,7 @@
 .bk-adm-row-v { min-width: 0; color: var(--ink); overflow-wrap: break-word; }
 .bk-adm-phone {
   display: inline-flex; align-items: center; gap: 4px; margin-left: var(--sp-2);
-  color: var(--brown-dark); font-weight: 600; text-decoration: none;
+  color: var(--brown-ink); font-weight: 600; text-decoration: none;
 }
 .bk-adm-thera { display: block; font-style: normal; font-size: 11.5px; color: var(--muted); margin-top: 1px; }
 
@@ -116,7 +117,7 @@
 /* ---------- แถบเตือน ---------- */
 .bk-adm-warn {
   margin-top: 10px; display: flex; gap: var(--sp-2); align-items: flex-start;
-  background: var(--red-bg); border: 1px solid #ecbcb4; color: var(--red);
+  background: var(--st-bad-bg); border: 1px solid var(--st-bad-bd); color: var(--st-bad);
   border-radius: var(--r-md); padding: 9px var(--sp-3); font-size: 12.5px; line-height: 1.5;
 }
 
@@ -144,14 +145,14 @@
   display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px;
   border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent;
 }
-.bk-adm-slip-tag.is-verified { background: #eef5ee; color: var(--green-ok); border-color: #cfe3d0; }
+.bk-adm-slip-tag.is-verified { background: var(--st-ok-bg); color: var(--st-ok); border-color: var(--st-ok-bd); }
 .bk-adm-slip-tag.is-wait { background: var(--amber-bg); color: var(--amber-text); border-color: #ecdcba; }
 .bk-adm-slip-row { font-size: 11.5px; color: var(--muted); margin-top: 5px; overflow-wrap: break-word; }
 
 /* ---------- ยืนยันแล้ว ---------- */
 .bk-adm-paid {
   margin-top: var(--sp-3); display: flex; gap: var(--sp-2); align-items: flex-start;
-  background: #eef5ee; border: 1px solid #cfe3d0; color: var(--green-ok);
+  background: var(--st-ok-bg); border: 1px solid var(--st-ok-bd); color: var(--st-ok);
   border-radius: var(--r-md); padding: 10px var(--sp-3); font-size: 12.5px;
 }
 .bk-adm-paid b { font-size: 13px; font-weight: 700; }
@@ -193,17 +194,16 @@
 /* ---------- admin UI v2: กลุ่ม section (bk-adm-sec-*) ---------- */
 .bk-adm-chip-all { align-self: stretch; justify-content: center; min-height: 44px; }
 /* การ์ด "ต้องดำเนินการ" — ขอบเหลืองอมน้ำตาลให้เห็นคิวงานค้าง */
-.bk-adm-card.is-todo { border-color: #ecdcba; box-shadow: 0 0 0 1px #ecdcba; }
 
 /* หัวข้อกลุ่มงาน */
 .bk-adm-sec { margin-bottom: var(--sp-5); min-width: 0; }
 .bk-adm-sec-h { display: flex; align-items: center; gap: var(--sp-3); margin: 0 2px var(--sp-3); min-width: 0; }
 .bk-adm-sec-ic {
   width: 32px; height: 32px; flex-shrink: 0; border-radius: var(--r-sm);
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--brown-dark);
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--brown-ink);
   display: flex; align-items: center; justify-content: center;
 }
-.bk-adm-sec-ic-todo { background: var(--amber-bg); border-color: #ecdcba; color: var(--amber); }
+.bk-adm-sec-ic-todo { background: var(--st-pending-bg); border-color: var(--st-pending-bd); color: var(--st-pending); }
 .bk-adm-sec-txt { min-width: 0; display: flex; flex-direction: column; }
 .bk-adm-sec-txt b { display: block; font-size: 14.5px; font-weight: 700; color: var(--ink); line-height: 1.25; }
 .bk-adm-sec-txt span { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
@@ -236,14 +236,14 @@
 .bk-adm-field-search { min-width: 0; }
 .bk-adm-filters .bk-adm-chip-all { align-self: end; justify-self: start; min-height: 46px; }
 
-/* การ์ดการจอง — เด่นขึ้นเมื่อต้องทำ */
+/* การ์ดการจอง — เด่นขึ้นเมื่อต้องทำ (วงแหวนทั้งใบ ไม่ใช่แถบข้าง: ป้ายสถานะต้องไม่พึ่งเส้นขอบด้านเดียว) */
 @media (hover: hover) { .bk-adm-card:hover { box-shadow: var(--sh-2); border-color: #e4d9c8; } }
-.bk-adm-card.is-todo { border-color: #ecdcba; box-shadow: inset 3px 0 0 var(--amber), var(--sh-1); }
-.bk-adm-card.is-todo:hover { box-shadow: inset 3px 0 0 var(--amber), var(--sh-2); border-color: #e2c894; }
+.bk-adm-card.is-todo { border-color: var(--st-pending-bd); box-shadow: 0 0 0 1px var(--st-pending-bd), var(--sh-1); }
+.bk-adm-card.is-todo:hover { box-shadow: 0 0 0 1px var(--st-pending-bd), var(--sh-2); border-color: var(--st-pending-bd); }
 
 /* ปุ่มยืนยัน / ปฏิเสธ */
-.bk-adm-btn-reject { background: var(--red-bg); border-color: #ecbcb4; color: var(--red); }
-.bk-adm-btn-reject:hover:not(:disabled) { background: #f7e4e0; border-color: #e3a89e; }
+.bk-adm-btn-reject { background: var(--st-bad-bg); border-color: var(--st-bad-bd); color: var(--st-bad); }
+.bk-adm-btn-reject:hover:not(:disabled) { background: #f7e4e0; border-color: var(--st-bad-bd); }
 
 /* รูปสลีป */
 .bk-adm-slip-thumb {
@@ -281,7 +281,7 @@
 
 /* ---------- การ์ดจองผสานกลุ่มบิลเปิด (แฟมิลี ob-card แต่แยกลักษณะชัด) ---------- */
 .bkc { border: 1.5px dashed var(--brown); }
-.bkc .ob-ava { background: #fff; border: 1.5px dashed var(--brown); color: var(--brown); }
+.bkc .ob-ava { background: #fff; border: 1.5px dashed var(--brown-cta); color: var(--brown-ink); }
 /* การ์ดจองมี 1 รายการ: แถวบริการ = เวลา + ชื่อบริการ (ราคาอยู่ที่ยอดใหญ่รวม) → กริด 2 คอลัมน์ ไม่เหลือช่องว่าง */
 .bkc .ob-row { grid-template-columns: 86px 1fr; }
 .bkc-pill {
@@ -290,22 +290,22 @@
   margin-left: 7px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: var(--brown);
+  background: var(--brown-cta);
   color: #fff;
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   font-weight: 700;
   letter-spacing: .02em;
   white-space: nowrap;
 }
-.bkc .ob-btns .badge { font-size: 11px; }
+.bkc .ob-btns .badge { font-size: var(--fs-micro); }
 
 /* หมอผู้บริการ = pill ชมพูน้ำตาลอ่อนในการ์ดจอง (คำขอผู้ใช้ 23 ต.ค. 2026)
    วางในแถบข้อมูลของการ์ด — อ่านแยกจากวัน/เวลา/เบอร์ได้ทันที */
 .bkc-doc-pill {
   display: inline-flex; align-items: center; gap: 3px;
   padding: 2px 9px; border-radius: 999px;
-  background: var(--brown-tint); color: var(--brown-dark);
-  font-size: 11px; font-weight: 600; line-height: 1.6;
+  background: var(--brown-tint); color: var(--brown-ink);
+  font-size: var(--fs-micro); font-weight: 600; line-height: 1.6;
   white-space: nowrap; vertical-align: middle;
 }
 .bkc-doc-pill svg { flex-shrink: 0; opacity: .75; }
@@ -322,7 +322,7 @@
 /* ---------- เลือกวันที่ (ลอก UI จากหน้าเลือกช่วงเวลาของเว็บจอง 100%) ---------- */
 .bk-datehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin: 2px 0 6px; }
 .bk-datehead-t { display: flex; align-items: center; gap: 7px; font-size: 16px; font-weight: 700; color: var(--ink); }
-.bk-datehead-t svg { color: var(--brown-dark); }
+.bk-datehead-t svg { color: var(--brown-ink); }
 .bk-datehead-hint { font-size: 12px; color: var(--muted); margin-top: 3px; display: block; }
 .bk-pick-date-nav { display: flex; gap: 6px; flex-shrink: 0; }
 .bk-pick-date-btn {
@@ -331,7 +331,7 @@
   background: var(--surface); border: 1px solid var(--line); color: var(--muted);
   transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
 }
-.bk-pick-date-btn:hover { background: var(--surface-2); border-color: #e4d9c8; color: var(--brown-dark); }
+.bk-pick-date-btn:hover { background: var(--surface-2); border-color: #e4d9c8; color: var(--brown-ink); }
 .bk-pick-date-btn:active { transform: scale(0.94); }
 
 .bk-date-strip {
@@ -356,9 +356,9 @@
   .bk-date:hover:not(.on):not(:disabled) { border-color: var(--brown); background: var(--brown-tint-2); }
 }
 .bk-date:focus-visible { outline: 2px solid var(--brown); outline-offset: 2px; }
-.bk-date .d-dow { font-size: 10.5px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
+.bk-date .d-dow { font-size: var(--fs-micro); font-weight: 600; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
 .bk-date .d-num { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
-.bk-date .d-mon { font-size: 10.5px; font-weight: 500; color: var(--faint); }
+.bk-date .d-mon { font-size: var(--fs-micro); font-weight: 600; color: var(--faint); }
 .bk-date.on {
   border-color: var(--brown-950); background: var(--brown-950); color: #fff;
   box-shadow: 0 0 0 1px var(--brown-950), 0 4px 12px -6px rgba(100, 81, 62, 0.6);
@@ -371,16 +371,16 @@
 .bk-date.closed .d-num { text-decoration: line-through; }
 .bk-date.closed .d-off {
   position: absolute; top: 2px; right: 2px;
-  background: #b3564a; color: #fff; font-size: 9px; font-weight: 700;
+  background: var(--st-bad); color: #fff; font-size: var(--fs-micro); font-weight: 700;
   border-radius: 999px; padding: 1px 6px; line-height: 1.5;
 }
 /* pill จำนวนจองของแต่ละวัน (มุมขวาบน — ต้นแบบเดียวกับป้าย "ปิด")
    (คำขอผู้ใช้ 23 ต.ค. 2026: "อยากให้มี pill บอกว่าวันไหนมีจองบ้าง") */
 .bk-date-count {
   position: absolute; top: 4px; right: 4px;
-  background: var(--brown); color: #fff; font-size: 10px; font-weight: 700;
-  border-radius: 999px; padding: 1.5px 7px; line-height: 1.4;
-  font-variant-numeric: tabular-nums; min-width: 14px; text-align: center;
+  background: var(--brown-cta); color: #fff; font-size: var(--fs-micro); font-weight: 700;
+  border-radius: 999px; padding: 2px 7px; line-height: 1.4;
+  font-variant-numeric: tabular-nums; min-width: 16px; text-align: center;
 }
 /* ชิปที่เลือกอยู่พื้นเข้ม → pill กลับสีให้แยกชัด */
 .bk-date.on .bk-date-count { background: #fff; color: var(--brown-950); }
@@ -421,7 +421,7 @@
   display: flex; flex-direction: column; gap: 1px;
 }
 .bk-queue-time b { font-size: 13.5px; font-weight: 700; color: var(--brown-text, #6a5340); line-height: 1.15; }
-.bk-queue-time small { font-size: 10.5px; color: var(--muted, #8a7a68); white-space: nowrap; }
+.bk-queue-time small { font-size: var(--fs-micro); color: var(--muted, #8a7a68); white-space: nowrap; }
 .bk-queue-main { flex: 1 1 auto; min-width: 0; }
 .bk-queue-cust { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink, #2a2119); min-width: 0; overflow-wrap: anywhere; }
 .bk-queue-phone {
@@ -430,7 +430,7 @@
 }
 .bk-queue-svc { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted, #8a7a68); overflow-wrap: anywhere; }
 .bk-queue-st { flex-shrink: 0; }
-.bk-queue-st .bk-adm-badge { font-size: 10.5px; padding: 2px 8px; }
+.bk-queue-st .bk-adm-badge { font-size: var(--fs-micro); padding: 3px 9px; }
 
 /* จอแคบ: พังเรียงตัวจากแนวนอนเป็นคอลัมน์ */
 @media (max-width: 560px) {

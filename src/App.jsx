@@ -414,7 +414,7 @@ function AppShell() {
       <div className="shell">
         <RailDesktop active={activePage} items={navItems} onNavigate={navigate} onExit={exitRole} badges={badges} data={data} saveData={saveData} role={role} />
         <div className="main-col">
-          <TopBar active={activePage} items={navItems} role={role} onExit={exitRole} data={data} saveData={saveData} />
+          <TopBar active={activePage} items={navItems} role={role} onNavigate={navigate} onExit={exitRole} data={data} saveData={saveData} />
           <main className="page">
             <div className="container">
               {/* M2: banner รวมอันเดียว (offline ชนะ) + sticky ไม่ดัน wizard */}
