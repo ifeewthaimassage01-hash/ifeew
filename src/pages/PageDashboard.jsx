@@ -146,13 +146,29 @@ export default function PageDashboard({ data, saveData }) {
       </div>
 
       <Card>
-        <CardHead title="แยกตามประเภทหมอ" hint="ยอดขาย · ค่าแรง" />
-        <div className="mini2">
-          <div className="mini-box"><div className="l">หมอประจำ · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">หมอประจำ · ค่าแรง</div><div className="v">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
-          <div className="mini-box"><div className="l">หมอวิ่ง · ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">หมอวิ่ง · ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</div></div>
-        </div>
+        {/* ตารางเล็ก: แถว = ประเภทหมอ · คอลัมน์ = ยอดขาย/ค่าแรง — หัวคอลัมน์พูดครั้งเดียว ไม่พิมพ์ชื่อกลุ่มซ้ำ */}
+        <CardHead title="แยกตามประเภทหมอ" />
+        <table className="ttype">
+          <thead>
+            <tr>
+              <th scope="col" aria-label="ประเภทหมอ"></th>
+              <th scope="col">ยอดขาย</th>
+              <th scope="col">ค่าแรง</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>หมอประจำ</td>
+              <td className="num">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</td>
+              <td className="num cost">฿ {Math.round(regCommAdj).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td>หมอวิ่ง</td>
+              <td className="num">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</td>
+              <td className="num cost">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
       </Card>
       </>
       )}

@@ -597,12 +597,14 @@ table.tbl td.c, table.tbl th.c { text-align: center; }
 .bar-track { height: 7px; border-radius: 99px; background: var(--line-soft); overflow: hidden; margin: 11px 0; }
 .bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--brown); }
 .mini3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; text-align: center; }
-.mini2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: center; margin-bottom: 0; }
-.mini-box { background: var(--surface-2); border: 0; border-radius: 11px; padding: 10px 6px; }
-.mini-box.hl { background: var(--brown-tint); border-color: #e7d6c3; color: var(--brown-ink); }
-.mini-box .l { font-size: var(--fs-micro); color: var(--muted); }
-.mini-box.hl .l { color: rgba(255, 255, 255, 0.82); }
-.mini-box .v { font-size: 12.5px; font-weight: 700; margin-top: 1px; font-variant-numeric: tabular-nums; }
+/* แยกตามประเภทหมอ — ตารางบัญชีเล็ก (แถว = ประเภทหมอ · คอลัมน์ = ยอดขาย/ค่าแรง)
+   ค่าแรง = ต้นทุน → น้ำตาล --brown-ink หนา สื่อฝั่ง "หักออก" โดยไม่ต้องใส่กล่องไฮไลต์ */
+.ttype { width: 100%; border-collapse: collapse; }
+.ttype th { padding: 0 0 6px; font-size: var(--fs-micro); font-weight: 600; color: var(--muted); text-align: right; }
+.ttype th:first-child { text-align: left; }
+.ttype td { padding: 11px 0; border-top: 1px solid var(--line-soft); text-align: right; font-size: var(--fs-lead); font-variant-numeric: tabular-nums; }
+.ttype td:first-child { text-align: left; font-size: var(--fs-body); font-weight: 600; }
+.ttype td.cost { color: var(--brown-ink); font-weight: 700; }
 .refgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .refbox { background: var(--surface-2); border: 0; border-radius: 11px; padding: 10px 12px; }
 .refbox b { font-size: 12.5px; font-weight: 600; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -920,8 +922,7 @@ label.filebtn {
 
   .exp-row { padding: 10px 2px; gap: 10px; }
   .exp-ic { width: 34px; height: 34px; }
-  .mini-box { padding: 9px 4px; }
-  .mini-box .v { font-size: 12px; }
+  .ttype td { padding: 10px 0; }
   .refbox { padding: 10px 12px; }
   .refbox b { font-size: 12px; }
 

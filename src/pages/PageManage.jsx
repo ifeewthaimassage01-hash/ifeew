@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Sparkles, Tag, ShieldCheck, SlidersHorizontal, Settings2, Search, Bell, BellOff, RefreshCw } from 'lucide-react';
+import { Plus, Pencil, Trash2, TriangleAlert, CheckCircle2, X, ChevronUp, ChevronDown, ArrowUpDown, GripVertical, KeyRound, Users, LayoutGrid, Sparkles, Tag, SlidersHorizontal, Settings2, Search, Bell, BellOff, RefreshCw } from 'lucide-react';
 import { Card, CardHead, EmptyState, Modal, PageHeader, alertDialog, confirmDialog, formatDuration } from '../components/ui';
 import { commBaht, categoryEn, serviceCategoryOrder, guaranteeAmountOf } from '../lib/billing';
 import { getOwnerPass } from '../lib/auth';
@@ -192,7 +192,6 @@ const TABS = [
   { id: 'services', label: 'รายการ', icon: LayoutGrid },
   { id: 'addons', label: 'บริการเสริม', icon: Sparkles },
   { id: 'promos', label: 'โปร', icon: Tag },
-  { id: 'guarantee', label: 'ประกันมือ', icon: ShieldCheck },
   { id: 'settings', label: 'ตั้งค่า', icon: SlidersHorizontal },
 ];
 
@@ -809,7 +808,9 @@ export default function PageManage({ data, saveData }) {
 
       {err && <div className="err-banner"><TriangleAlert size={15} className="err-ic" /> {err}</div>}
 
+      {/* แท็บพนักงาน = รายชื่อพนักงาน + ประกันมือ (ย้ายมารวมกัน — คำขอผู้ใช้) */}
       {tab === 'staff' && (
+        <>
         <Card>
           <CardHead title="รายชื่อพนักงาน" right={<button className="btn btn-primary auto btn-md" onClick={openAddT} title="เพิ่มพนักงาน" aria-label="เพิ่มพนักงาน"><Plus size={15} /> <span className="btn-t">เพิ่มพนักงาน</span></button>} />
           <div className="search-wrap mg-search">
@@ -833,6 +834,22 @@ export default function PageManage({ data, saveData }) {
           {staffKey && shownTherapists.length === 0 && <EmptyState compact title="ไม่พบพนักงาน" subtitle="ลองค้นหาด้วยคำอื่น" />}
           {!staffKey && therapists.length === 0 && <EmptyState compact title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
         </Card>
+
+        {/* ประกันมือ — อดีตแท็บแยก ย้ายมาไว้ต่อท้ายพนักงาน */}
+        <div className="mg-hero">
+          <div>
+            <div className="mg-hero-l">ยอดประกันมือต่อวัน</div>
+            <div className="mg-hero-v">฿ {guaranteeAmountOf(data).toLocaleString()}</div>
+          </div>
+          <span className="badge paid">ใช้งานอยู่</span>
+        </div>
+        <Card>
+          <CardHead title="ปรับยอดประกันมือ" />
+          <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input input-bold" /></div>
+          <p className="muted mb10">ใช้เช็กชื่อให้ครบตามยอดนี้ต่อวัน</p>
+          <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
+        </Card>
+        </>
       )}
 
       {tab === 'services' && (
@@ -922,24 +939,6 @@ export default function PageManage({ data, saveData }) {
           </div>
           {promos.length === 0 && <EmptyState compact title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
         </Card>
-      )}
-
-      {tab === 'guarantee' && (
-        <>
-          <div className="mg-hero">
-            <div>
-              <div className="mg-hero-l">ยอดประกันมือต่อวัน</div>
-              <div className="mg-hero-v">฿ {guaranteeAmountOf(data).toLocaleString()}</div>
-            </div>
-            <span className="badge paid">ใช้งานอยู่</span>
-          </div>
-          <Card>
-            <CardHead title="ปรับยอดประกันมือ" />
-            <div className="field"><label>ยอดใหม่ (฿)</label><input type="number" min="1" value={gAmt} onChange={(e) => setGAmt(e.target.value)} placeholder={`ปัจจุบัน ฿ ${guaranteeAmountOf(data).toLocaleString()} — กรอกยอดใหม่`} className="input input-bold" /></div>
-            <p className="muted mb10">ใช้เช็กชื่อให้ครบตามยอดนี้ต่อวัน</p>
-            <button onClick={saveGuarantee} className="btn btn-primary btn-block"><CheckCircle2 size={16} /> บันทึก</button>
-          </Card>
-        </>
       )}
 
       {tab === 'settings' && (

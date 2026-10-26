@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, useId, useCallback } from 'react'
 import {
   ReceiptText, Plus, Search, TriangleAlert, Trash2, ChevronDown, ChevronRight, Check, Fuel,
   Hand, Footprints, Droplet, Flower2, Sparkles, Leaf, Package, ScanFace, HeartHandshake,
-  Store, CalendarDays,
+  Store, CalendarDays, Eraser,
 } from 'lucide-react';
 import { Card, CardHead, EmptyState, formatDuration, alertDialog, confirmDialog } from '../components/ui';
 import { chainTimes, serviceCategoryOrder, billBizDay } from '../lib/billing';
@@ -251,14 +251,48 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
   // บิลค้าง (ยังไม่เช็คบิล) ทั้งหมด — ตัวเลขเดียวกับป้ายบนเมนู "บิล" (อ่านค่าเท่านั้น)
   const openBillsCount = useMemo(() => (data.bills || []).filter((b) => b.status === 'open').length, [data.bills]);
 
-  // กลับไปหน้าเลือกประเภทลูกค้า — ถ้ามีข้อมูลกรอก/หยิบไว้แล้ว ให้ยืนยันก่อนล้าง (กันแตะพลาด)
+  /* เคลียร์บิลเก่า = ยกเลิกบิล open ค้างทุกใบในคลิกเดียว (ไว้เก็บงานตอนปิดวัน)
+     กติกาเดียวกับยกเลิกทีละใบในหน้าบิล: พนักงานยกเลิกไม่ได้ — ต้องให้เจ้าของร้านยืนยัน
+     บิลที่โดนยกเลิกยังอยู่ในประวัติ (สถานะ "ยกเลิก") ไม่ลบข้อมูล */
+  const clearOldBills = async () => {
+    const open = (data.bills || []).filter((b) => b.status === 'open');
+    if (open.length === 0) return;
+    if (role !== 'owner') {
+      await alertDialog({ title: 'จำเป็นต้องให้เจ้าของร้านยกเลิก', message: 'การเคลียร์บิลค้างต้องให้เจ้าของร้านเป็นคนยืนยัน กรุณาเรียกเจ้าของร้าน' });
+      return;
+    }
+    const ok = await confirmDialog({
+      title: `เคลียร์บิลค้าง ${open.length} ใบ?`,
+      message: 'บิลที่เปิดค้างทุกใบจะเปลี่ยนเป็น "ยกเลิก" — ยังดูได้ในแท็บประวัติบิล (กรองสถานะ "ยกเลิก") ไม่กระทบบิลที่ชำระแล้ว',
+      confirmLabel: 'ยกเลิกทั้งหมด',
+      danger: true,
+    });
+    if (!ok) return;
+    saveData({
+      ...data,
+      bills: (data.bills || []).map((b) => (b.status === 'open' ? { ...b, status: 'cancelled' } : b)),
+      auditLog: [
+        ...(data.auditLog || []),
+        ...open.map((b) => ({
+          id: `A-${Date.now()}-${b.id}`, timestamp: bkkNow(), user: 'เจ้าของร้าน',
+          action: 'ยกเลิกบิล', detail: `${b.customer || 'ลูกค้าหน้าร้าน'} · เคลียร์บิลค้าง`,
+          oldValue: 'open', newValue: 'cancelled', approvedBy: 'เจ้าของร้าน',
+        })),
+      ],
+    });
+    await alertDialog({ title: 'เคลียร์บิลค้างแล้ว', message: `ยกเลิก ${open.length} ใบ — ดูได้ในแท็บประวัติบิล` });
+  };
+
+  // กลับไปหน้าเลือกประเภทลูกค้า — ล้างข้อมูลที่เลือกไว้ทุกขั้น "ทุกประเภทลูกค้า" เสมอ (คำขอผู้ใช้)
+  // ถ้ามีข้อมูลกรอก/หยิบไว้แล้ว ให้ยืนยันก่อนล้าง (กันแตะพลาด) · ไม่ dirty ก็ยังล้างเงียบ ๆ
+  // เพื่อไม่มีของเก่า (หมอ/หมอวิ่ง/เวลา/วันที่/โปร) ติดค้างข้าม flow
   const backToTypePick = async () => {
     const dirty = customerName.trim() || bookerName.trim() || pickedServices.length > 0;
     if (dirty) {
       const ok = await confirmDialog({ title: 'เปลี่ยนประเภทลูกค้า?', message: 'ข้อมูลที่กรอก/หยิบไว้จะถูกล้าง', confirmLabel: 'ล้างและเปลี่ยน' });
       if (!ok) return;
-      resetAll();
     }
+    resetAll();
     setCustomerType(null);
     setStep(1);
     setErr('');
@@ -556,6 +590,9 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
     setBookerId('');
     setBizDate(bkkToday());
     setCustomerType(null);
+    // ล้างส่วนลด/โปรโมชันที่เลือกไว้ด้วย — ไม่ให้ติดค้างข้าม flow
+    setDiscount('');
+    setPromoId('');
   };
 
   const handleSelectCategory = (cat) => {
@@ -603,7 +640,11 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       minutes: (selectedDuration || 0) + extraMin,
       price: priceFor(selectedDuration) + extraPrice,
     }]);
-    resetServicePick();
+    // เก็บหมวด (selectedCategory) ไว้ — ล้างแค่ระยะเวลา/เสริม
+    // เดิม resetServicePick() ล้างหมวดด้วย → กด "← กลับ" จากขั้นเวลากลับมาขั้นระยะเวลา
+    // การ์ดมีเงื่อนไข selectedCategory จึงไม่ถูก render = จอว่าง (bug ที่ผู้ใช้แจ้ง)
+    setSelectedDuration(null);
+    setSelectedAddons([]);
     // จอง: ขั้นถัดไปคือเวลา (ขั้น 4) เสมอ · หน้าร้าน: รอบวน→ขั้น 4, รอบปกติ→ขั้นหมอ (เดิม)
     setStep(customerType === 'booking' ? 4 : (looping ? 4 : 3));
   };
@@ -737,7 +778,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
           <div className="bkq-list">
             {bkQueue.map((b) => {
               const rows = b.items || b.customers || [];
-              const noTherapist = !(b.therapistId || rows[0]?.therapistId);
               const day = dayChipLabel(b.bookedDate || billBizDay(b));
               return (
                 <button
@@ -755,7 +795,6 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
                       {rows.length ? `${rows[0]?.serviceName || ''}${rows.length > 1 ? ` +${rows.length - 1}` : ''} · ` : ''}รับจองโดย {b.bookerName || '—'}
                     </small>
                   </span>
-                  {noTherapist && <span className="bkq-wait">รอตั้งหมอ</span>}
                   <ChevronRight size={14} strokeWidth={2} className="bkq-go" />
                 </button>
               );
@@ -767,7 +806,21 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
       {/* ขั้น 0: เลือกประเภทลูกค้า — ยังไม่เลือกจึงไม่แสดงแถบขั้น */}
       {customerType === null && (
         <Card>
-          <CardHead title="ลูกค้าแบบไหน?" hint="เลือกก่อนเริ่มเปิดบิล" />
+          <CardHead
+            title="ลูกค้าแบบไหน?"
+            hint="เลือกก่อนเริ่มเปิดบิล"
+            right={openBillsCount > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={clearOldBills}
+                title="ยกเลิกบิลค้างทุกใบ (เฉพาะเจ้าของร้าน)"
+                aria-label={`เคลียร์บิลค้าง ${openBillsCount} ใบ`}
+              >
+                <Eraser size={14} strokeWidth={2} /> เคลียร์บิลเก่า
+              </button>
+            )}
+          />
           <div className="typepick-grid">
             <button type="button" className="typepick-card" onClick={() => startFlow('walkin')}>
               <span className="typepick-ico"><Store size={26} strokeWidth={1.6} /></span>
@@ -905,9 +958,19 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             })}
           </div>
           {visibleCats.length === 0 && <EmptyState compact title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
+          {/* หน้าร้าน: ปุ่มย้อนกลับ "เปลี่ยนประเภทลูกค้า" เหมือน flow จอง (คำขอผู้ใช้)
+              — ยังไม่เลือกหมวด = ปุ่มเดี่ยวเต็มแถว · เลือกแล้ว = คู่กับ "ถัดไป" แบบเดียวกับขั้นจอง */}
+          {customerType === 'walkin' && !selectedCategory && (
+            <div className="stepnav">
+              <button className="btn btn-ghost btn-block" onClick={backToTypePick}>← เปลี่ยนประเภทลูกค้า</button>
+            </div>
+          )}
           {selectedCategory && (
           <div className="stepnav">
-            <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)}>ถัดไป →</button>
+            {customerType === 'walkin' && (
+              <button className="btn btn-ghost fg1" onClick={backToTypePick}>← เปลี่ยนประเภทลูกค้า</button>
+            )}
+            <button className="btn btn-primary fg16" onClick={() => setStep(step + 1)}>ถัดไป →</button>
           </div>
           )}
         </Card>
@@ -948,7 +1011,8 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
             </div>
           )}
           <div className="stepnav">
-            <button className="btn btn-ghost fg1" onClick={() => { resetServicePick(); setStep(customerType === 'booking' ? 2 : 1); }}>← กลับ</button>
+            {/* เก็บหมวดไว้ (ล้างแค่ระยะเวลา/เสริม) — กดกลับแล้วเห็นว่าเลือกหมวดอะไรไว้ ไม่หายโล่ง */}
+            <button className="btn btn-ghost fg1" onClick={() => { setSelectedDuration(null); setSelectedAddons([]); setStep(customerType === 'booking' ? 2 : 1); }}>← กลับ</button>
             <button className="btn btn-primary fg16" onClick={addPickedService} disabled={!selectedDuration}>ถัดไป →</button>
           </div>
         </Card>

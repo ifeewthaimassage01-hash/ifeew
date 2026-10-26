@@ -147,17 +147,4 @@
   white-space: nowrap;
 }
 
-/* "รอตั้งหมอ" = งานค้าง (amber) ไม่ใช่คำเตือน (แดง) */
-.bkq-wait {
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--st-pending-bg);
-  color: var(--st-pending);
-  border: 1px solid var(--st-pending-bd);
-  font-size: var(--fs-micro);
-  font-weight: 700;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .bkq-go { color: var(--faint); flex-shrink: 0; }
