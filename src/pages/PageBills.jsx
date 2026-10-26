@@ -345,7 +345,7 @@ export default function PageBills({ data, saveData, role }) {
                 </tbody>
               </table>
             </div>
-            {history.length === 0 && <EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
+            {history.length === 0 && <EmptyState compact icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
           </Card>
 
           <div className="mlist show-mobile">
@@ -416,7 +416,7 @@ export default function PageBills({ data, saveData, role }) {
                 </div>
               );
             })}
-            {history.length === 0 && <Card><EmptyState icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" /></Card>}
+            {history.length === 0 && <EmptyState compact icon={FileText} title="ไม่พบบิล" subtitle="ลองเปลี่ยนคำค้นหรือตัวกรอง" />}
           </div>
 
           {/* ══════ ลูกค้าจอง — รับบริการเสร็จ (ย้ายมาจากแท็บ "บิลที่เปิดอยู่") ══════ */}

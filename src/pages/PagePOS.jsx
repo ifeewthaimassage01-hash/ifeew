@@ -904,7 +904,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               );
             })}
           </div>
-          {visibleCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
+          {visibleCats.length === 0 && <EmptyState compact title="ยังไม่มีรายการ" subtitle="เพิ่มรายการในหน้าจัดการร้าน" />}
           {selectedCategory && (
           <div className="stepnav">
             <button className="btn btn-primary btn-block" onClick={() => setStep(step + 1)}>ถัดไป →</button>
@@ -1083,7 +1083,7 @@ export default function PagePOS({ data, saveData, onNavigate, role }) {
               hint={`${pickedServices.length} บริการ${customerType === 'booking' ? ' · บิลจอง' : ` · ${activeTherapistName}`}`}
               right={<button className="btn btn-ghost btn-sm" onClick={() => setStep(customerType === 'booking' ? 2 : 1)}>+ เพิ่มบริการ</button>}
             />
-            {pickedServices.length === 0 && <EmptyState title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
+            {pickedServices.length === 0 && <EmptyState compact title="ยังไม่มีบริการ" subtitle="กด '+ เพิ่มบริการ' เพื่อเริ่ม" />}
             {chained.map((p, idx) => (
               <div key={p.key} className="tline">
                 <span className="q">{idx + 1}</span>

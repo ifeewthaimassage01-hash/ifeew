@@ -330,13 +330,16 @@ export default function PageExpenses({ data, saveData, role }) {
 
       {tab === 'entry' && (
         <>
-          <div className="kpi-grid">
-            <div className="kpi dark span2">
-              <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
-              <div className="kpi-value">฿ {grandTotal.toLocaleString()}</div>
-              <div className="kpi-sub">{allExpenses.length} รายการ</div>
+          {/* KPI แสดงเมื่อมีข้อมูลจริงเท่านั้น — ไม่มีรายจ่ายเลยก็ไม่ต้องมีการ์ด 0 บาทบังฟอร์ม */}
+          {allExpenses.length > 0 && (
+            <div className="kpi-grid">
+              <div className="kpi dark span2">
+                <div className="kpi-label">รายจ่ายสะสมทั้งหมด</div>
+                <div className="kpi-value">฿ {grandTotal.toLocaleString()}</div>
+                <div className="kpi-sub">{allExpenses.length} รายการ</div>
+              </div>
             </div>
-          </div>
+          )}
 
           <div style={{ maxWidth: 720 }}>
             <Card>
@@ -414,7 +417,7 @@ export default function PageExpenses({ data, saveData, role }) {
                 </div>
                 {dayList.length > 0
                   ? dayList.map(renderExpense)
-                  : <EmptyState icon={Receipt} title="ไม่มีรายจ่ายวันนี้" subtitle="เลือกวันอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
+                  : <EmptyState compact icon={Receipt} title="ไม่มีรายจ่ายวันนี้" subtitle="เลือกวันอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
               </>
             ) : (
               <>
@@ -435,7 +438,7 @@ export default function PageExpenses({ data, saveData, role }) {
                       {list.map(renderExpense)}
                     </div>
                   );
-                }) : <EmptyState icon={Receipt} title="ไม่มีรายจ่ายเดือนนี้" subtitle="เลือกเดือนอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
+                }) : <EmptyState compact icon={Receipt} title="ไม่มีรายจ่ายเดือนนี้" subtitle="เลือกเดือนอื่น หรือบันทึกผ่านแท็บ 'บันทึกรายจ่าย'" />}
               </>
             )}
           </Card>

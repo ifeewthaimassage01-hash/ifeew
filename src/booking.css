@@ -112,7 +112,7 @@
 /* ---------- ยอดเงิน ---------- */
 .bk-adm-amounts { margin-top: 10px; display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap; }
 .bk-adm-price { font-size: 12.5px; color: var(--muted); }
-.bk-adm-pay { font-size: 15px; font-weight: 700; color: var(--brown-text); }
+.bk-adm-pay { font-size: var(--fs-lead); font-weight: 700; color: var(--brown-ink); }
 
 /* ---------- แถบเตือน ---------- */
 .bk-adm-warn {
@@ -146,7 +146,7 @@
   border-radius: 999px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent;
 }
 .bk-adm-slip-tag.is-verified { background: var(--st-ok-bg); color: var(--st-ok); border-color: var(--st-ok-bd); }
-.bk-adm-slip-tag.is-wait { background: var(--amber-bg); color: var(--amber-text); border-color: #ecdcba; }
+.bk-adm-slip-tag.is-wait { background: var(--st-pending-bg); color: var(--st-pending); border-color: var(--st-pending-bd); }
 .bk-adm-slip-row { font-size: 11.5px; color: var(--muted); margin-top: 5px; overflow-wrap: break-word; }
 
 /* ---------- ยืนยันแล้ว ---------- */
@@ -175,11 +175,11 @@
   border-radius: var(--r-md); padding: 14px;
 }
 .bk-adm-amount-label {
-  display: block; font-size: 11px; font-weight: 600; color: var(--muted);
+  display: block; font-size: var(--fs-micro); font-weight: 600; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.07em;
 }
 .bk-adm-amount-big {
-  display: block; font-size: 32px; font-weight: 700; color: var(--brown-text);
+  display: block; font-size: var(--fs-display); font-weight: 700; color: var(--brown-ink);
   line-height: 1.15; margin-top: 4px; letter-spacing: -0.02em;
 }
 .bk-adm-amount-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -221,6 +221,19 @@
   .bk-adm-stats-sum > *:last-child { grid-column: auto; }
 }
 .bk-adm-stats-sum { margin-bottom: var(--sp-5); }
+/* ไม่มีงานค้าง = บรรทัดเดียว (หัวข้อบอกอยู่แล้วว่า "ที่ต้องทำตอนนี้") */
+.bk-adm-note {
+  margin: 0; padding: 10px 12px;
+  font-size: var(--fs-small); color: var(--muted); line-height: 1.55;
+  background: var(--surface-2); border-radius: 10px;
+}
+/* สรุปวันนี้ = บรรทัดเดียว ไม่ใช่การ์ด 3 ใบ */
+.bk-sum-line {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  font-size: var(--fs-small); color: var(--muted);
+  padding: 2px 2px;
+}
+.bk-sum-line b { color: var(--ink); font-size: var(--fs-lead); font-weight: 700; margin-right: 3px; font-variant-numeric: tabular-nums; }
 
 /* แถบเครื่องมือ (ตัวกรอง) — มือถือเรียงแนวตั้ง / ≥720 แถวเดียว 4 ช่อง
    [วันที่][สถานะ][ค้นหา][ทุกวันที่] */
@@ -257,6 +270,14 @@
 .bk-adm-empty { padding: var(--sp-3); margin-bottom: var(--sp-4); }
 .bk-adm-empty .empty { padding: var(--sp-5) var(--sp-3); }
 .bk-adm-empty-act { display: flex; justify-content: center; margin-top: var(--sp-3); }
+/* "ไม่มีรายการ" แบบบรรทัดเดียว: ไอคอน + ข้อความ + ปุ่มรีเฟรช */
+.bk-adm-empty-line {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: var(--fs-small); color: var(--muted); line-height: 1.55;
+}
+.bk-adm-empty-line svg { color: var(--faint); flex-shrink: 0; }
+.bk-adm-empty-line span { flex: 1 1 220px; min-width: 0; }
+.bk-adm-empty-line b { color: var(--ink); font-weight: 600; }
 
 /* ---------- responsive: หน้าจัดการการจอง ---------- */
 @media (min-width: 720px) {
@@ -326,7 +347,7 @@
 .bk-datehead-hint { font-size: 12px; color: var(--muted); margin-top: 3px; display: block; }
 .bk-pick-date-nav { display: flex; gap: 6px; flex-shrink: 0; }
 .bk-pick-date-btn {
-  width: 34px; height: 34px; border-radius: var(--r-md); flex-shrink: 0; cursor: pointer;
+  width: var(--tap); height: var(--tap); border-radius: var(--r-md); flex-shrink: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--surface); border: 1px solid var(--line); color: var(--muted);
   transition: background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
@@ -400,7 +421,7 @@
 .bk-queue-head:focus-visible { outline: 2px solid var(--accent, #a9825f); outline-offset: -2px; }
 .bk-queue-ic {
   flex-shrink: 0; width: 28px; height: 28px; border-radius: 999px;
-  background: var(--brown-tint-2, #f3e9db); color: var(--brown-text, #6a5340);
+  background: var(--brown-tint-2, #f3e9db); color: var(--brown-ink);
   display: inline-flex; align-items: center; justify-content: center;
 }
 .bk-queue-txt { flex: 1 1 auto; min-width: 0; }
@@ -420,7 +441,7 @@
   background: var(--brown-tint-2, #f3e9db);
   display: flex; flex-direction: column; gap: 1px;
 }
-.bk-queue-time b { font-size: 13.5px; font-weight: 700; color: var(--brown-text, #6a5340); line-height: 1.15; }
+.bk-queue-time b { font-size: 13.5px; font-weight: 700; color: var(--brown-ink); line-height: 1.15; }
 .bk-queue-time small { font-size: var(--fs-micro); color: var(--muted, #8a7a68); white-space: nowrap; }
 .bk-queue-main { flex: 1 1 auto; min-width: 0; }
 .bk-queue-cust { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink, #2a2119); min-width: 0; overflow-wrap: anywhere; }
@@ -459,7 +480,7 @@
 .bk-fin-opt:disabled { opacity: .75; cursor: default; }
 .bk-fin-ava {
   flex-shrink: 0; width: 26px; height: 26px; border-radius: 999px;
-  background: var(--brown-tint, #f3e9db); color: var(--brown-dark, #97714c);
+  background: var(--brown-tint, #f3e9db); color: var(--brown-ink);
   display: inline-flex; align-items: center; justify-content: center;
 }
 .bk-fin-ghost { margin-left: auto; color: var(--faint, #b3a693); }

@@ -45,9 +45,9 @@ export function Kpi({ tone = '', label, value, sub, span = false, small = false 
   );
 }
 
-export function EmptyState({ icon: Icon, title, subtitle }) {
+export function EmptyState({ icon: Icon, title, subtitle, compact }) {
   return (
-    <div className="empty" role="status">
+    <div className={`empty${compact ? ' compact' : ''}`} role="status">
       {Icon && <div className="empty-ic"><Icon size={26} strokeWidth={1.6} /></div>}
       <b>{title}</b>
       {subtitle && <span>{subtitle}</span>}

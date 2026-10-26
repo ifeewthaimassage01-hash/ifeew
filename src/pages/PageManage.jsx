@@ -830,8 +830,8 @@ export default function PageManage({ data, saveData }) {
               <button className="icon-btn danger" onClick={() => deleteT(t)} aria-label={`ลบ ${t.name}`}><Trash2 size={15} /></button>
             </div>
           ))}
-          {staffKey && shownTherapists.length === 0 && <EmptyState title="ไม่พบพนักงาน" subtitle="ลองค้นหาด้วยคำอื่น" />}
-          {!staffKey && therapists.length === 0 && <EmptyState title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
+          {staffKey && shownTherapists.length === 0 && <EmptyState compact title="ไม่พบพนักงาน" subtitle="ลองค้นหาด้วยคำอื่น" />}
+          {!staffKey && therapists.length === 0 && <EmptyState compact title="ยังไม่มีพนักงาน" subtitle="กดเพิ่มพนักงาน" />}
         </Card>
       )}
 
@@ -871,7 +871,7 @@ export default function PageManage({ data, saveData }) {
             </div>
           ))}
           {/* BUG-6: เช็กจาก orderedCats ให้ตรงกับแถวที่เรนเดอร์จริง */}
-          {orderedCats.length === 0 && <EmptyState title="ยังไม่มีรายการ" subtitle="กดเพิ่มรายการ" />}
+          {orderedCats.length === 0 && <EmptyState compact title="ยังไม่มีรายการ" subtitle="กดเพิ่มรายการ" />}
         </Card>
       )}
 
@@ -893,7 +893,7 @@ export default function PageManage({ data, saveData }) {
               <button className="icon-btn danger" onClick={() => deleteA(a)} aria-label={`ลบ ${a.name}`}><Trash2 size={15} /></button>
             </div>
           ))}
-          {addons.length === 0 && <EmptyState title="ยังไม่มีบริการเสริม" subtitle="กดเพิ่มเสริม" />}
+          {addons.length === 0 && <EmptyState compact title="ยังไม่มีบริการเสริม" subtitle="กดเพิ่มเสริม" />}
         </Card>
       )}
 
@@ -920,7 +920,7 @@ export default function PageManage({ data, saveData }) {
               </div>
             ))}
           </div>
-          {promos.length === 0 && <EmptyState title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
+          {promos.length === 0 && <EmptyState compact title="ยังไม่มีโปรโมชัน" subtitle="กดเพิ่มโปร" />}
         </Card>
       )}
 

@@ -192,7 +192,7 @@ export default function PageCommission({ data, saveData, role }) {
                 <div className="hist-sum-prices"><span>ยอด ฿ {Math.round(d.sales).toLocaleString()}</span><em>ค่าแรง ฿ {Math.round(d.comm).toLocaleString()}</em></div>
               </div>
             ))}
-            {svcCount === 0 && <p className="muted">ยังไม่มีงานนวด</p>}
+            {svcCount === 0 && <p className="history-note">ยังไม่มีงานนวด</p>}
           </div>
         </Card>
 
@@ -209,7 +209,7 @@ export default function PageCommission({ data, saveData, role }) {
                     <td>{r.label}</td>
                     <td className="r">× {r.qty}</td>
                     <td className="r mono">฿ {Math.round(r.net).toLocaleString()}</td>
-                    <td className="r"><b style={{ color: 'var(--brown)' }}>฿ {Math.round(r.comm).toLocaleString()}</b></td>
+                    <td className="r"><b style={{ color: 'var(--brown-ink)' }}>฿ {Math.round(r.comm).toLocaleString()}</b></td>
                   </tr>
                 ))}
               </tbody>
@@ -235,7 +235,7 @@ export default function PageCommission({ data, saveData, role }) {
               </div>
             </div>
           ))}
-          {rows.length === 0 && <Card><p className="muted">ยังไม่มีงานนวด</p></Card>}
+          {rows.length === 0 && <p className="history-note">ยังไม่มีงานนวด</p>}
         </div>
       </div>
     );
@@ -256,7 +256,7 @@ export default function PageCommission({ data, saveData, role }) {
           <CardHead title="หมอประจำ ตามบริการ" right={<span className="badge neutral">{priced.length}</span>} />
           <div className="refgrid">
             {priced.map((s) => (
-              <div key={s.id} className="refbox"><b>{svcLabel(s)}</b><small className="muted">฿ {s.price.toLocaleString()} · <b style={{ color: 'var(--brown)' }}>ค่าแรง ฿ {commBaht(s).toLocaleString()}</b></small></div>
+              <div key={s.id} className="refbox"><b>{svcLabel(s)}</b><small className="muted">฿ {s.price.toLocaleString()} · <b style={{ color: 'var(--brown-ink)' }}>ค่าแรง ฿ {commBaht(s).toLocaleString()}</b></small></div>
             ))}
           </div>
         </Card>
@@ -277,9 +277,7 @@ export default function PageCommission({ data, saveData, role }) {
         <DatePicker date={filterDate} onChange={setFilterDate} />
 
         {freelanceJobs === 0 ? (
-          <Card>
-            <EmptyState icon={UserX} title="ยังไม่มีข้อมูลหมอวิ่ง" subtitle="จะแสดงที่นี่เมื่อมีงานนวดของหมอวิ่ง (นอกระบบ)" />
-          </Card>
+          <EmptyState compact icon={UserX} title="ยังไม่มีข้อมูลหมอวิ่ง" subtitle="จะแสดงที่นี่เมื่อมีงานนวดของหมอวิ่ง (นอกระบบ)" />
         ) : (
           <>
             {!isStaff && (
@@ -328,6 +326,10 @@ export default function PageCommission({ data, saveData, role }) {
     );
   }
 
+  // แยกหมอที่มีงาน/ยังไม่มีงานในช่วงที่เลือก (ใช้เฉพาะมุมมองมือถือที่แสดงเป็นการ์ดรายคน)
+  const activeRows = ranked.filter((t) => (stats[t.id]?.jobs || 0) > 0);
+  const idleRows = ranked.filter((t) => !((stats[t.id]?.jobs || 0) > 0));
+
   return (
     <div>
       <div className="seg cols3">
@@ -354,7 +356,7 @@ export default function PageCommission({ data, saveData, role }) {
         </div>
       )}
 
-      {!isStaff && (
+      {!isStaff && regBillIds.size > 0 && (
       <div className="kpi-grid">
         <div className="kpi dark"><div className="kpi-label">รายได้ร้าน</div><div className="kpi-value">฿ {Math.round(sumSalesPaid - sumComm).toLocaleString()}</div><div className="kpi-sub">{regBillIds.size} บิล</div></div>
         <div className="kpi brass"><div className="kpi-label">รายได้หมอ</div><div className="kpi-value">฿ {Math.round(sumComm).toLocaleString()}</div></div>
@@ -376,7 +378,7 @@ export default function PageCommission({ data, saveData, role }) {
                     <td><span className="muted">#{idx + 1}</span> <b style={{ fontWeight: 600 }}>{t.name}</b>{top && <span className="badge info" style={{ marginLeft: 6 }}>ประกันมือ</span>}</td>
                     <td className="r">{s.jobs}</td>
                     <td className="r mono">฿ {Math.round(s.totalSales).toLocaleString()}</td>
-                    <td className="r"><b style={{ color: 'var(--brown)' }}>฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
+                    <td className="r"><b style={{ color: 'var(--brown-ink)' }}>฿ {dispTotal(t.id, s.total).toLocaleString()}</b>
                       {top && <small className="muted" style={{ display: 'block' }}>จริง ฿ {s.total.toLocaleString()} + ประกัน ฿ {top.shortfall.toLocaleString()}</small>}
                     </td>
                     <td className="r"><button className="btn btn-ghost" style={{ padding: '7px 14px', fontSize: 12 }} onClick={() => setHistoryFor(t)} title="ดูประวัติการนวด">ดู</button></td>
@@ -389,10 +391,10 @@ export default function PageCommission({ data, saveData, role }) {
       </Card>
 
       <div className="mlist show-mobile">
-        {ranked.map((t, idx) => {
+        {/* การ์ดเต็มแสดงเฉพาะหมอที่มีงานในช่วงที่เลือก — หมอที่ยังไม่มีงานรวมเป็นบรรทัดเดียว */}
+        {activeRows.map((t, idx) => {
           const s = stats[t.id];
           const top = topupById[t.id];
-          const pct = sumSales ? Math.max((s.totalSales / sumSales) * 100, 2) : 2;
           return (
             <Card key={t.id}>
               <div className="mcard-top">
@@ -413,6 +415,15 @@ export default function PageCommission({ data, saveData, role }) {
             </Card>
           );
         })}
+        {activeRows.length === 0 && (
+          <p className="history-note">
+            ยังไม่มีงานนวดในช่วงที่เลือก — เปลี่ยนวันที่ หรือดูราคาบริการ
+            {idleRows.length > 0 && ` · ยังไม่มีงาน: ${idleRows.map((t) => t.name).join(' · ')}`}
+          </p>
+        )}
+        {activeRows.length > 0 && idleRows.length > 0 && (
+          <p className="history-note">ยังไม่มีงาน: {idleRows.map((t) => t.name).join(' · ')}</p>
+        )}
       </div>
     </div>
   );
