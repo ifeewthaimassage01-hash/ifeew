@@ -1,8 +1,8 @@
 // Monthly statement (print-to-PDF) — bank-statement style with running balance.
 // Rendered inside .print-only, visible in print only.
-import { freelanceDisplayName, GUARANTEE_CATEGORY, billTotal, billLinesOf } from '../lib/billing';
+import { freelanceDisplayName, GUARANTEE_CATEGORY, billTotal, billLinesOf, billBizDay } from '../lib/billing';
 import { formatDuration } from './ui';
-import { bkkToday, bizDateOf } from '../utils/bkk';
+import { bkkToday } from '../utils/bkk';
 
 // สูตรยอดสุทธิมาตรฐานทั้งแอป: net = income − expenseSum − extComm − fuelSum − regComm
 // โดย income = ผลรวม billTotal (หลังหักส่วนลดท้ายบิลแล้ว)
@@ -53,7 +53,7 @@ export function buildMonthReport(data, month) {
 
   // บิลนับตาม "เดือนธุรกิจ" (บิลหลังเที่ยงคืนถึงตี 3 = เดือนก่อนหน้าถ้าข้ามเดือน); รายจ่ายนับตามปฏิทิน
   // BUG-03 (reports): fallback createdAt เมื่อ date ว่าง — ให้ตรงกับ Dashboard/Commission/Bills
-  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && bizDateOf(b.date || b.createdAt).slice(0, 7) === month);
+  const paidBills = (data.bills || []).filter((b) => b.status === 'paid' && billBizDay(b).slice(0, 7) === month);
   const expenses = (data.expenses || []).filter((e) => String(e.date || '').slice(0, 7) === month);
 
   const income = paidBills.reduce((s, b) => s + billTotal(b), 0);
@@ -70,7 +70,7 @@ export function buildMonthReport(data, month) {
   paidBills.forEach((b) => {
     billLinesOf(b, services, therapists).forEach((l) => {
       lines.push({
-        ts: b.date || '', date: bizDateOf(b.date || b.createdAt),
+        ts: b.date || '', date: billBizDay(b),
         service: serviceDisplay(l.it),
         therapist: l.it.therapistName || b.therapistName || nameOf(l.tid),
         price: l.price, comm: l.comm, net: l.net, staff: l.staff,
@@ -93,7 +93,7 @@ export function buildMonthReport(data, month) {
     d.income += l.price; d.comm += l.comm;
   });
   paidBills.forEach((b) => {
-    const d = bizDateOf(b.date || b.createdAt);
+    const d = billBizDay(b);
     if (days[d]) days[d].bills.add(b.id);
   });
   const expByDay = {};
@@ -103,7 +103,7 @@ export function buildMonthReport(data, month) {
   });
   paidBills.forEach((b) => {
     if (b.fuel) {
-      const d = bizDateOf(b.date || b.createdAt);
+      const d = billBizDay(b);
       expByDay[d] = (expByDay[d] || 0) + b.fuel;
     }
   });

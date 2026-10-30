@@ -1,5 +1,4 @@
 import { RefreshCw, ClipboardList, ListChecks, History } from 'lucide-react';
-import { EmptyState } from '../components/ui';
 import { useRealtimeStatus } from '../lib/bookingRealtime';
 import BookingCard from './BookingCard';
 
@@ -22,18 +21,17 @@ export default function BookingList({
 
       {filtered.length === 0 ? (
         <div className="card bk-adm-empty">
-          <EmptyState
-            icon={ClipboardList}
-            title={query ? 'ไม่พบรายการที่ค้นหา' : 'ยังไม่มีการจองในวันที่เลือก'}
-            subtitle={
-              query
-                ? 'ลองเปลี่ยนคำค้นหา หรือกดรีเฟรชเพื่อดูข้อมูลล่าสุด'
+          {/* ไม่มีรายการ = ข้อความบรรทัดเดียว + ปุ่มรีเฟรช (เดิมเป็นกล่องไอคอนสูง ~180px) */}
+          <div className="bk-adm-empty-line">
+            <ClipboardList size={16} strokeWidth={1.8} aria-hidden="true" />
+            <span>
+              <b>{query ? 'ไม่พบรายการที่ค้นหา' : 'ยังไม่มีการจองในวันที่เลือก'}</b>
+              {query
+                ? ' — ลองเปลี่ยนคำค้นหา หรือกดรีเฟรชเพื่อดูข้อมูลล่าสุด'
                 : (rt === 'connected'
-                ? 'เปลี่ยนวันที่หรือสถานะด้านบน — ข้อมูลอัปเดตทันทีแบบเรียลไทม์'
-                : 'เปลี่ยนวันที่หรือสถานะด้านบน — ระบบรีโหลดอัตโนมัติทุก 15 วินาที')
-            }
-          />
-          <div className="bk-adm-empty-act">
+                ? ' — เปลี่ยนวันที่หรือสถานะด้านบน ข้อมูลอัปเดตทันที'
+                : ' — เปลี่ยนวันที่หรือสถานะด้านบน ระบบรีโหลดทุก 15 วินาที')}
+            </span>
             <button type="button" className="btn btn-ghost btn-sm" onClick={() => onRefresh()}>
               <RefreshCw size={14} strokeWidth={1.8} /> รีเฟรช
             </button>

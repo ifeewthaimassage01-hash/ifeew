@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { Card, CardHead, PageHeader, DatePicker, inSingleDay, fmtDay } from '../components/ui';
 // BUG-01/BUG-02 (reports): ใช้ตัวช่วยกลาง (billRows/rowNet/billTotal/billLinesOf) จาก billing.js
-import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf } from '../lib/billing';
-import { bkkToday, bizDateOf, bizToday } from '../utils/bkk';
+import { GUARANTEE_CATEGORY, applyGuaranteeForDate, guaranteeAmountOf, guaranteeSigOf, billTotal, billLinesOf, billBizDay } from '../lib/billing';
+import { bkkToday, bizToday } from '../utils/bkk';
 import MonthStatement, { buildMonthReport } from '../components/MonthStatement';
 import { downloadMonthExcel } from '../lib/monthExcel';
 // บิลจองลูกค้า (จบบริการ) นับรายได้/ค่าแรงด้วย — ฉีดเป็นบิลเสมือนตอนคำนวณ (data.bills จริงไม่แตะ)
@@ -94,8 +94,8 @@ export default function PageDashboard({ data, saveData }) {
   };
 
   // บิลนับตาม "วันที่ธุรกิจ" (00:00–02:59 = วันก่อนหน้า); รายจ่ายมีแค่วันที่นับตามปฏิทิน
-  // P1-6: ใช้ bizDateOf(b.date||b.createdAt) ให้เหมือน billing.js / PageCommission / PageBills (กันบิล date ว่างหลุด)
-  const rangeBills = paidBills.filter((b) => inSingleDay(bizDateOf(b.date || b.createdAt), filterDate));
+  // P1-6: ใช้ billBizDay(b) ให้เหมือน billing.js / PageCommission / PageBills (บิลจองใช้วันให้บริการ, กันบิล date ว่างหลุด)
+  const rangeBills = paidBills.filter((b) => inSingleDay(billBizDay(b), filterDate));
   const rangeSplit = calcSplit(rangeBills);
   const dayTotal = rangeBills.reduce((s, b) => s + billTotal(b), 0);
   // GUARANTEE (พิกัด frontend-agent: PageDashboard.jsx ใต้ rangeSplit/netToday) — กันนับซ้ำ:
@@ -123,9 +123,9 @@ export default function PageDashboard({ data, saveData }) {
 
   return (
     <div>
-      <PageHeader icon={LayoutDashboard} title="ภาพรวม" eyebrow={tab === 'day' ? `สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}` : `สรุป${month.monthLabel}`} />
+      <PageHeader icon={LayoutDashboard} title="ภาพรวม" />
 
-      <div className="seg" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="seg">
         <button onClick={() => setTab('day')} className={tab === 'day' ? 'on' : ''}>รายวัน</button>
         <button onClick={() => setTab('month')} className={tab === 'month' ? 'on' : ''}>รายเดือน</button>
       </div>
@@ -136,9 +136,9 @@ export default function PageDashboard({ data, saveData }) {
       {guaranteeMsg && singleDay && <div className="alert ok">{guaranteeMsg}</div>}
 
       <div className="hero-dark">
-        <div className="hero-top"><span>สรุป ${filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
+        <div className="hero-top"><span>สรุป {filterDate ? fmtDay(filterDate) : 'ทั้งหมด'}</span><span>{rangeBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(netToday).toLocaleString()}</div>
-        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div className="hero-grid grid-3">
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(dayTotal).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(expenseAllToday).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
@@ -146,18 +146,29 @@ export default function PageDashboard({ data, saveData }) {
       </div>
 
       <Card>
-        <CardHead title="หมอประจำ" />
-        <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(regCommAdj).toLocaleString()}</div></div>
-        </div>
-      </Card>
-      <Card>
-        <CardHead title="หมอวิ่ง" />
-        <div className="mini3" style={{ gridTemplateColumns: '1fr 1fr', marginBottom: 0 }}>
-          <div className="mini-box"><div className="l">ยอดขาย</div><div className="v">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</div></div>
-          <div className="mini-box hl"><div className="l">ค่าแรง</div><div className="v">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</div></div>
-        </div>
+        {/* ตารางเล็ก: แถว = ประเภทหมอ · คอลัมน์ = ยอดขาย/ค่าแรง — หัวคอลัมน์พูดครั้งเดียว ไม่พิมพ์ชื่อกลุ่มซ้ำ */}
+        <CardHead title="แยกตามประเภทหมอ" />
+        <table className="ttype">
+          <thead>
+            <tr>
+              <th scope="col" aria-label="ประเภทหมอ"></th>
+              <th scope="col">ยอดขาย</th>
+              <th scope="col">ค่าแรง</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>หมอประจำ</td>
+              <td className="num">฿ {Math.round(rangeSplit.regSales).toLocaleString()}</td>
+              <td className="num cost">฿ {Math.round(regCommAdj).toLocaleString()}</td>
+            </tr>
+            <tr>
+              <td>หมอวิ่ง</td>
+              <td className="num">฿ {Math.round(rangeSplit.extSales).toLocaleString()}</td>
+              <td className="num cost">฿ {Math.round(rangeSplit.extComm + fuelToday).toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
       </Card>
       </>
       )}
@@ -171,7 +182,7 @@ export default function PageDashboard({ data, saveData }) {
       <div className="hero-dark">
         <div className="hero-top"><span>สรุป{month.monthLabel}</span><span>{month.paidBills.length} บิล</span></div>
         <div className="hero-net">฿ {Math.round(month.net).toLocaleString()}</div>
-        <div className="hero-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+        <div className="hero-grid grid-3">
           <div className="hero-box"><span className="hl">รายได้</span><div className="hv">฿ {Math.round(month.income).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">รายจ่ายรวม</span><div className="hv">฿ {Math.round(month.expenseAll).toLocaleString()}</div></div>
           <div className="hero-box"><span className="hl">ค่าแรงหมอ</span><div className="hv">฿ {Math.round(month.regComm).toLocaleString()}</div></div>
@@ -180,9 +191,9 @@ export default function PageDashboard({ data, saveData }) {
 
       <Card>
         <CardHead title="ใบสรุปประจำเดือน" />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-primary auto" style={{ flex: 1 }} onClick={() => window.print()}>PDF</button>
-          <button className="btn btn-ghost auto" style={{ flex: 1 }} onClick={() => downloadMonthExcel(reportData, stmtMonth)}>Excel</button>
+        <div className="flex-gap-8">
+          <button className="btn btn-primary auto fg1" onClick={() => window.print()}>PDF</button>
+          <button className="btn btn-ghost auto fg1" onClick={() => downloadMonthExcel(reportData, stmtMonth)}>Excel</button>
         </div>
       </Card>
       </>

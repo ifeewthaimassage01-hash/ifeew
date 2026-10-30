@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarCheck, RefreshCw, TriangleAlert, Phone, Image as ImageIcon, CheckCircle2, Loader2, UserRound, Users } from 'lucide-react';
-import { fmtDay, alertDialog, Modal } from '../components/ui';
+import { CalendarCheck, RefreshCw, TriangleAlert, Image as ImageIcon, CheckCircle2, Loader2, UserRound, Users, ChevronUp, ChevronDown, ChevronRight, Clock, Pencil, Trash2 } from 'lucide-react';
+import { alertDialog, Modal, formatDuration } from '../components/ui';
+import { bkkMinutes, bkkToday } from '../utils/bkk';
 import { getOwnerPass } from '../lib/auth';
 import { bookingAdminApi } from '../lib/bookingAdminApi';
 import { onBookingsChanged, useRealtimeStatus } from '../lib/bookingRealtime';
 import { useAdminBookings } from './hooks';
-import { toNum, slipState, fmtBaht, fmtTimeBkk } from './bookingUtils';
-import BookingStatusBadge from './BookingStatusBadge';
+import { toNum, slipState, fmtBaht, fmtTimeBkk, slotMinutesBkk } from './bookingUtils';
 import BookingPayBadge from './BookingPayBadge';
 import { SlipViewerDialog } from './BookingDialogs';
 
@@ -76,91 +76,7 @@ function CompleteTherapistDialog({ booking, therapists, finishingName, onFinish,
 /** สถานะที่ถือว่าเป็น "บิลเปิด" อยู่ (สอดคล้อง isTodoBooking + confirmed) */
 const OPEN_STATUSES = ['pending', 'confirmed', 'cancel_requested'];
 
-/* ══════════════════════════════════════════════════════════════════
-   การ์ดจองผสานในการ์ด "บิลที่เปิดอยู่"
-   — โครงการ์ดเดียวกับ ob-card (บิลหน้าร้าน: avatar / ชื่อ / แถวบริการ /
-     แถวยอด) ให้อ่านเป็นกลุ่มบิลเปิดเดียวกัน
-   — แต่แยกลักษณะชัด: เส้นประน้ำตาล + avatar เป็นไอคอนปฏิทิน + ป้าย
-     "บิลจอง" — สายตาแยกได้ทันทีว่าใบไหนจอง / ใบไหนลูกค้าหน้าร้าน
-   ══════════════════════════════════════════════════════════════════ */
-function BookingOpenCard({ b, onOpenSlip, onDone, busy }) {
-  const slip = slipState(b);
-  const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';
-  const until = b?.slot_end ? fmtTimeBkk(b.slot_end) : '';
-  const price = toNum(b?.amount) || 0;
-  return (
-    <article className="ob-card bkc">
-      <div className="ob-head">
-        <span className="ob-ava" aria-hidden="true"><CalendarCheck size={19} strokeWidth={2} /></span>
-        <span className="ob-who">
-          <b>{b?.customer_name || 'ไม่ระบุชื่อ'}<span className="bkc-pill">บิลจอง</span></b>
-          <span className="muted num">
-            {fmtDay(b?.slot_date) || 'ไม่ระบุวันที่'}
-            {/* เวลาอยู่คอลัมน์แถวบริการด้านล่าง (จุดเดียว ไม่ซ้ำหัวการ์ด) */}
-            {/* หมอผู้บริการ = pill แยกตา (คำขอผู้ใช้) */}
-            {b?.therapist_name && (
-              <> ·{' '}
-                <span className="bkc-doc-pill" title="หมอผู้ให้บริการ">
-                  <UserRound size={10} strokeWidth={2.4} />
-                  {String(b.therapist_name).startsWith('หมอ') ? b.therapist_name : `หมอ ${b.therapist_name}`}
-                </span>
-              </>
-            )}
-            {b?.customer_phone && (
-              <> · <a href={`tel:${b.customer_phone}`} style={{ color: 'inherit' }}><Phone size={10} strokeWidth={2.2} /> <span className="num">{b.customer_phone}</span></a></>
-            )}
-          </span>
-        </span>
-        <BookingStatusBadge status={b?.status} />
-      </div>
-      <div className="ob-rows">
-        <div className="ob-row">
-          <span className="ob-time muted">{when}{until ? `–${until}` : ''}</span>
-          <span className="ob-name">{b?.service_name || '—'}</span>
-          {/* ราคาแสดงที่เดียวที่ยอดด้านล่าง (การ์ดจอง 1 แถว ไม่ต้องซ้ำ per-row เหมือนบิลหลายแถว) */}
-        </div>
-      </div>
-      <div className="ob-total">
-        <span className="ob-sum">
-          <span className="ob-grand">{fmtBaht(price)}</span>
-          {/* สถานะจ่าย/ยังไม่จ่าย = ป้ายชำระเงินด้านขวา (ไม่ซ้ำบรรทัด "ต้องโอน") */}
-        </span>
-        <span className="ob-btns">
-          <BookingPayBadge status={b?.payment_status} />
-          {/* รับบริการเสร็จ → เดอร์ย้ายไปแท็บ "ประวัติบิล" (คำขอผู้ใช้) */}
-          {onDone && (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => onDone(b)}
-              disabled={busy}
-              title="กดเมื่อลูกค้ารับบริการเสร็จแล้ว — เดอร์จะย้ายไปแท็บ ประวัติบิล"
-              aria-label={`ยืนยันว่าได้รับบริการเสร็จ แล้วย้ายเดอร์ ${b?.code || ''} ไปประวัติบิล`}
-            >
-              {busy
-                ? <Loader2 size={13} strokeWidth={1.9} className="spin" />
-                : <CheckCircle2 size={13} strokeWidth={1.9} />}
-              รับบริการเสร็จ
-            </button>
-          )}
-          {slip !== 'none' && (
-            <button
-              type="button"
-              className="btn btn-ghost"
-              onClick={() => onOpenSlip(b)}
-              aria-label={`ดูสลีปของเดอร์ ${b?.code || ''}`}
-            >
-              {slip === 'verified' ? <CheckCircle2 size={13} strokeWidth={1.9} /> : <ImageIcon size={13} strokeWidth={1.9} />}
-              ดูสลีป
-            </button>
-          )}
-        </span>
-      </div>
-    </article>
-  );
-}
-
-export default function BookingBillsSection({ data, onActiveCount, onDayCounts, dayFilter }) {
+export default function BookingBillsSection({ data, onActiveCount, onDayCounts, dayFilter, ownBookingRows, ownBookingCount, startEdit, requestVoid, startCheckoutBill, onLoading }) {
   const key = getOwnerPass(data?.ownerPass);
   const [authErr, setAuthErr] = useState('');
   const [slipView, setSlipView] = useState(null);
@@ -220,11 +136,24 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
     [openAll, dayFilter],
   );
 
+  /* เรียงตามเวลา ▲/▼ (แบบ mockup 5 พ.ย. 2026) — คีย์ = slot_start
+     (ISO timestamptz เรียง lexicographic ได้ตรงเวลา) */
+  const [sortDir, setSortDir] = useState('asc');
+  const sortedOpen = useMemo(() => {
+    const arr = [...open];
+    arr.sort((x, y) => {
+      const kx = String(x?.slot_start || '');
+      const ky = String(y?.slot_start || '');
+      return sortDir === 'asc' ? kx.localeCompare(ky) : ky.localeCompare(kx);
+    });
+    return arr;
+  }, [open, sortDir]);
+
   /* รายงานจำนวนขึ้นหน้า — badge แท็บ "บิลที่เปิดอยู่" + hint หัวการ์ดรวมคิดกัน
      (นับตามที่โชว์จริง: เลือกวันอยู่ = นับวันนั้น) */
   useEffect(() => {
-    onActiveCount?.(open.length);
-  }, [open.length, onActiveCount]);
+    onActiveCount?.(open.length + (ownBookingCount || 0));
+  }, [open.length, ownBookingCount, onActiveCount]);
 
   /* จำนวนจองเปิดรายวัน (ทุกวันใน strip ถัดไป) → pill บนชิปเลือกวัน
      "วันไหนมีจองบ้าง" (คำขอผู้ใช้ 23 ต.ค. 2026) — นับจาก openAll ตัวเดียวกัน */
@@ -240,12 +169,23 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
     onDayCounts?.(dayCounts);
   }, [dayCounts, onDayCounts]);
 
+  // รายงานสถานะโหลดขึ้นหน้า — กัน OpenBillsSection สรุป "ว่าง" ก่อนดึงการจองเว็บเสร็จ
+  useEffect(() => {
+    onLoading?.(loading);
+  }, [loading, onLoading]);
+
   /* เรียลไทม์: เดอร์จองเปลี่ยนฝั่ง server (มีคนจองใหม่/จ่ายเงิน/ร้านยืนยันฯ) → โหลดใหม่ทันที
-     (งดตอนเปิดกล่องดูสลีป · polling 15 วิ ยังทำงานตามเดิมเป็นเฟลบแค็ก) */
+     guard แบบเดียวกับฝั่งหน้าร้าน (App.reload): งดโหลดกลาง dialog — ดูสลีป · เลือกหมอจบบริการ
+     · modal ของแอป (.modal-ov เช่น เช็คบิล/แก้ไขบิลหน้าร้านที่เปิดค้างบนหน้าเดียวกัน)
+     เหตุการณ์ที่พลาดช่วง dialog เปิด รอบสำรอง 15 วิ ตามมาให้เองหลังปิด */
   const slipOpenRef = useRef(false);
   slipOpenRef.current = Boolean(slipView);
+  const finishOpenRef = useRef(false);
+  finishOpenRef.current = Boolean(finishOf);
   useEffect(() => onBookingsChanged(() => {
-    if (!slipOpenRef.current) loadData({ silent: true });
+    if (slipOpenRef.current || finishOpenRef.current) return;
+    if (typeof document !== 'undefined' && document.querySelector('.modal-ov')) return;
+    loadData({ silent: true });
   }), [loadData]);
 
   if (!key) {
@@ -256,61 +196,207 @@ export default function BookingBillsSection({ data, onActiveCount, onDayCounts, 
     );
   }
 
+  /* ไม่มีทั้งการจองเว็บและบิลจองร้านรับเอง (รวมช่วงกำลังโหลด — ไม่โชว์ข้อความ/การ์ดว่าง)
+     → OpenBillsSection จะโชว์ empty state ใหญ่แทน (กัน flash ด้วย bkLoading ฝั่งหน้า) */
+  const hasContent = open.length > 0 || (ownBookingCount || 0) > 0;
+  if (!hasContent && !authErr && !error && !slipView && !finishOf) return null;
+
   return (
     <>
-      <div className="bk-sep-label">
-        <CalendarCheck size={14} strokeWidth={1.9} style={{ color: 'var(--brown)', flexShrink: 0 }} />
-        <b>ลูกค้าจอง</b>
-        <span className="muted num" style={{ fontSize: 12 }}>
-          {open.length} รายการ{refreshing ? ' · กำลังรีเฟรช…' : ''}
-        </span>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          style={{ marginLeft: 'auto', padding: '6px 10px', fontSize: 12 }}
-          onClick={() => loadData()}
-          disabled={refreshing}
-        >
-          <RefreshCw size={13} strokeWidth={1.8} /> รีเฟรช
-        </button>
-      </div>
+      {/* ══ กลุ่ม 2 · ออเดอร์จอง — ธีมเขียว (แบบ mockup 5 พ.ย. 2026) ══
+          โครงแถวเดียวกับออเดอร์หน้าร้าน: [ซ้าย: ลำดับ+ป้าย+เวลา+บริการ] [ขวา: ยอด+ปุ่ม]
+          แตะแถว = ดูสลิป · ปุ่มเขียว = จบบริการ (เลือกหมอผู้ให้บริการ) */}
+      <section className="osec osec-green" aria-label="ออเดอร์จอง">
+        <header className="osec-head">
+          <span className="osec-ic" aria-hidden="true"><CalendarCheck size={16} strokeWidth={2} /></span>
+          <h2>จอง</h2>
+          <span className="osec-count num" title="จำนวนการจอง (บิลจอง) ที่เปิดอยู่">{open.length + (ownBookingCount || 0)}</span>
+          <span className="osec-head-sp" />
 
-      {authErr ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
-          <TriangleAlert size={14} style={{ flexShrink: 0 }} /> {authErr}
-        </div>
-      ) : error ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
-          <TriangleAlert size={14} style={{ flexShrink: 0 }} /> โหลดรายการจองไม่สำเร็จ — {error}
-        </div>
-      ) : loading ? (
-        <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>กำลังโหลดการจอง…</p>
-      ) : open.length === 0 ? (
-        <p className="muted" style={{ fontSize: 13, margin: '0 0 4px' }}>ไม่มีการจองจากเว็บที่เปิดอยู่</p>
-      ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {open.map((b) => (
-            <BookingOpenCard
-              key={b.code}
-              b={b}
-              onOpenSlip={setSlipView}
-              onDone={setFinishOf}
-              busy={busyCode === b.code}
-            />
+          <button
+            type="button"
+            className="osec-sort"
+            onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+            aria-label={sortDir === 'asc' ? 'เรียงตามเวลา (เร็ว→สาย) — กดเพื่อกลับทิศ' : 'เรียงตามเวลา (สาย→เร็ว) — กดเพื่อกลับทิศ'}
+            title={sortDir === 'asc' ? 'เรียงเช้า→ค่ำ — กดเพื่อกลับทิศ' : 'เรียงค่ำ→เช้า — กดเพื่อกลับทิศ'}
+          >
+            เรียงตามเวลา {sortDir === 'asc' ? <ChevronUp size={13} strokeWidth={2.2} /> : <ChevronDown size={13} strokeWidth={2.2} />}
+          </button>
+        </header>
+        <div className="osec-body">
+          {/* บิลจองร้านรับเอง (จาก data.bills) — แสดงใน section เดียวกับการจองจากเว็บ */}
+          {ownBookingRows && ownBookingRows.length > 0 && ownBookingRows.map((r, i) => (
+            <article
+              key={r.b.id}
+              className="orow"
+              onClick={() => startEdit && startEdit(r.b)}
+              title="แตะเพื่อแก้ไขบิล"
+              aria-label={`บิลจอง ลำดับ ${i + 1} · ${r.svcName} · เวลา ${r.timeText} · ฿ ${r.total.toLocaleString()}`}
+            >
+              <div className="orow-main">
+                <span className="orow-tag">
+                  <span className="orow-pill green"> จอง</span>
+                  <span className="orow-time num">{r.timeText}</span>
+                </span>
+                <span className="orow-svc" title={`รับจองโดย ${r.booker || '—'}${r.customer ? ` · ลูกค้า: ${r.customer}` : ''}`}>
+                  <b>{r.svcName}{r.rows2.length > 1 ? ` +${r.rows2.length - 1}` : ''}</b>
+                  <small className="num">
+                    {formatDuration(r.mins) || '—'} · รับจองโดย {r.booker || '—'}{r.customer ? ` · ${r.customer}` : ''}
+                    {r.hasDoc ? ` · ${r.docName}${r.docExtra}` : ''}
+                  </small>
+                </span>
+              </div>
+              <span className="orow-cta">
+                <b className="orow-amt num">฿ {r.total.toLocaleString()}</b>
+                <span className="orow-actions">
+                  <button
+                    type="button"
+                    className="orow-link"
+                    title={`แก้ไขบิล ${r.b.id}`}
+                    aria-label={`แก้ไขบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); startEdit && startEdit(r.b); }}
+                  >
+                    <Pencil size={11} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orow-link danger"
+                    title={`ยกเลิกบิล ${r.b.id}`}
+                    aria-label={`ยกเลิกบิล ${r.b.id}`}
+                    onClick={(e) => { e.stopPropagation(); requestVoid && requestVoid(r.b); }}
+                  >
+                    <Trash2 size={11} strokeWidth={2} />
+                  </button>
+                  <button
+                    type="button"
+                    className="orow-btn brown"
+                    title={`เช็คบิล (ชำระเงิน/ออกใบเสร็จ) ฿ ${r.total.toLocaleString()}`}
+                    onClick={(e) => { e.stopPropagation(); startCheckoutBill && startCheckoutBill(r.b); }}
+                  >
+                     <ChevronRight size={13} strokeWidth={2.4} />
+                  </button>
+                </span>
+              </span>
+            </article>
           ))}
+          {authErr ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
+              <TriangleAlert size={14} style={{ flexShrink: 0 }} /> {authErr}
+            </div>
+          ) : error ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--muted)' }}>
+              <TriangleAlert size={14} style={{ flexShrink: 0 }} /> โหลดรายการจองไม่สำเร็จ — {error}
+            </div>
+          ) : open.length === 0 ? null : (
+            sortedOpen.map((b, i) => {
+              const slip = slipState(b);
+              const when = b?.slot_start ? fmtTimeBkk(b.slot_start) : '';
+              const until = b?.slot_end ? fmtTimeBkk(b.slot_end) : '';
+              const span = slotMinutesBkk(b);
+              const mins = span ? span.end - span.start : null;
+              /* ถึงเวลารับบริการแล้ว? = วันนี้ + slot เริ่มไม่เกิน now+5 นาที
+                 — อนาคต/อีกวัน = ปุ่ม "รอเวลา" */
+              const started = Boolean(span)
+                && String(b?.slot_date || '').slice(0, 10) === bkkToday()
+                && bkkMinutes() + 5 >= span.start;
+              /* ป้ายแถว: ยืนยันแล้ว = เขียว "จองล่วงหน้า" · รอยืนยัน/รอคืนเงิน = เหลือง */
+              const pill = b?.status === 'pending'
+                ? { cls: 'amber', label: 'รอยืนยัน' }
+                : b?.status === 'cancel_requested'
+                  ? { cls: 'amber', label: 'รอคืนเงิน' }
+                  : { cls: 'green', label: 'จองล่วงหน้า' };
+              const price = toNum(b?.amount) || 0;
+              return (
+                <article
+                  key={b.code}
+                  className="orow"
+                  title={slip !== 'none' ? 'แตะเพื่อดูสลิป' : undefined}
+                  onClick={slip !== 'none' ? () => setSlipView(b) : undefined}
+                  aria-label={`ออเดอร์จอง ลำดับ ${i + 1} · ${b?.service_name || '—'} · ${when}${until ? `–${until}` : ''} · ${b?.customer_name || 'ไม่ระบุชื่อ'} · ฿ ${price.toLocaleString()}`}
+                >
+                  <div className="orow-main">
+                    <span className="orow-num" aria-hidden="true">{i + 1}</span>
+                    <span className="orow-tag">
+                      <span className={`orow-pill ${pill.cls}`}>{pill.cls === 'green' ? <CalendarCheck size={10} strokeWidth={2.4} /> : <Clock size={10} strokeWidth={2.4} />} {pill.label}</span>
+                      {/* เวลาอยู่ของเดอร์ (ตามสเก็ตช์: แสดงเฉพาะเวลาเริ่ม — ช่วงเต็มอยู่ใน tooltip) */}
+                      <span className="orow-time num" title={when && until ? `${when} น. – ${until} น.` : undefined}>{when ? `${when} น.` : '—'}</span>
+                    </span>
+                    <span
+                      className="orow-svc"
+                      title={[
+                        b?.customer_name ? `ลูกค้า: ${b.customer_name}` : 'ไม่ระบุชื่อ',
+                        b?.customer_phone ? `โทร ${b.customer_phone}` : null,
+                        b?.therapist_name ? `หมอ: ${String(b.therapist_name).startsWith('หมอ') ? b.therapist_name : `หมอ ${b.therapist_name}`}` : null,
+                      ].filter(Boolean).join(' · ')}
+                    >
+                      <b>{b?.service_name || '—'}</b>
+                      <small className="num">
+                        {formatDuration(mins) || '—'}
+                        {b?.customer_name ? ` · ${b.customer_name}` : ''}
+                        {b?.therapist_name ? ` · ${String(b.therapist_name).startsWith('หมอ') ? b.therapist_name : `หมอ ${b.therapist_name}`}` : ''}
+                      </small>
+                    </span>
+                  </div>
+                  <span className="orow-cta">
+                    {/* บรรทัดบน: ยอด + ป้ายชำระเงิน (คู่กัน — ช่วยคอลัมน์บริการได้กว้างขึ้น) */}
+                    <span className="orow-top">
+                      <b className="orow-amt num">{fmtBaht(price)}</b>
+                      <BookingPayBadge status={b?.payment_status} />
+                    </span>
+                    <span className="orow-actions">
+                      {slip !== 'none' && (
+                        <button
+                          type="button"
+                          className={`orow-ic${slip === 'verified' ? ' ok' : ''}`}
+                          title={slip === 'verified' ? 'ดูสลิป (ตรวจแล้ว)' : 'ดูสลิป'}
+                          aria-label={`ดูสลิปของเดอร์ ${b?.code || ''}`}
+                          onClick={(e) => { e.stopPropagation(); setSlipView(b); }}
+                        >
+                          {slip === 'verified' ? <CheckCircle2 size={14} strokeWidth={1.9} /> : <ImageIcon size={14} strokeWidth={1.9} />}
+                        </button>
+                      )}
+                      {b?.status === 'confirmed' ? (
+                        started ? (
+                          <button
+                            type="button"
+                            className="orow-btn green"
+                            disabled={busyCode === b?.code}
+                            onClick={(e) => { e.stopPropagation(); setFinishOf(b); }}
+                            title="บันทึกจบบริการ — เลือกหมอผู้ให้บริการก่อนบันทึก"
+                            aria-label={`จบบริการของเดอร์ ${b?.code || ''}`}
+                          >
+                            {busyCode === b?.code ? <Loader2 size={13} strokeWidth={1.9} className="spin" /> : null}
+                            จบบริการ <ChevronRight size={13} strokeWidth={2.4} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="orow-btn ghost-green"
+                            onClick={(e) => { e.stopPropagation(); setFinishOf(b); }}
+                            title="ยังไม่ถึงเวลานัด — กดบังคับจบบริการได้ถ้าลูกค้ามาก่อนเวลา"
+                            aria-label={`จบบริการก่อนเวลาของเดอร์ ${b?.code || ''}`}
+                          >
+                            <Clock size={13} strokeWidth={2.2} /> รอเวลา
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          className="orow-btn ghost-amber"
+                          title={b?.status === 'pending' ? 'ยืนยัน/ปฏิเสธที่หน้า "จัดการการจอง"' : 'อนุมัติคืนเงินที่หน้า "จัดการการจอง"'}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {b?.status === 'pending' ? 'รอยืนยัน' : 'รอคืนเงิน'}
+                        </button>
+                      )}
+                    </span>
+                  </span>
+                </article>
+              );
+            })
+          )}
         </div>
-      )}
-
-      <p className="muted" style={{ fontSize: 12, margin: '6px 0 2px' }}>
-        {/* สถานะช่องรีอัลไทม์จริง: เขียว = เหตุการณ์ตอนนี้ทันที · ส้ม = ช่องตก ใช้รอบ 15 วิ สำรอง */}
-        <span className={`rt-dot${rt === 'connected' ? ' rt-on' : rt === 'down' ? ' rt-off' : ''}`} aria-hidden="true" />
-        {rt === 'connected'
-          ? 'อัปเดตทันทีแบบเรียลไทม์'
-          : (rt === 'down'
-            ? 'รายการจองอัปเดตเองทุก 15 วินาที (ช่วงนี้ช่องเรียลไทม์หลุด — ใช้รอบสำรอง)'
-            : 'รายการจองอัปเดตเองทุก 15 วินาที')}
-        {' · ยืนยัน/ปฏิเสธที่หน้า “จัดการการจอง”'}
-      </p>
+      </section>
 
       <SlipViewerDialog booking={slipView} onClose={() => setSlipView(null)} />
 

@@ -70,6 +70,14 @@ export function billSubtotal(b) {
   return billRows(b).reduce((s, i) => s + rowNet(i), 0);
 }
 
+// วันธุรกิจที่ "มีผล" ของบิล — บิลจอง (customerType 'booking') ใช้วันให้บริการ (bookedDate) ทุกสถานะ
+// open/paid/cancelled — กันบิลจองพรุ่งนี้ไหลไปนับยอดของวันนี้ · บิลอื่นใช้กติกาเดิม (ตี 3 ตัดวัน)
+export function billBizDay(b) {
+  if (!b) return '';
+  if (b.customerType === 'booking' && b.bookedDate) return b.bookedDate;
+  return bizDateOf(b.date || b.createdAt || '');
+}
+
 // ยอดบิลสุทธิหลังหักส่วนลด (ตรงกับ total ที่เซฟ)
 export function billTotal(b) {
   return Math.max(0, billSubtotal(b) - ((b && b.discount) || 0));
@@ -158,7 +166,7 @@ export function guaranteeTopups(data, dateStr) {
   const earned = {};
   for (const b of d.bills || []) {
     if (!b || b.status !== 'paid') continue;
-    if (bizDateOf(b.date || b.createdAt) !== dateStr) continue;
+    if (billBizDay(b) !== dateStr) continue;
     for (const l of billLinesOf(b, d.services, therapists)) {
       if (!l.staff) continue;
       const k = String(l.tid);
@@ -183,7 +191,7 @@ export function guaranteeSigOf(d, dateStr) {
   // BUG-001: รวมยอดตั้งค่า guaranteeAmount + ยอดเงินของแต่ละแถวประกัน เพื่อให้แก้ยอดตั้งค่าแล้ว trigger reconcile
   const gAmt = guaranteeAmountOf(dd);
   const att = Object.keys(((dd.attendance || {})[dateStr]) || {}).sort().join(',');
-  const dayBills = (dd.bills || []).filter((b) => b && b.status === 'paid' && bizDateOf(b.date || b.createdAt) === dateStr).map((b) => b.id).sort().join(',');
+  const dayBills = (dd.bills || []).filter((b) => b && b.status === 'paid' && billBizDay(b) === dateStr).map((b) => b.id).sort().join(',');
   const dayG = ((dd.expenses || [])
     .filter((e) => e && typeof e.notes === 'string' && e.notes.startsWith('guarantee:') && e.notes.endsWith(`:${dateStr}`))
     .map((e) => `${e.notes}=${Number(e.amount) || 0}`)

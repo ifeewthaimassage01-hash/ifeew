@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { CheckCircle2, TriangleAlert, X, ExternalLink } from 'lucide-react';
 
-export function PageHeader({ icon: Icon, title, subtitle, actions, eyebrow }) {
+export function PageHeader({ icon: Icon, title, subtitle, actions }) {
   return (
     <header className="pagehead">
-      {eyebrow && <div className="eyebrow"><span>{eyebrow}</span></div>}
       <div className="pagehead-row">
         <div className="pagehead-main">
           {Icon && <div className="pagehead-icon"><Icon size={22} strokeWidth={1.8} /></div>}
@@ -45,9 +44,9 @@ export function Kpi({ tone = '', label, value, sub, span = false, small = false 
   );
 }
 
-export function EmptyState({ icon: Icon, title, subtitle }) {
+export function EmptyState({ icon: Icon, title, subtitle, compact }) {
   return (
-    <div className="empty" role="status">
+    <div className={`empty${compact ? ' compact' : ''}`} role="status">
       {Icon && <div className="empty-ic"><Icon size={26} strokeWidth={1.6} /></div>}
       <b>{title}</b>
       {subtitle && <span>{subtitle}</span>}
