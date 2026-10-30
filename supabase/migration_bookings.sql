@@ -6,19 +6,31 @@
 create extension if not exists pgcrypto;
 
 create table if not exists public.bookings (
-  id text primary key default gen_random_uuid()::text,
+  id uuid primary key default gen_random_uuid(),
   code text not null unique,
   customer_name text not null default '',
   customer_phone text default '',
+  customer_email text,
+  customer_note text,
   service_name text not null default '',
+  category text,
+  duration integer,
   therapist_name text default '',
   therapist_id text default '',
   slot_date date not null,
   slot_start timestamptz not null,
   slot_end timestamptz not null,
-  amount integer not null default 0,        -- บาท (ยอดที่ต้องโอน)
-  pay_amount integer default 0,             -- สตางค์ (ยอดจริงที่โอน)
+  amount integer not null default 0,        -- บาท (ราคาบริการ)
+  pay_amount integer default 0,             -- สตางค์ (ยอดจริงที่ต้องโอน)
   pay_amount_text text default '',
+  payment_provider text default 'promptpay',
+  provider_ref text,
+  order_id text,
+  transaction_id text,
+  qr_payload text,
+  qr_image text,
+  pay_expires_at timestamptz,
+  expires_at timestamptz,
   payment_status text default 'unpaid',
   slip_image_url text default '',
   slip_verified_at timestamptz,
@@ -27,7 +39,6 @@ create table if not exists public.bookings (
   slip_trans_ref text default '',
   status text default 'pending',            -- pending/confirmed/completed/cancelled/expired/cancel_requested
   paid_at timestamptz,
-  transaction_id text default '',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -43,6 +54,17 @@ alter table public.bookings add column if not exists slip_trans_ref text default
 alter table public.bookings add column if not exists paid_at timestamptz;
 alter table public.bookings add column if not exists transaction_id text default '';
 alter table public.bookings add column if not exists updated_at timestamptz default now();
+alter table public.bookings add column if not exists customer_email text;
+alter table public.bookings add column if not exists customer_note text;
+alter table public.bookings add column if not exists category text;
+alter table public.bookings add column if not exists duration integer;
+alter table public.bookings add column if not exists payment_provider text default 'promptpay';
+alter table public.bookings add column if not exists provider_ref text;
+alter table public.bookings add column if not exists order_id text;
+alter table public.bookings add column if not exists qr_payload text;
+alter table public.bookings add column if not exists qr_image text;
+alter table public.bookings add column if not exists pay_expires_at timestamptz;
+alter table public.bookings add column if not exists expires_at timestamptz;
 
 -- Index สำหรับ query ที่ Edge Function ใช้บ่อย
 create index if not exists bookings_slot_date_idx on public.bookings(slot_date);
@@ -51,13 +73,16 @@ create index if not exists bookings_status_idx on public.bookings(status);
 create index if not exists bookings_code_idx on public.bookings(code);
 create index if not exists bookings_payment_status_idx on public.bookings(payment_status);
 
--- RLS: เปิดให้อ่าน/เขียนได้ทุก role (anon ผ่าน Edge Function ที่มี service role key)
--- Edge Function ใช้ service role key จึงผ่าน RLS ได้หมด ไม่ต้องพึ่ง policy ของ anon
+-- RLS: เปิด RLS แต่ "ไม่สร้าง policy ให้ anon/authenticated" โดยเด็ดขาด
+--   ข้อมูลลูกค้าใน bookings (ชื่อ เบอร์โทร ยอดเงิน ประวัติจอง) ต้องเข้าถึง
+--   ผ่าน Edge Function ที่ใช้ service_role เท่านั้น ไม่อนุญาตให้ anon อ่านตรง ๆ
 alter table public.bookings enable row level security;
-
 do $$ begin
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'bookings' and policyname = 'open access for pos') then
-    create policy "open access for pos" on public.bookings for all using (true) with check (true);
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on table public.bookings from anon;
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on table public.bookings from authenticated;
   end if;
 end $$;
 
@@ -110,7 +135,6 @@ create trigger trg_booking_changed
   after insert or update or delete on public.bookings
   for each row execute function public.trg_booking_changed();
 
--- grant ให้ anon ใช้ function และอ่านตาราง (สำหรับกรณีที่อผ่าน edge function โดยตรงไม่ได้)
-grant select, insert, update, delete on public.bookings to anon, authenticated;
+-- grant ให้ anon ใช้ function และอ่านตาราง booking_events เท่านั้น (bookings ห้าม grant ให้ anon)
 grant select, insert on public.booking_events to anon, authenticated;
 grant execute on function public.trg_booking_changed() to anon, authenticated;
