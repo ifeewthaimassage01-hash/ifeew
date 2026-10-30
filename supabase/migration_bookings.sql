@@ -73,9 +73,9 @@ create index if not exists bookings_status_idx on public.bookings(status);
 create index if not exists bookings_code_idx on public.bookings(code);
 create index if not exists bookings_payment_status_idx on public.bookings(payment_status);
 
--- RLS: เปิด RLS แต่ "ไม่สร้าง policy ให้ anon/authenticated" โดยเด็ดขาด
---   ข้อมูลลูกค้าใน bookings (ชื่อ เบอร์โทร ยอดเงิน ประวัติจอง) ต้องเข้าถึง
---   ผ่าน Edge Function ที่ใช้ service_role เท่านั้น ไม่อนุญาตให้ anon อ่านตรง ๆ
+-- RLS: เปิด RLS แต่กระชับสิทธิ์ anon/authenticated — ปิดการเขียนทั้งหมด
+--   ให้อ่านได้ "เฉพาะคอลัมน์ที่หน้าตารางคิวของเว็บจองใช้" เท่านั้น
+--   (ข้อมูลลับ: เบอร์โทร/อีเมล/โน้ต/ยอดเงิน/สลิป อ่านผ่าน Edge Function service_role เท่านั้น)
 alter table public.bookings enable row level security;
 do $$ begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
@@ -85,6 +85,21 @@ do $$ begin
     revoke all on table public.bookings from authenticated;
   end if;
 end $$;
+
+-- policy SELECT-only แบบจำกัดหน้าต่างวันที่ (ก่อนหน้า 1 วัน ถึง อีก 30 วัน)
+-- รายละเอียดเต็ม: ifeew-booking/supabase/migration_fix_queue_read.sql
+drop policy if exists "queue read limited columns" on public.bookings;
+create policy "queue read limited columns"
+  on public.bookings
+  for select
+  to anon, authenticated
+  using (
+    slot_date between (current_date - 1) and (current_date + 30)
+  );
+grant select (
+  code, service_name, category, duration, therapist_name,
+  slot_date, slot_start, slot_end, status, customer_name
+) on public.bookings to anon, authenticated;
 
 -- trigger updated_at อัตโนมัติ
 create or replace function public.touch_bookings_updated_at()
